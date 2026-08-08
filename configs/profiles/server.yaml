@@ -1,0 +1,91 @@
+# server — Linux + A100 80 GB, ishlab chiqarish
+# vLLM multi-LoRA → agentlar haqiqatan parallel ishlaydi (debate ~6 s)
+
+profile: server
+
+inference:
+  backend: vllm
+  model: models/uzlegal-32b
+  dtype: bfloat16
+  tensor_parallel_size: 1
+  gpu_memory_utilization: 0.90
+  max_model_len: 32768
+  enable_lora: true            # ← multi-LoRA
+  max_loras: 5
+  max_lora_rank: 16
+  adapters:
+    jurist: /adapters/jurist/current
+    advocate: /adapters/advocate/current
+    prosecutor: /adapters/prosecutor/current
+    professor: /adapters/professor/current
+    judge: /adapters/judge/current
+  enable_prefix_caching: true
+
+retrieval:
+  vector_store:
+    type: qdrant
+    url: http://qdrant:6333
+    collection: uzlegal
+  lexical:
+    type: elasticsearch
+    url: http://elasticsearch:9200
+    index: uzlegal-lex
+  graph:
+    type: postgres
+    dsn: ${POSTGRES_DSN}
+  embedder_service: http://embedder:8002
+  reranker_service: http://reranker:8001
+  top_k_retrieve: 50
+  top_k_rerank: 8
+  confidence_threshold: 0.35
+  context_budget_tokens: 6000
+
+orchestration:
+  parallel_agents: true        # ← vLLM multi-LoRA
+  max_debate_rounds: 2
+  disagreement_threshold: 0.4
+  timeout_per_agent_s: 30
+  timeout_total_s: 90
+  checkpointer:
+    type: postgres
+    dsn: ${POSTGRES_DSN}
+
+gate:
+  enabled: true
+  require_citation_for_legal_claims: true
+  nli_check: true
+  drop_unsupported: true
+
+api:
+  host: 0.0.0.0
+  port: 8080
+  auth: api_key
+  cors_origins: ["https://app.example.uz"]
+  rate_limit:
+    per_key_daily: 1000
+    per_ip_minute: 60
+  max_upload_mb: 20
+
+observability:
+  tracing: otlp
+  otlp_endpoint: http://otel-collector:4317
+  metrics: prometheus
+  metrics_port: 9090
+  log_level: INFO
+  log_format: json
+
+privacy:
+  store_raw_questions: false
+  mask_pii_in_logs: true
+  audit_retention_days: 2555
+  data_residency: UZ           # ma'lumot O'zbekistonda saqlanadi
+
+release:
+  canary:
+    enabled: true
+    traffic_percent: 5
+    observation_minutes: 30
+    auto_rollback_on:
+      - hallucination_rate > 0.02
+      - deprecated_leak > 0
+      - p95_latency_s > 90

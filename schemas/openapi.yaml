@@ -1,0 +1,605 @@
+openapi: 3.1.0
+
+info:
+  title: UzLegal-AI API
+  version: 0.2.0
+  description: |
+    O'zbekiston huquqiy tizimi uchun ko'p-agentli, iqtibosga asoslangan AI platformasi.
+
+    ## Asosiy tamoyil
+    Har bir huquqiy da'vo real hujjatga havola bilan qaytariladi. Iqtibos bilan
+    tasdiqlanmagan da'vo javobdan avtomatik chiqariladi.
+
+    ## Muhim
+    Bu API yuridik maslahat bermaydi. Har javobda majburiy `disclaimer` maydoni
+    mavjud va uni integratsiya qilingan mahsulotda ko'rsatish shart.
+  license:
+    name: MIT
+  contact:
+    name: ShokirjonMK
+    url: https://github.com/ShokirjonMK/uzlegal-ai
+
+servers:
+  - url: http://127.0.0.1:8080/v1
+    description: Local (local-dev profili)
+  - url: https://api.example.uz/v1
+    description: Ishlab chiqarish
+
+security:
+  - ApiKeyAuth: []
+
+tags:
+  - name: consult
+    description: Ko'p-agentli huquqiy tahlil
+  - name: search
+    description: Qonunchilikda qidiruv (LLM siz)
+  - name: documents
+    description: Hujjat va moddalar
+  - name: agents
+    description: Alohida agent rollari
+  - name: batch
+    description: Ommaviy ishlov
+  - name: system
+    description: Sog'liq va metama'lumot
+
+paths:
+
+  /consult:
+    post:
+      tags: [consult]
+      summary: Huquqiy maslahat so'rash
+      description: |
+        Asosiy endpoint. Router savol murakkabligini baholaydi va mos oqimni tanlaydi:
+        `simple` (1 agent), `standard` (3 agent), `complex` (to'liq debate).
+      operationId: consult
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ConsultRequest'}
+            examples:
+              oddiy:
+                summary: Oddiy faktik savol
+                value:
+                  question: "Mehnat shartnomasi qanday asoslarda bekor qilinadi?"
+              nizoli:
+                summary: Nizoli savol, to'liq debate
+                value:
+                  question: "Mijozim 3 yil oldin sotib olgan uyni haqiqiy mulkdor talab qilmoqda. Kim haq?"
+                  mode: complex
+                  client_position: "Mijoz vijdonli oluvchi, kvitansiya yo'q"
+                  trace: true
+              tarixiy:
+                summary: Tarixiy holat
+                value:
+                  question: "Ishdan bo'shatish tartibi qanday edi?"
+                  as_of: "2021-06-01"
+      responses:
+        '200':
+          description: Muvaffaqiyatli
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConsultResult'}
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /consult/stream:
+    post:
+      tags: [consult]
+      summary: Maslahat (SSE oqim)
+      description: |
+        `/consult` bilan bir xil, lekin Server-Sent Events orqali oqim qaytaradi.
+
+        Hodisa turlari: `status`, `sources`, `agent_start`, `token`,
+        `agent_done`, `gate`, `done`, `error`.
+      operationId: consultStream
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ConsultRequest'}
+      responses:
+        '200':
+          description: SSE oqim
+          content:
+            text/event-stream:
+              schema: {type: string}
+              example: |
+                event: status
+                data: {"stage":"retrieval","progress":0.1}
+
+                event: agent_start
+                data: {"role":"jurist"}
+
+                event: token
+                data: {"role":"jurist","text":"Mehnat"}
+
+                event: agent_done
+                data: {"role":"jurist","confidence":0.81,"ms":7200}
+
+                event: gate
+                data: {"claims":12,"kept":11,"dropped":1}
+
+                event: done
+                data: {"trace_id":"cns_01J8XQ","confidence":0.86}
+
+  /search:
+    post:
+      tags: [search]
+      summary: Qonunchilikda qidiruv (LLM siz)
+      description: Faqat retrieval. Tez va arzon — model chaqirilmaydi.
+      operationId: search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SearchRequest'}
+      responses:
+        '200':
+          description: Topilgan bo'laklar
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results: {type: array, items: {$ref: '#/components/schemas/ScoredChunk'}}
+                  total: {type: integer}
+                  latency_ms: {type: integer}
+
+  /documents/{doc_id}:
+    get:
+      tags: [documents]
+      summary: Hujjat metama'lumoti va versiyalari
+      operationId: getDocument
+      parameters:
+        - {name: doc_id, in: path, required: true, schema: {type: string}, example: uz-fk-1996}
+      responses:
+        '200':
+          description: Hujjat
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Document'}
+        '404': {description: Topilmadi}
+
+  /documents/{doc_id}/articles/{article}:
+    get:
+      tags: [documents]
+      summary: Aniq modda matni
+      operationId: getArticle
+      parameters:
+        - {name: doc_id, in: path, required: true, schema: {type: string}}
+        - {name: article, in: path, required: true, schema: {type: string}, example: "234"}
+        - name: as_of
+          in: query
+          description: Sana holatiga ko'ra versiya. Ko'rsatilmasa — amaldagi.
+          schema: {type: string, format: date}
+      responses:
+        '200':
+          description: Modda
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Article'}
+        '404': {description: Modda topilmadi}
+
+  /agents/{role}:
+    post:
+      tags: [agents]
+      summary: Bitta agentni chaqirish
+      description: Munozarasiz, faqat bitta rol nuqtai nazari.
+      operationId: invokeAgent
+      parameters:
+        - name: role
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [jurist, advocate, prosecutor, professor, judge]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ConsultRequest'}
+      responses:
+        '200':
+          description: Agent pozitsiyasi
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AgentResponse'}
+
+  /analyze/document:
+    post:
+      tags: [consult]
+      summary: Hujjatni tahlil qilish
+      description: PDF/DOCX yuklash → huquqiy tahlil. Fayl ishlov tugagach o'chiriladi.
+      operationId: analyzeDocument
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+                question: {type: string}
+                agent: {type: string, enum: [jurist, advocate, prosecutor, professor, judge]}
+                checklist: {type: string, description: "Tekshiruv ro'yxati nomi"}
+      responses:
+        '200':
+          description: Tahlil
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConsultResult'}
+        '413': {description: Fayl juda katta}
+
+  /traces/{trace_id}:
+    get:
+      tags: [system]
+      summary: To'liq audit zanjiri
+      operationId: getTrace
+      parameters:
+        - {name: trace_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Trace
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Trace'}
+
+  /batch:
+    post:
+      tags: [batch]
+      summary: Ommaviy so'rov (asinxron)
+      operationId: createBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [requests]
+              properties:
+                requests:
+                  type: array
+                  maxItems: 1000
+                  items: {$ref: '#/components/schemas/ConsultRequest'}
+                webhook_url: {type: string, format: uri}
+      responses:
+        '202':
+          description: Job yaratildi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: {type: string}
+                  status: {type: string, enum: [queued]}
+                  estimated_seconds: {type: integer}
+
+  /batch/{job_id}:
+    get:
+      tags: [batch]
+      summary: Job holati va natijalari
+      operationId: getBatch
+      parameters:
+        - {name: job_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Holat
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: {type: string}
+                  status: {type: string, enum: [queued, running, completed, failed]}
+                  progress: {type: number, minimum: 0, maximum: 1}
+                  results: {type: array, items: {$ref: '#/components/schemas/ConsultResult'}}
+
+  /health:
+    get:
+      tags: [system]
+      summary: Sog'liq tekshiruvi
+      operationId: health
+      security: []
+      responses:
+        '200':
+          description: Sog'lom
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, enum: [healthy, degraded, unhealthy]}
+                  model_ready: {type: boolean}
+                  kb_ready: {type: boolean}
+                  adapters_loaded: {type: array, items: {type: string}}
+
+  /meta:
+    get:
+      tags: [system]
+      summary: Model, KB versiyasi va imkoniyatlar
+      operationId: meta
+      security: []
+      responses:
+        '200':
+          description: Metama'lumot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_version: {type: string}
+                  model_version: {type: string, example: uzlegal-14b-v0.2}
+                  kb_version: {type: string, example: v2026.09.01}
+                  kb_documents: {type: integer, example: 35214}
+                  kb_updated_at: {type: string, format: date-time}
+                  available_agents: {type: array, items: {type: string}}
+                  supported_languages: {type: array, items: {type: string}}
+                  profile: {type: string}
+
+components:
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      description: "Authorization: Bearer sk-uzlegal-..."
+
+  schemas:
+
+    ConsultRequest:
+      type: object
+      required: [question]
+      properties:
+        question:
+          type: string
+          minLength: 3
+          maxLength: 8000
+        mode:
+          type: string
+          enum: [auto, simple, standard, complex]
+          default: auto
+          description: "`auto` — router hal qiladi"
+        agents:
+          type: array
+          items: {type: string, enum: [jurist, advocate, prosecutor, professor, judge]}
+          description: "Aniq agentlar. Ko'rsatilmasa — router tanlaydi."
+        as_of:
+          type: string
+          format: date
+          description: "Qonunchilikning shu sanadagi holati. Ko'rsatilmasa — bugungi."
+        lang:
+          type: string
+          enum: [uz, ru, en]
+          default: uz
+        client_position:
+          type: string
+          description: "Advokat roli uchun mijoz pozitsiyasi"
+        max_tokens: {type: integer, default: 2000, maximum: 8000}
+        stream: {type: boolean, default: false}
+        trace: {type: boolean, default: false}
+
+    ConsultResult:
+      type: object
+      required: [trace_id, answer, citations, confidence, disclaimer, kb_version]
+      properties:
+        trace_id: {type: string, example: cns_01J8XQ2M4K}
+        answer: {type: string}
+        verdict: {$ref: '#/components/schemas/Verdict'}
+        positions:
+          type: object
+          additionalProperties: {$ref: '#/components/schemas/Position'}
+          description: "Rol → pozitsiya (complex rejimda)"
+        citations:
+          type: array
+          items: {$ref: '#/components/schemas/Citation'}
+        confidence: {type: number, minimum: 0, maximum: 1}
+        caveats:
+          type: array
+          items: {type: string}
+          description: "Noaniqlik, yetishmayotgan ma'lumot"
+        mode_used: {type: string}
+        latency_ms: {type: integer}
+        model_version: {type: string}
+        kb_version: {type: string}
+        disclaimer:
+          type: string
+          description: "MAJBURIY. Integratsiyada foydalanuvchiga ko'rsatilishi shart."
+
+    Citation:
+      type: object
+      required: [tag, doc_id, article, url]
+      properties:
+        tag: {type: string, example: C1}
+        doc_id: {type: string, example: uz-mk-2022}
+        doc_title: {type: string, example: "Mehnat kodeksi"}
+        doc_type: {type: string, enum: [kodeks, qonun, PF, PQ, qaror, plenum]}
+        article: {type: string, example: "111"}
+        part: {type: string, example: "2"}
+        version: {type: string, format: date}
+        valid_from: {type: string, format: date}
+        valid_to: {type: string, format: date, nullable: true}
+        status: {type: string, enum: [in_force, superseded, repealed]}
+        url: {type: string, format: uri}
+        excerpt: {type: string}
+        supports:
+          type: array
+          items: {type: string}
+          description: "Qaysi da'volarni qo'llab-quvvatlaydi"
+
+    Position:
+      type: object
+      properties:
+        role: {type: string}
+        stance: {type: string}
+        arguments:
+          type: array
+          items:
+            type: object
+            properties:
+              claim: {type: string}
+              citations: {type: array, items: {type: string}}
+              strength: {type: string, enum: [strong, moderate, weak]}
+        weaknesses:
+          type: array
+          items: {type: string}
+          description: "O'z pozitsiyasining zaif tomonlari — majburiy"
+        confidence: {type: number, minimum: 0, maximum: 1}
+
+    Verdict:
+      type: object
+      properties:
+        conclusion: {type: string}
+        reasoning: {type: array, items: {type: string}}
+        accepted_arguments: {type: array, items: {type: string}}
+        rejected_arguments: {type: array, items: {type: string}}
+        confidence: {type: number}
+        caveats: {type: array, items: {type: string}}
+
+    AgentResponse:
+      type: object
+      properties:
+        role: {type: string}
+        position: {$ref: '#/components/schemas/Position'}
+        citations: {type: array, items: {$ref: '#/components/schemas/Citation'}}
+        disclaimer: {type: string}
+
+    SearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query: {type: string}
+        top_k: {type: integer, default: 10, maximum: 50}
+        doc_types: {type: array, items: {type: string}}
+        as_of: {type: string, format: date}
+        include_repealed: {type: boolean, default: false}
+
+    ScoredChunk:
+      type: object
+      properties:
+        chunk_id: {type: string}
+        score: {type: number}
+        content: {type: string}
+        citation: {$ref: '#/components/schemas/Citation'}
+        hierarchy: {type: array, items: {type: string}}
+
+    Document:
+      type: object
+      properties:
+        doc_id: {type: string}
+        doc_type: {type: string}
+        title_uz: {type: string}
+        title_ru: {type: string}
+        adopted_at: {type: string, format: date}
+        issuer: {type: string}
+        status: {type: string}
+        versions:
+          type: array
+          items:
+            type: object
+            properties:
+              version_id: {type: string}
+              valid_from: {type: string, format: date}
+              valid_to: {type: string, format: date, nullable: true}
+              amended_by: {type: array, items: {type: string}}
+        source_url: {type: string, format: uri}
+
+    Article:
+      type: object
+      properties:
+        article_id: {type: string}
+        number: {type: string}
+        title: {type: string}
+        body_uz: {type: string}
+        body_ru: {type: string}
+        hierarchy: {type: array, items: {type: string}}
+        version: {type: string}
+        valid_from: {type: string, format: date}
+        valid_to: {type: string, format: date, nullable: true}
+        status: {type: string}
+        references: {type: array, items: {type: string}}
+        explained_by: {type: array, items: {type: string}}
+        url: {type: string, format: uri}
+
+    Trace:
+      type: object
+      properties:
+        trace_id: {type: string}
+        timestamp: {type: string, format: date-time}
+        question_masked: {type: string}
+        mode: {type: string}
+        model_version: {type: string}
+        kb_version: {type: string}
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              node: {type: string}
+              ms: {type: integer}
+              detail: {type: object, additionalProperties: true}
+        gate:
+          type: object
+          properties:
+            claims: {type: integer}
+            kept: {type: integer}
+            dropped: {type: integer}
+            drop_reasons: {type: array, items: {type: string}}
+        total_ms: {type: integer}
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - insufficient_grounding
+                - out_of_scope
+                - model_unavailable
+                - rate_limited
+                - context_too_long
+                - invalid_as_of
+                - internal_error
+            message: {type: string}
+            trace_id: {type: string}
+            details: {type: object, additionalProperties: true}
+            suggestions: {type: array, items: {type: string}}
+
+  responses:
+    UnprocessableEntity:
+      description: "Ishonchli manba topilmadi yoki savol doiradan tashqari"
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example:
+            error:
+              code: insufficient_grounding
+              message: "Savolga ishonchli manba topilmadi"
+              trace_id: cns_01J8XQ
+              details: {best_score: 0.28, threshold: 0.35}
+              suggestions: ["Savolni aniqroq ifodalang", "Hujjat nomini ko'rsating"]
+
+    RateLimited:
+      description: Limit oshib ketdi
+      headers:
+        Retry-After: {schema: {type: integer}}
+        X-RateLimit-Remaining: {schema: {type: integer}}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+
+    ServiceUnavailable:
+      description: Model yuklanmagan yoki xizmat mavjud emas
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}

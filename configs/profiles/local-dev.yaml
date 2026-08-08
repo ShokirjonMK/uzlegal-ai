@@ -1,0 +1,82 @@
+# local-dev — MacBook Air M4, 24 GB unified memory
+# Butunlay oflayn. Hech qanday tashqi server jarayoni talab qilinmaydi.
+# Xotira byudjeti: ~17 GB / 20 GB (wired limit) → ~7 GB zaxira
+
+profile: local-dev
+
+hardware:
+  platform: apple-silicon
+  wired_limit_mb: 20480      # sudo sysctl iogpu.wired_limit_mb=20480
+
+inference:
+  backend: mlx
+  model: models/uzlegal-14b-4bit
+  adapters_dir: adapters/
+  adapters:
+    jurist: jurist/current
+    advocate: advocate/current
+    prosecutor: prosecutor/current
+    professor: professor/current
+    judge: judge/current
+  max_context: 8192
+  kv_cache_prefix: true      # debate uchun kritik — 3.8x tezlashtirish
+  default_max_tokens: 2000
+
+retrieval:
+  vector_store:
+    type: lancedb
+    path: ./kb/current/vectors
+  lexical:
+    type: tantivy
+    path: ./kb/current/lexical
+  graph:
+    type: sqlite
+    path: ./kb/current/graph.db
+  embedder: BAAI/bge-m3
+  reranker: BAAI/bge-reranker-v2-m3
+  top_k_retrieve: 50
+  top_k_rerank: 8
+  rrf_k: 60
+  confidence_threshold: 0.35    # bundan past → "manba topilmadi"
+  context_budget_tokens: 6000
+  graph_expansion:
+    enabled: true
+    max_depth: 1
+
+orchestration:
+  parallel_agents: false        # bitta baza model — ketma-ket
+  max_debate_rounds: 2
+  disagreement_threshold: 0.4   # bundan past → raund 2 o'tkaziladi
+  timeout_per_agent_s: 60
+  timeout_total_s: 180
+  checkpointer:
+    type: sqlite
+    path: ./data/traces.db
+
+gate:
+  enabled: true
+  require_citation_for_legal_claims: true
+  nli_check: true               # iqtibos da'voni qo'llab-quvvatlaydimi
+  drop_unsupported: true
+
+api:
+  host: 127.0.0.1               # faqat local
+  port: 8080
+  auth: none
+  cors_origins: ["http://localhost:3000"]
+  rate_limit: null
+
+web:
+  enabled: true
+  port: 3000
+
+observability:
+  tracing: local                # fayl
+  metrics: none
+  log_level: INFO
+  log_format: pretty
+
+privacy:
+  store_raw_questions: false
+  mask_pii_in_logs: true
+  audit_retention_days: 2555    # 7 yil

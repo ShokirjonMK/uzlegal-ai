@@ -1,0 +1,53 @@
+# Advokat roli — namuna konfiguratsiya
+# Yangi rol qo'shish uchun shu faylni nusxalash yetarli, kod o'zgarmaydi.
+
+role: advocate
+display_name: "Advokat"
+display_name_ru: "Адвокат"
+
+adapter: adapters/advocate/current
+base_temperature: 0.5
+top_p: 0.9
+max_tokens: 1500
+
+system_prompt: prompts/roles/advocate.uz.md
+output_schema: Position
+
+retrieval:
+  profile: default
+  top_k: 8
+  # advokat uchun sud amaliyoti ustuvorroq — o'xshash ishlarda g'alaba pozitsiyalari
+  boost:
+    doc_types:
+      qaror: 1.2
+      plenum: 1.1
+
+orchestration:
+  participates_in_debate: true
+  debate_side: defense
+  position_in_graph: after_jurist
+  receives:
+    round_1: [legal_frame, client_position]
+    round_2: [legal_frame, client_position, opponent_position]
+
+constraints:
+  # Bu cheklovlar ham system promptda, ham chiqish validatsiyasida tekshiriladi
+  must_include_weaknesses: true       # o'z pozitsiyasining zaif tomonlarini aytishi shart
+  must_cite_legal_claims: true
+  may_not_fabricate_facts: true
+  may_not_advise_illegal_action: true
+  must_admit_weak_position: true      # istiqbol yo'q bo'lsa — halol aytish
+
+training:
+  dataset: data/sft/advocate
+  samples_target: 8000
+  weak_position_ratio: 0.15           # rol qulflanishiga qarshi
+  lora:
+    rank: 16
+    alpha: 32
+    dropout: 0.05
+
+eval:
+  role_fidelity_target: 0.90
+  citation_coverage_target: 0.95
+  weakness_disclosure_target: 0.95    # javoblarning % i zaif tomonni ko'rsatadi

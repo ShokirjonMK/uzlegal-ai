@@ -1,0 +1,58 @@
+# Model fayllari va bilim bazasi — S3 / LFS da, repoda emas
+models/
+kb/
+data/raw/
+data/processed/
+*.safetensors
+*.gguf
+*.npz
+*.bin
+
+# Adapterlar — Git LFS orqali (registry.yaml repoda qoladi)
+adapters/**/*.safetensors
+adapters/**/*.npz
+
+# Trace va audit
+data/traces.db
+*.jsonl.gz
+reports/*.html
+
+# Shaxsiy konfiguratsiya
+configs/local.yaml
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node / web
+node_modules/
+web/.next/
+web/out/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vaqtinchalik
+tmp/
+scratch/
+*.log
