@@ -120,20 +120,61 @@ uzlegal models bench \
 
 **4-bit sifat yo'qotishi:** 14B modelda perplexity ~2–4% oshadi. Yuridik vazifada bu sezilarli emas, chunki faktlar RAG dan keladi — model faqat qayta ifodalaydi. Bu [T1 tamoyili](01-architecture.md#1-dizayn-tamoyillari) ning amaliy foydasi.
 
-## 6. Kutilayotgan ishlash ko'rsatkichlari (M4 24 GB)
+## 6. Ishlash ko'rsatkichlari — O'LCHANGAN (M4 Air 24 GB)
 
-Baholangan qiymatlar, Faza 0 da o'lchanadi va yangilanadi:
+> ⚠️ **Faza 0 o'lchovi dastlabki bahoni rad etdi.** Quyidagi jadvaldagi
+> raqamlar 2026-08-09 da Qwen3-14B-4bit bilan real o'lchangan.
+> Oldingi baho (22 tok/s) **noto'g'ri** edi — u M4 Pro/Max uchun to'g'ri,
+> lekin bu mashinada 10-yadroli GPU va passiv sovutish bor.
 
-| Operatsiya | Kutilgan | Izoh |
-|------------|----------|------|
-| Model yuklash (sovuq) | 8–12 s | Disk tezligiga bog'liq |
-| Adapter almashtirish | ~50 ms | 40 MB ko'chirish |
-| Prompt processing | ~180 tok/s | 6k kontekst ≈ 33 s ❗ |
-| Generatsiya | ~22 tok/s | 500 token ≈ 23 s |
-| Embedding (BGE-M3) | ~40 chunk/s | Indekslashda |
-| Retrieval (gibrid + rerank) | 300–600 ms | Indeks hajmiga bog'liq |
-| **Bitta agent javobi** | **6–10 s** | |
-| **To'liq debate (5 agent)** | **40–70 s** | ❗ Maqsad 45 s |
+| Operatsiya | Baho edi | **O'lchandi** | Izoh |
+|------------|---------:|--------------:|------|
+| Model yuklash (sovuq) | 8–12 s | **6.6 s** | ✅ Bahodan yaxshi |
+| Xotira (14B 4-bit) | 8.0 GB | **7.7 GB** | ✅ Mos |
+| TTFT (qisqa prompt) | — | **2.7 s** | |
+| Generatsiya | 22 tok/s | **5.6–5.8 tok/s** | ❌ **4× sekin** |
+| Adapter almashtirish | ~50 ms | ⏳ Faza 4 | Adapter hali yo'q |
+| Prompt processing | ~180 tok/s | ⏳ | 6k kontekstda o'lchanadi |
+
+### Nima uchun sekin va nima qilish kerak
+
+O'lchov paytida **Low Power Mode yoqilgan** va noutbuk **batareyada** ishlagan.
+macOS bu rejimda GPU chastotasini pasaytiradi. Tuzatish:
+
+```bash
+sudo pmset -a lowpowermode 0          # Low Power Mode ni o'chirish
+sudo sysctl iogpu.wired_limit_mb=20480 # GPU xotira chegarasi
+# va quvvat manbaiga ulash
+```
+
+Bundan keyin qayta o'lchash shart. Lekin hatto ideal sharoitda ham M4 Air
+(10-yadroli GPU, ~120 GB/s xotira o'tkazuvchanligi) 14B 4-bit modelda
+**nazariy maksimum ~12–15 tok/s** beradi. 22 tok/s bu apparatda erishib
+bo'lmaydigan ko'rsatkich.
+
+### Oqibati: debate byudjeti qayta hisoblanadi
+
+| Ssenariy | 5.7 tok/s | 12 tok/s (optimal) |
+|----------|----------:|-------------------:|
+| Bitta agent (400 token) | 70 s | 33 s |
+| To'liq debate (5 agent) | **~6 daqiqa** | ~2.8 daqiqa |
+| Maqsad (docs/00) | 45 s | 45 s |
+
+**45 soniyalik maqsad bu apparatda erishib bo'lmaydi.** Variantlar:
+
+1. **Qwen3-8B ga o'tish** — ~2× tez, murakkab mantiqda zaifroq.
+   Faza 0 baholashida 14B bilan solishtiriladi.
+2. **Agent javoblarini qisqartirish** — 400 → 150 token. Debate ~2.5 daqiqa.
+3. **Prefix KV-cache** — kontekstni qayta ishlashni 5× kamaytiradi (ADR-005),
+   lekin generatsiya tezligiga ta'sir qilmaydi.
+4. **Router ustuvorligi** — savollarning ~60% i `simple`, ular 1 agent bilan
+   ~20 s da bajariladi. To'liq debate faqat haqiqiy nizoli savollarga.
+5. **Server profili** — ishlab chiqarish uchun baribir kerak bo'ladi.
+
+**Tavsiya:** `local-dev` ni *ishlab chiqish va sifat baholash* muhiti deb
+qarash, tezlik SLO sini unga qo'ymaslik. Foydalanuvchi SLO si `server`
+profiliga qo'yiladi. `docs/00-overview.md` dagi 45 s maqsadi shunga muvofiq
+qayta ko'rib chiqilishi kerak.
 
 ### Prompt processing muammosi va yechimi
 

@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UzLegal-AI — Model boshqaruvi</title>
+<style>
+  :root {
+    --bg: #ffffff; --surface: #f7f8fa; --border: #e2e5ea;
+    --text: #16181d; --muted: #6b7280; --accent: #2563eb;
+    --ok: #059669; --warn: #d97706; --err: #dc2626;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115; --surface: #181b21; --border: #272b33;
+      --text: #e6e8ec; --muted: #9aa1ad; --accent: #60a5fa;
+      --ok: #34d399; --warn: #fbbf24; --err: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1.25rem; background: var(--bg); color: var(--text);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap; margin-bottom: .35rem; }
+  h1 { font-size: 1.4rem; margin: 0; letter-spacing: -.01em; }
+  .phase { font-size: .78rem; color: var(--muted); background: var(--surface);
+           border: 1px solid var(--border); padding: .15rem .5rem; border-radius: 99px; }
+  .sub { color: var(--muted); font-size: .88rem; margin: 0 0 1.5rem; }
+
+  .bar { display: flex; gap: 1.25rem; flex-wrap: wrap; padding: .75rem 1rem; margin-bottom: 1.25rem;
+         background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  .bar div { font-size: .82rem; }
+  .bar b { display: block; color: var(--muted); font-weight: 500; font-size: .74rem;
+           text-transform: uppercase; letter-spacing: .04em; }
+
+  h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em;
+       color: var(--muted); margin: 1.75rem 0 .6rem; font-weight: 600; }
+
+  .card { display: flex; align-items: center; gap: 1rem; padding: .85rem 1rem; margin-bottom: .5rem;
+          background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  .card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .card .info { flex: 1; min-width: 0; }
+  .card .name { font-weight: 600; }
+  .card .meta { font-size: .8rem; color: var(--muted); margin-top: .15rem; }
+  .card .warn { font-size: .78rem; color: var(--warn); margin-top: .2rem; }
+  .card .err  { font-size: .78rem; color: var(--err);  margin-top: .2rem; }
+
+  .pill { font-size: .7rem; padding: .12rem .5rem; border-radius: 99px; white-space: nowrap;
+          border: 1px solid var(--border); color: var(--muted); }
+  .pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .pill.ready  { color: var(--ok); border-color: var(--ok); }
+
+  button { font: inherit; font-size: .84rem; padding: .4rem .85rem; border-radius: 7px; cursor: pointer;
+           border: 1px solid var(--border); background: var(--bg); color: var(--text); white-space: nowrap; }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover:not(:disabled) { opacity: .9; color: #fff; }
+
+  .roles { display: flex; gap: .4rem; flex-wrap: wrap; }
+  .roles button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .play { background: var(--surface); border: 1px solid var(--border);
+          border-radius: var(--radius); padding: 1rem; }
+  textarea { width: 100%; min-height: 80px; padding: .6rem; font: inherit; font-size: .88rem;
+             color: var(--text); background: var(--bg); border: 1px solid var(--border);
+             border-radius: 7px; resize: vertical; }
+  pre { white-space: pre-wrap; word-wrap: break-word; font-size: .84rem; margin: .75rem 0 0;
+        padding: .75rem; background: var(--bg); border: 1px solid var(--border);
+        border-radius: 7px; min-height: 2.5rem; }
+
+  #toast { position: fixed; bottom: 1.25rem; left: 50%; transform: translateX(-50%);
+           padding: .6rem 1.1rem; border-radius: 8px; font-size: .85rem; color: #fff;
+           background: var(--text); opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  #toast.err { background: var(--err); }
+
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border);
+           font-size: .78rem; color: var(--muted); }
+  code { font-size: .82em; background: var(--surface); padding: .1rem .3rem; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>UzLegal-AI</h1>
+    <span class="phase" id="phase">yuklanmoqda…</span>
+  </header>
+  <p class="sub">Model va rol adapterini shu yerdan almashtiring — qayta ishga tushirish shart emas.</p>
+
+  <div class="bar">
+    <div><b>Faol model</b><span id="s-model">—</span></div>
+    <div><b>Adapter</b><span id="s-adapter">—</span></div>
+    <div><b>Xotira</b><span id="s-mem">—</span></div>
+    <div><b>Backendlar</b><span id="s-backends">—</span></div>
+  </div>
+
+  <h2>Modellar</h2>
+  <div id="models"></div>
+  <div style="margin-top:.6rem; display:flex; gap:.5rem;">
+    <button onclick="reloadCatalog()">Katalogni qayta o'qish</button>
+    <button onclick="unloadModel()">Xotirani bo'shatish</button>
+  </div>
+
+  <h2>Rol adapteri</h2>
+  <div class="roles" id="roles"></div>
+
+  <h2>Sinov</h2>
+  <div class="play">
+    <textarea id="prompt" placeholder="Savol yoki prompt yozing…">Mehnat shartnomasi qanday asoslarda bekor qilinadi?</textarea>
+    <div style="margin-top:.6rem; display:flex; gap:.5rem; align-items:center;">
+      <button class="primary" id="run" onclick="run()">Yuborish</button>
+      <span style="font-size:.8rem; color:var(--muted);" id="runinfo"></span>
+    </div>
+    <pre id="out">—</pre>
+  </div>
+
+  <footer>
+    Yangi model qo'shish: <code>configs/models.yaml</code> ga yozuv qo'shing va
+    «Katalogni qayta o'qish» tugmasini bosing. Kod o'zgartirish shart emas.
+    <br>⚠️ Bu tizim yuridik maslahat bermaydi.
+  </footer>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const ROLES = ["jurist", "advocate", "prosecutor", "professor", "judge"];
+const ROLE_UZ = { jurist:"Yurist", advocate:"Advokat", prosecutor:"Prokuror",
+                  professor:"Professor", judge:"Sudya" };
+let state = { active: null, adapter: null };
+
+function toast(msg, isErr) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "show" + (isErr ? " err" : "");
+  setTimeout(() => t.className = "", 3200);
+}
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || r.statusText);
+  return body;
+}
+
+async function refresh() {
+  try {
+    const [m, meta] = await Promise.all([api("/v1/models"), api("/v1/meta")]);
+    state.active = m.active; state.adapter = m.active_adapter;
+
+    document.getElementById("phase").textContent = "Faza " + meta.phase;
+    document.getElementById("s-model").textContent = m.active || "tanlanmagan";
+    document.getElementById("s-adapter").textContent = m.active_adapter || "baza";
+    document.getElementById("s-mem").textContent = m.total_memory_gb + " GB";
+    document.getElementById("s-backends").textContent = m.backends.join(", ");
+
+    renderModels(m.models);
+    renderRoles();
+  } catch (e) { toast("Yangilanmadi: " + e.message, true); }
+}
+
+function renderModels(models) {
+  const host = document.getElementById("models");
+  host.innerHTML = "";
+  for (const m of models) {
+    const s = m.spec;
+    const el = document.createElement("div");
+    el.className = "card" + (m.is_active ? " active" : "");
+
+    const bits = [s.backend];
+    if (s.params) bits.push(s.params);
+    if (s.quant_bits) bits.push(s.quant_bits + "-bit");
+    if (s.size_gb) bits.push(s.size_gb + " GB");
+    if (s.context_length) bits.push((s.context_length/1024).toFixed(0) + "k kontekst");
+    if (s.license) bits.push(s.license);
+
+    let pill = '<span class="pill">yuklab olinmagan</span>';
+    if (m.is_active) pill = '<span class="pill active">faol</span>';
+    else if (m.status === "available") pill = '<span class="pill ready">tayyor</span>';
+    else if (m.status === "error") pill = '<span class="pill" style="color:var(--err)">xato</span>';
+
+    el.innerHTML = `
+      <div class="info">
+        <div class="name">${s.display_name}</div>
+        <div class="meta">${bits.join(" · ")}</div>
+        ${m.memory_warning ? `<div class="warn">⚠ ${m.memory_warning}</div>` : ""}
+        ${m.error ? `<div class="err">✕ ${m.error}</div>` : ""}
+      </div>
+      ${pill}`;
+
+    const btn = document.createElement("button");
+    if (m.is_active) { btn.textContent = "Faol"; btn.disabled = true; }
+    else if (!m.fits_in_memory) { btn.textContent = "Sig'maydi"; btn.disabled = true; btn.title = m.memory_warning; }
+    else if (m.status === "not_downloaded") { btn.textContent = "Yuklab olish kerak"; btn.disabled = true;
+      btn.title = "Terminal: uzlegal models pull " + s.id; }
+    else { btn.textContent = "Tanlash"; btn.className = "primary";
+      btn.onclick = () => activate(s.id, btn); }
+    el.appendChild(btn);
+    host.appendChild(el);
+  }
+}
+
+function renderRoles() {
+  const host = document.getElementById("roles");
+  host.innerHTML = "";
+  const base = document.createElement("button");
+  base.textContent = "Baza";
+  base.className = state.adapter ? "" : "on";
+  base.onclick = () => setAdapter(null);
+  host.appendChild(base);
+
+  for (const r of ROLES) {
+    const b = document.createElement("button");
+    b.textContent = ROLE_UZ[r];
+    b.className = state.adapter === r ? "on" : "";
+    b.onclick = () => setAdapter(r);
+    host.appendChild(b);
+  }
+}
+
+async function activate(id, btn) {
+  btn.disabled = true; btn.textContent = "Yuklanmoqda…";
+  try {
+    await api("/v1/models/active", { method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ model_id: id }) });
+    toast("Model faollashtirildi: " + id);
+  } catch (e) { toast(e.message, true); }
+  refresh();
+}
+
+async function setAdapter(role) {
+  try {
+    await api("/v1/adapters/active", { method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ role }) });
+    toast(role ? ("Adapter: " + ROLE_UZ[role]) : "Bazaga qaytildi");
+  } catch (e) { toast(e.message, true); }
+  refresh();
+}
+
+async function unloadModel() {
+  try { await api("/v1/models/active", { method: "DELETE" }); toast("Xotira bo'shatildi"); }
+  catch (e) { toast(e.message, true); }
+  refresh();
+}
+
+async function reloadCatalog() {
+  try { const r = await api("/v1/models/reload-catalog", { method: "POST" });
+    toast("Katalog qayta o'qildi — " + r.models + " ta model"); }
+  catch (e) { toast(e.message, true); }
+  refresh();
+}
+
+async function run() {
+  const btn = document.getElementById("run");
+  const out = document.getElementById("out");
+  const info = document.getElementById("runinfo");
+  btn.disabled = true; out.textContent = ""; info.textContent = "ishlamoqda…";
+  const t0 = performance.now();
+
+  try {
+    const r = await fetch("/v1/generate/stream", { method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ prompt: document.getElementById("prompt").value,
+                             max_tokens: 400, role: state.adapter }) });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const parts = buf.split("\n\n"); buf = parts.pop();
+      for (const p of parts) {
+        const line = p.split("\n").find(l => l.startsWith("data: "));
+        if (!line) continue;
+        const d = JSON.parse(line.slice(6));
+        if (d.text) out.textContent += d.text;
+      }
+    }
+    info.textContent = ((performance.now() - t0) / 1000).toFixed(1) + " s";
+  } catch (e) { out.textContent = "Xato: " + e.message; info.textContent = ""; }
+  btn.disabled = false;
+}
+
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>

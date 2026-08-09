@@ -1,85 +1,139 @@
-# Model nomzodlari va reliz modellari
-# Faza 0 baholashi tugagach `selected` maydoni to'ldiriladi → ADR-001
+# Model katalogi
+#
+# Bu fayl — modellarni almashtirish uchun yagona joy.
+#
+#   Yangi model qo'shish → shu yerga yozuv qo'shing
+#   Modelni almashtirish → `uzlegal models use <id>` yoki UI dan
+#   Xizmatni to'xtatmasdan → UI da «Katalogni qayta o'qish»
+#
+# Kod o'zgartirish hech qachon shart emas.
+#
+# Maydonlar: src/uzlegal/types.py → ModelSpec
 
-selected: null   # ⏳ Faza 0 natijasi
+models:
 
-candidates:
+  # ------------------------------------------------------------------ #
+  # Stub — model yuklab olinmasdan turib tizimni sinash uchun
+  # ------------------------------------------------------------------ #
+  echo:
+    display_name: "Echo (stub — modelsiz sinov)"
+    backend: echo
+    size_gb: 0.0
+    context_length: 8192
+    note: "Soxta javob qaytaradi. API, UI va orkestratsiyani sinash uchun."
 
+  # ------------------------------------------------------------------ #
+  # Faza 0 nomzodlari — ADR-001 da o'lchab tanlanadi
+  # ------------------------------------------------------------------ #
   qwen3-14b:
-    hf_id: Qwen/Qwen3-14B
-    params: 14B
-    quant: {bits: 4, group_size: 64}
+    display_name: "Qwen3 14B (4-bit)"
+    backend: mlx
+    hf_id: mlx-community/Qwen3-14B-4bit
+    local_path: models/qwen3-14b-4bit
+    params: "14B"
+    quant_bits: 4
     size_gb: 8.0
-    context: 32768
+    context_length: 32768
     license: Apache-2.0
-    strengths: [reasoning, tool_calling, structured_output, long_context]
+    default_temperature: 0.3
+    strengths: [reasoning, tool_calling, structured_output]
     risks: [uzbek_moderate]
 
   gemma3-12b:
-    hf_id: google/gemma-3-12b-it
-    params: 12B
-    quant: {bits: 4, group_size: 64}
+    display_name: "Gemma 3 12B IT (4-bit)"
+    backend: mlx
+    hf_id: mlx-community/gemma-3-12b-it-4bit
+    local_path: models/gemma3-12b-4bit
+    params: "12B"
+    quant_bits: 4
     size_gb: 7.0
-    context: 131072
+    context_length: 131072
     license: Gemma-ToU
-    strengths: [multilingual_140, turkic_languages, very_long_context]
+    default_temperature: 0.3
+    strengths: [multilingual_140, turkic_languages, long_context]
     risks: [reasoning_weaker, license_restrictions]
 
+  qwen3-8b:
+    display_name: "Qwen3 8B (4-bit)"
+    backend: mlx
+    hf_id: mlx-community/Qwen3-8B-4bit
+    local_path: models/qwen3-8b-4bit
+    params: "8B"
+    quant_bits: 4
+    size_gb: 4.5
+    context_length: 32768
+    license: Apache-2.0
+    strengths: [fast, cheap_training, headroom]
+    risks: [complex_legal_reasoning_weak]
+    note: "Tez iteratsiya va hybrid profilidagi 'tez rejim' uchun"
+
   mistral-small-24b:
-    hf_id: mistralai/Mistral-Small-3.2-24B-Instruct
-    params: 24B
-    quant: {bits: 4, group_size: 64}
+    display_name: "Mistral Small 3.2 24B (4-bit)"
+    backend: mlx
+    hf_id: mlx-community/Mistral-Small-3.2-24B-Instruct-2506-4bit
+    local_path: models/mistral-small-24b-4bit
+    params: "24B"
+    quant_bits: 4
     size_gb: 13.5
-    context: 131072
+    context_length: 131072
     license: Apache-2.0
     strengths: [general_quality]
     risks: [memory_tight, lora_training_constrained]
 
-  qwen3-8b:
-    hf_id: Qwen/Qwen3-8B
-    params: 8B
-    quant: {bits: 4, group_size: 64}
-    size_gb: 4.5
-    context: 32768
-    license: Apache-2.0
-    strengths: [fast, cheap_training, headroom]
-    risks: [complex_legal_reasoning_weak]
-    note: "hybrid profilida 'tez rejim' modeli sifatida foydali"
+  # ------------------------------------------------------------------ #
+  # Kelajakda: o'z serveringiz (hybrid profili)
+  # Mijoz ma'lumoti uchinchi tomonga chiqmasligi uchun faqat o'z endpointingiz
+  # ------------------------------------------------------------------ #
+  # remote-32b:
+  #   display_name: "UzLegal 32B (o'z serveri)"
+  #   backend: openai
+  #   endpoint: https://gpu.example.uz/v1
+  #   context_length: 32768
 
-# Baholash protokoli — ADR-001
+
+# --------------------------------------------------------------------- #
+# Rol adapterlari — Faza 4 da o'qitiladi (ADR-003)
+# Baza model xotirada qoladi, faqat 40 MB lik adapter almashadi
+# --------------------------------------------------------------------- #
+adapters: {}
+#  advocate:
+#    path: adapters/advocate/current
+#    base_model: qwen3-14b
+#    rank: 16
+#    size_mb: 40
+#    metrics: {role_fidelity: 0.91, citation_coverage: 0.96}
+
+
+# --------------------------------------------------------------------- #
+# Yordamchi modellar (Faza 2 — RAG)
+# --------------------------------------------------------------------- #
+auxiliary:
+  embedding:
+    id: BAAI/bge-m3
+    dim: 1024
+    max_length: 8192
+    size_gb: 1.2
+  reranker:
+    id: BAAI/bge-reranker-v2-m3
+    size_gb: 0.6
+
+
+# --------------------------------------------------------------------- #
+# Faza 0 baholash protokoli — ADR-001
+# --------------------------------------------------------------------- #
 benchmark:
   suite: bench-uz-legal-v0
   questions: 100
   judges: 2
   dimensions:
-    uzbek_fluency:       {weight: 0.30, min_score: 3.0}   # min dan past → rad
-    legal_terminology:   {weight: 0.25}
-    context_reasoning:   {weight: 0.30}
+    uzbek_fluency:         {weight: 0.30, min_score: 3.0}
+    legal_terminology:     {weight: 0.25}
+    context_reasoning:     {weight: 0.30}
     instruction_following: {weight: 0.15}
   decision_rules:
     - "uzbek_fluency < 3.0 → nomzod rad etiladi"
     - "umumiy farq < 0.3 → kichikroq model tanlanadi"
     - "cpt_required = (uzbek_fluency < 3.5)"
 
-# Yordamchi modellar
-auxiliary:
-  embedding:
-    id: BAAI/bge-m3
-    dim: 1024
-    max_length: 8192
-    modes: [dense, sparse, colbert]
-    size_gb: 1.2
-  reranker:
-    id: BAAI/bge-reranker-v2-m3
-    size_gb: 0.6
-  nli:
-    id: null   # groundedness gate uchun; baza model fallback
-
-# Reliz modellari (Faza 4 dan keyin to'ldiriladi)
+selected: null   # ⏳ Faza 0 natijasi → ADR-001
 releases: []
-#  - version: uzlegal-14b-v0.2
-#    base: qwen3-14b
-#    sft_samples: 20000
-#    adapters: [jurist, advocate, prosecutor, professor, judge]
-#    eval: {gold_500: 0.83, citation_accuracy: 0.96, hallucination: 0.008}
-#    released_at: 2026-12-01
