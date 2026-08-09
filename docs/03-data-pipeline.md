@@ -31,8 +31,127 @@ Shuning uchun: **quvurning har bir bosqichi validatsiyalanadi va namunaviy qo'ld
 - Normativ-huquqiy hujjatlar O'zbekiston qonunchiligi bo'yicha **ochiq ma'lumot** — cheklovsiz ishlatiladi
 - Sud qarorlarida **shaxsiy ma'lumotlar** bo'lishi mumkin → PII anonimizatsiya majburiy (§6)
 - `robots.txt` va sayt foydalanish shartlariga rioya qilinadi
-- Rate limiting: ≤ 1 so'rov/soniya, `User-Agent` da aloqa ma'lumoti ko'rsatiladi
+- `User-Agent` da loyiha manzili va aloqa ma'lumoti ko'rsatiladi
 - Mualliflik huquqi bilan himoyalangan darsliklar faqat huquq olingan holda
+
+---
+
+## 2A. ⚠️ O'LCHANGAN CHEKLOV: lex.uz Crawl-delay 20 s
+
+> **Bu bo'lim 2026-08-09 dagi real o'lchov natijasi va u dastlabki rejani
+> rad etadi.** Yuqoridagi «≤ 1 so'rov/soniya» bahosi noto'g'ri edi.
+
+`https://lex.uz/robots.txt`:
+
+```
+User-agent: *
+Crawl-delay: 20
+```
+
+`Disallow` yo'q — barcha sahifalar ochiq, **lekin 20 soniyalik pauza majburiy.**
+
+### O'lchangan ko'rsatkichlar
+
+| Ko'rsatkich | Qiymat |
+|-------------|--------|
+| Majburiy pauza | **20 s** |
+| Sahifa hajmi (Fuqarolik kodeksi) | 1.9 MB |
+| Server javob vaqti | ~17 s |
+| Amaldagi tezlik | **~1.6 hujjat/daqiqa** |
+| 40 000 hujjat uchun | **~17 kun uzluksiz** |
+
+### Rejaga ta'siri
+
+Faza 1 ning «5 hafta» bahosi saqlanadi, lekin **ish taqsimoti o'zgaradi**:
+yig'ish muhandis vaqtini emas, **kalendar vaqtini** oladi. Shuning uchun:
+
+1. Yig'ish **birinchi kundan** fonda boshlanadi va parser ishlab chiqilayotgan
+   vaqtda davom etadi
+2. Parser ishi **arxivdagi** hujjatlarda olib boriladi (tarmoqsiz, tez)
+3. Ustuvor 8 ta kodeks avval yig'iladi (~3 daqiqa) — ular bilan butun
+   quvurni sinash mumkin
+4. To'liq katalog keyin, fonda
+
+### Kodda qanday ta'minlangan
+
+`RateLimiter` global va thread-safe; `MIN_CRAWL_DELAY = 20.0` dan past qiymat
+**qabul qilinmaydi** — buni test tekshiradi:
+
+```python
+def test_crawl_delay_minimumdan_past_tushmaydi():
+    assert RateLimiter(delay=1.0).delay == MIN_CRAWL_DELAY
+```
+
+Parallel yuklab olish **ataylab qo'llanilmaydi** — u `Crawl-delay` ni buzardi.
+
+---
+
+## 2B. Yangilanish siyosati — har 7 kunda
+
+Qonunchilik doimiy o'zgaradi. Eskirgan bilim bazasi bilan tizim **bekor
+qilingan normani amaldagidek** taqdim etishi mumkin — bu `docs/09` da P0
+(kritik) insident va `docs/00` dagi «0% deprecated» talabini buzadi.
+
+Shuning uchun yangilanish qo'shimcha funksiya emas, **tizimning bir qismi**.
+
+### Ikki rejim
+
+| Rejim | Qachon | Qayerdan |
+|-------|--------|----------|
+| **Avtomatik** | Har 7 kunda (sozlanadi, 1–90) | Xizmat o'zi |
+| **Qo'lda** | Istalgan vaqtda | Admin paneli · CLI · API |
+
+Muhim qonun o'zgarishi e'lon qilinganda 7 kun kutish shart emas.
+
+### Nima uchun aynan 7 kun
+
+| Interval | Ijobiy | Salbiy |
+|----------|--------|--------|
+| 1 kun | Eng yangi | lex.uz ga ortiqcha yuk |
+| **7 kun** | **Muvozanat** | Eng yomon holatda 7 kun kechikish |
+| 30 kun | Yengil | Yuridik ish uchun juda eskirgan |
+
+Qonun kuchga kirishi odatda e'londan keyin kamida 10 kun o'tadi, shuning
+uchun 7 kunlik sikl amalda kechikish yaratmaydi.
+
+### O'zgarishni aniqlash
+
+Har hujjat `sha256` bilan taqqoslanadi. Natija to'rt holatdan biri:
+
+| Holat | Ma'nosi | Keyingi qadam |
+|-------|---------|---------------|
+| `new` | Birinchi marta | Arxivga yozish → parsing → indekslash |
+| `changed` | Hash o'zgargan | Arxivga yozish → parsing → indekslash |
+| `unchanged` | Bir xil | **Parsing o'tkazib yuboriladi** |
+| `error` | Yuklanmadi | Log, keyingi siklda qayta urinish |
+
+`unchanged` holati vaqtning katta qismini tejaydi — hujjatlarning aksariyati
+har hafta o'zgarmaydi.
+
+### Eskirish nazorati
+
+`last_sync_at` dan **14 kun** o'tsa tizim `kb_stale` bayrog'ini ko'taradi:
+`/v1/health`, `/v1/meta`, admin paneli va CLI da ogohlantirish chiqadi.
+
+### Boshqaruv
+
+```bash
+uzlegal kb status                      # holat, muddat, tarix
+uzlegal kb sync                        # hozir yangilash
+uzlegal kb sync --docs 111181          # faqat bitta hujjat
+uzlegal kb config --interval 14        # oraliqni o'zgartirish
+uzlegal kb config --no-auto            # avtomatikni o'chirish
+```
+
+```http
+GET    /v1/admin/sync          # holat va tarix
+POST   /v1/admin/sync          # qo'lda ishga tushirish (fonda)
+DELETE /v1/admin/sync          # to'xtatish
+PATCH  /v1/admin/sync/config   # interval / avtomatik
+```
+
+Admin panelida (`http://localhost:8080`) — «Hozir yangilash» tugmasi, jonli
+progress, avtomatik rejim va interval sozlamasi.
 
 ## 3. Quvur bosqichlari
 

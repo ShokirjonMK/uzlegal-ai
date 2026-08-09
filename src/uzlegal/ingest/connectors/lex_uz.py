@@ -1,0 +1,267 @@
+"""lex.uz konnektori — yuklab olish va o'zgarishlarni aniqlash.
+
+## Kritik cheklov: Crawl-delay 20
+
+lex.uz `robots.txt` da:
+
+    User-agent: *
+    Crawl-delay: 20
+
+Bu **majburiy** va u butun Faza 1 rejasini o'zgartiradi:
+
+| Ko'rsatkich | Qiymat |
+|-------------|--------|
+| So'rovlar orasidagi minimal pauza | 20 s |
+| Sahifa o'lchami | 1.5–2 MB |
+| Server javob vaqti | ~17 s |
+| Amaldagi tezlik | **~1.6 hujjat/daqiqa** |
+| 40 000 hujjat uchun | **~17 kun uzluksiz** |
+
+Shuning uchun:
+
+1. To'liq yig'ish **bir martalik**, fonda, uzoq davom etadigan operatsiya
+2. Keyingi yangilanishlar **inkremental** — faqat o'zgarganlari
+3. Har bir hujjat `sha256` bilan taqqoslanadi; o'zgarmagan bo'lsa parsing
+   o'tkazib yuboriladi
+4. Ish **to'xtatilib, davom ettirilishi** mumkin (`resume`)
+
+## Yangilanish siyosati
+
+Qonunchilik doimiy o'zgaradi, shuning uchun bilim bazasi eskirmasligi kerak:
+
+* Avtomatik: har **7 kunda** ustuvor hujjatlar qayta tekshiriladi
+* Qo'lda: admin panelidan istalgan vaqtda ishga tushiriladi
+* Har sinxronizatsiya natijasi `SyncReport` sifatida saqlanadi
+
+Batafsil: `uzlegal.ingest.sync`
+"""
+
+from __future__ import annotations
+
+import hashlib
+import logging
+import re
+import threading
+import time
+from collections.abc import Iterator
+from datetime import UTC, datetime
+from pathlib import Path
+
+import httpx
+
+from uzlegal.ingest.types import DocumentRef, RawDocument
+
+log = logging.getLogger(__name__)
+
+USER_AGENT = "UzLegal-AI/0.1 (+https://github.com/ShokirjonMK/uzlegal-ai)"
+
+# robots.txt dan o'qiladi, lekin bu qiymatdan past tushmaydi
+DEFAULT_CRAWL_DELAY = 20.0
+MIN_CRAWL_DELAY = 20.0
+
+
+class RateLimiter:
+    """robots.txt Crawl-delay ga rioya qiladi.
+
+    Thread-safe: bir necha ishchi bo'lsa ham umumiy pauza saqlanadi.
+    Bu **ataylab** global — parallel yuklab olish `Crawl-delay` ni buzadi.
+    """
+
+    def __init__(self, delay: float = DEFAULT_CRAWL_DELAY) -> None:
+        self.delay = max(delay, MIN_CRAWL_DELAY)
+        self._lock = threading.Lock()
+        self._last = 0.0
+
+    def wait(self) -> float:
+        with self._lock:
+            elapsed = time.monotonic() - self._last
+            sleep_for = max(0.0, self.delay - elapsed)
+            if sleep_for > 0:
+                time.sleep(sleep_for)
+            self._last = time.monotonic()
+            return sleep_for
+
+
+class LexUzConnector:
+    """lex.uz dan hujjatlarni yuklab oladi."""
+
+    name = "lex.uz"
+    base_url = "https://lex.uz"
+
+    def __init__(
+        self,
+        raw_dir: Path = Path("data/raw/lex.uz"),
+        timeout: float = 60.0,
+        crawl_delay: float | None = None,
+    ) -> None:
+        self.raw_dir = raw_dir
+        self.raw_dir.mkdir(parents=True, exist_ok=True)
+        self.limiter = RateLimiter(crawl_delay or DEFAULT_CRAWL_DELAY)
+        self._client = httpx.Client(
+            headers={"User-Agent": USER_AGENT},
+            timeout=timeout,
+            follow_redirects=True,
+        )
+
+    # ------------------------------------------------------------------ #
+    # robots.txt
+    # ------------------------------------------------------------------ #
+
+    def read_crawl_delay(self) -> float:
+        """robots.txt dan Crawl-delay ni o'qiydi.
+
+        Xato bo'lsa standart (20 s) qoladi — hech qachon tezroq emas.
+        """
+        try:
+            r = self._client.get(f"{self.base_url}/robots.txt")
+            m = re.search(r"Crawl-delay:\s*(\d+(?:\.\d+)?)", r.text, re.IGNORECASE)
+            if m:
+                delay = max(float(m.group(1)), MIN_CRAWL_DELAY)
+                self.limiter.delay = delay
+                log.info("robots.txt Crawl-delay: %.0f s", delay)
+                return delay
+        except Exception as exc:
+            log.warning("robots.txt o'qilmadi (%s) — standart %.0f s", exc, MIN_CRAWL_DELAY)
+        return self.limiter.delay
+
+    # ------------------------------------------------------------------ #
+    # Yuklab olish
+    # ------------------------------------------------------------------ #
+
+    def doc_url(self, doc_id: str) -> str:
+        return f"{self.base_url}/docs/{doc_id}"
+
+    def raw_path(self, doc_id: str) -> Path:
+        return self.raw_dir / f"{doc_id}.html"
+
+    def meta_path(self, doc_id: str) -> Path:
+        return self.raw_dir / f"{doc_id}.meta.json"
+
+    def fetch(self, doc_id: str) -> RawDocument:
+        """Bitta hujjatni yuklab oladi. Crawl-delay avtomatik qo'llaniladi."""
+        waited = self.limiter.wait()
+        url = self.doc_url(doc_id)
+        log.debug("GET %s (kutildi %.1f s)", url, waited)
+
+        response = self._client.get(url)
+        response.raise_for_status()
+        content = response.text
+
+        return RawDocument(
+            source=self.name,
+            doc_id=doc_id,
+            url=url,
+            fetched_at=datetime.now(UTC),
+            content_sha256=hashlib.sha256(content.encode("utf-8")).hexdigest(),
+            http_status=response.status_code,
+            content_type=response.headers.get("content-type", "text/html"),
+            content=content,
+        )
+
+    def store(self, raw: RawDocument) -> Path:
+        """Xom hujjatni **o'zgarmas arxivga** yozadi.
+
+        Bu nusxa hech qachon tahrirlanmaydi. Parser yaxshilanganda butun
+        quvur shu arxivdan qayta ishga tushiriladi — takrorlanuvchanlik
+        shundan keladi (docs/03 § 3).
+        """
+        path = self.raw_path(raw.doc_id)
+        path.write_text(raw.content, encoding="utf-8")
+        self.meta_path(raw.doc_id).write_text(
+            raw.model_dump_json(indent=2, exclude={"content"}), encoding="utf-8"
+        )
+        return path
+
+    def load_cached(self, doc_id: str) -> RawDocument | None:
+        """Arxivdan o'qiydi — tarmoqqa chiqmasdan."""
+        path, meta = self.raw_path(doc_id), self.meta_path(doc_id)
+        if not (path.exists() and meta.exists()):
+            return None
+        import json
+
+        data = json.loads(meta.read_text(encoding="utf-8"))
+        data["content"] = path.read_text(encoding="utf-8")
+        return RawDocument(**data)
+
+    def known_hash(self, doc_id: str) -> str | None:
+        meta = self.meta_path(doc_id)
+        if not meta.exists():
+            return None
+        import json
+
+        return json.loads(meta.read_text(encoding="utf-8")).get("content_sha256")
+
+    # ------------------------------------------------------------------ #
+    # O'zgarishni aniqlash
+    # ------------------------------------------------------------------ #
+
+    def check_changed(self, doc_id: str) -> tuple[bool, RawDocument | None]:
+        """Hujjat o'zgarganmi tekshiradi.
+
+        `(o'zgardimi, yangi_hujjat)` qaytaradi. Hujjat baribir to'liq
+        yuklab olinadi (lex.uz `If-Modified-Since` ni qo'llab-quvvatlamaydi),
+        lekin o'zgarmagan bo'lsa parsing va indekslash o'tkazib yuboriladi —
+        bu vaqtning katta qismini tejaydi.
+        """
+        previous = self.known_hash(doc_id)
+        raw = self.fetch(doc_id)
+        return (previous != raw.content_sha256), raw
+
+    def fetch_many(
+        self, doc_ids: list[str], *, skip_unchanged: bool = True
+    ) -> Iterator[tuple[str, str, RawDocument | None]]:
+        """Ko'p hujjatni yuklaydi. Har biri uchun `(doc_id, holat, hujjat)`.
+
+        Holatlar: `new` · `changed` · `unchanged` · `error`
+        """
+        for doc_id in doc_ids:
+            try:
+                previous = self.known_hash(doc_id)
+                raw = self.fetch(doc_id)
+
+                if previous is None:
+                    self.store(raw)
+                    yield doc_id, "new", raw
+                elif previous != raw.content_sha256:
+                    self.store(raw)
+                    yield doc_id, "changed", raw
+                else:
+                    yield doc_id, "unchanged", (None if skip_unchanged else raw)
+            except Exception as exc:
+                log.warning("Hujjat %s yuklanmadi: %s", doc_id, exc)
+                yield doc_id, "error", None
+
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> LexUzConnector:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
+
+# --------------------------------------------------------------------------- #
+# Ustuvor hujjatlar ro'yxati
+# --------------------------------------------------------------------------- #
+
+# P0 — eng ko'p so'raladigan kodekslar. To'liq katalog kashfiyot bosqichida
+# quriladi, lekin birinchi ishlaydigan bilim bazasi shulardan boshlanadi.
+PRIORITY_DOCS: list[DocumentRef] = [
+    DocumentRef(source="lex.uz", doc_id="111181", url="https://lex.uz/docs/111181",
+                title="Fuqarolik kodeksi (1-qism)", doc_type="kodeks"),
+    DocumentRef(source="lex.uz", doc_id="180550", url="https://lex.uz/docs/180550",
+                title="Fuqarolik kodeksi (2-qism)", doc_type="kodeks"),
+    DocumentRef(source="lex.uz", doc_id="6257288", url="https://lex.uz/docs/6257288",
+                title="Mehnat kodeksi", doc_type="kodeks"),
+    DocumentRef(source="lex.uz", doc_id="111457", url="https://lex.uz/docs/111457",
+                title="Jinoyat kodeksi", doc_type="kodeks"),
+    DocumentRef(source="lex.uz", doc_id="111460", url="https://lex.uz/docs/111460",
+                title="Jinoyat-protsessual kodeksi", doc_type="kodeks"),
+    DocumentRef(source="lex.uz", doc_id="97664", url="https://lex.uz/docs/97664",
+                title="Oila kodeksi", doc_type="kodeks"),
+    DocumentRef(source="lex.uz", doc_id="4674893", url="https://lex.uz/docs/4674893",
+                title="Soliq kodeksi", doc_type="kodeks"),
+    DocumentRef(source="lex.uz", doc_id="1181charge", url="https://lex.uz/docs/1181",
+                title="Ma'muriy javobgarlik to'g'risidagi kodeks", doc_type="kodeks"),
+]

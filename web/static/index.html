@@ -109,6 +109,42 @@
   <h2>Rol adapteri</h2>
   <div class="roles" id="roles"></div>
 
+  <h2>Bilim bazasi — yangilash</h2>
+  <div class="card" style="display:block">
+    <div style="display:flex; gap:1.25rem; flex-wrap:wrap; margin-bottom:.75rem">
+      <div><b style="display:block;color:var(--muted);font-size:.72rem;text-transform:uppercase">Versiya</b><span id="kb-ver">—</span></div>
+      <div><b style="display:block;color:var(--muted);font-size:.72rem;text-transform:uppercase">Oxirgi yangilash</b><span id="kb-last">—</span></div>
+      <div><b style="display:block;color:var(--muted);font-size:.72rem;text-transform:uppercase">Keyingi muddat</b><span id="kb-next">—</span></div>
+      <div><b style="display:block;color:var(--muted);font-size:.72rem;text-transform:uppercase">Holat</b><span id="kb-status">—</span></div>
+    </div>
+
+    <div id="kb-warn" style="display:none" class="warn"></div>
+
+    <div id="kb-progress" style="display:none; margin:.6rem 0">
+      <div style="height:6px;background:var(--border);border-radius:99px;overflow:hidden">
+        <div id="kb-bar" style="height:100%;width:0;background:var(--accent);transition:width .3s"></div>
+      </div>
+      <div id="kb-prog-text" style="font-size:.78rem;color:var(--muted);margin-top:.3rem"></div>
+    </div>
+
+    <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center">
+      <button class="primary" id="kb-run" onclick="syncStart()">Hozir yangilash</button>
+      <button id="kb-cancel" onclick="syncCancel()" style="display:none">To'xtatish</button>
+      <label style="font-size:.84rem; display:flex; align-items:center; gap:.35rem; margin-left:.5rem">
+        <input type="checkbox" id="kb-auto" onchange="syncConfig()"> Avtomatik
+      </label>
+      <label style="font-size:.84rem; display:flex; align-items:center; gap:.35rem">
+        har
+        <input type="number" id="kb-days" min="1" max="90" style="width:4rem; padding:.25rem;
+               background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:5px"
+               onchange="syncConfig()">
+        kunda
+      </label>
+    </div>
+
+    <div id="kb-history" style="margin-top:.75rem; font-size:.8rem; color:var(--muted)"></div>
+  </div>
+
   <h2>Sinov</h2>
   <div class="play">
     <textarea id="prompt" placeholder="Savol yoki prompt yozing…">Mehnat shartnomasi qanday asoslarda bekor qilinadi?</textarea>
@@ -257,6 +293,95 @@ async function reloadCatalog() {
   refresh();
 }
 
+// ---------------------------------------------------------------- Bilim bazasi
+
+function fmtDate(iso) {
+  if (!iso) return "hech qachon";
+  const d = new Date(iso);
+  return d.toLocaleString("uz-UZ", { year:"numeric", month:"2-digit", day:"2-digit",
+                                      hour:"2-digit", minute:"2-digit" });
+}
+
+async function refreshSync() {
+  let s;
+  try { s = await api("/v1/admin/sync"); } catch { return; }
+
+  document.getElementById("kb-ver").textContent   = s.kb_version || "hali qurilmagan";
+  document.getElementById("kb-last").textContent  = fmtDate(s.last_sync_at) +
+      (s.age_days != null ? ` (${s.age_days} kun)` : "");
+  document.getElementById("kb-next").textContent  = s.next_due_at ? fmtDate(s.next_due_at) : "—";
+  document.getElementById("kb-status").textContent = s.status;
+
+  const auto = document.getElementById("kb-auto");
+  const days = document.getElementById("kb-days");
+  if (document.activeElement !== auto) auto.checked = s.auto_enabled;
+  if (document.activeElement !== days) days.value = s.interval_days;
+
+  const warn = document.getElementById("kb-warn");
+  if (s.is_stale) {
+    warn.style.display = "block";
+    warn.textContent = s.last_sync_at
+      ? `⚠ Bilim bazasi ${s.age_days} kundan beri yangilanmagan — bekor qilingan normalar xavfi bor.`
+      : "⚠ Bilim bazasi hali qurilmagan. Yangilashni ishga tushiring.";
+  } else if (s.is_due) {
+    warn.style.display = "block";
+    warn.textContent = "⏰ Yangilash muddati keldi.";
+  } else {
+    warn.style.display = "none";
+  }
+
+  const running = s.status === "running";
+  const prog = document.getElementById("kb-progress");
+  document.getElementById("kb-run").disabled = running;
+  document.getElementById("kb-cancel").style.display = running ? "" : "none";
+
+  if (running && s.current) {
+    prog.style.display = "block";
+    const pct = s.current.total ? (s.current.processed / s.current.total * 100) : 0;
+    document.getElementById("kb-bar").style.width = pct + "%";
+    document.getElementById("kb-prog-text").textContent =
+      `${s.current.processed}/${s.current.total} · yangi ${s.current.new} · ` +
+      `o'zgargan ${s.current.changed} · o'zgarmagan ${s.current.unchanged} · xato ${s.current.errors}` +
+      `  —  har hujjat ~20 s (lex.uz Crawl-delay)`;
+  } else {
+    prog.style.display = "none";
+  }
+
+  const h = s.history || [];
+  document.getElementById("kb-history").innerHTML = h.length
+    ? "Oxirgi yurishlar: " + h.slice().reverse().map(r =>
+        `<span title="${r.run_id}">${fmtDate(r.started_at)} — ${r.status}` +
+        (r.changed ? `, ${r.changed} o'zgargan` : "") + "</span>").join(" · ")
+    : "";
+}
+
+async function syncStart() {
+  try {
+    const r = await api("/v1/admin/sync", { method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({}) });
+    toast(`Yangilash boshlandi — ${r.total} hujjat (~${Math.ceil(r.total * 20 / 60)} daqiqa)`);
+  } catch (e) { toast(e.message, true); }
+  refreshSync();
+}
+
+async function syncCancel() {
+  try { await api("/v1/admin/sync", { method: "DELETE" }); toast("To'xtatilmoqda…"); }
+  catch (e) { toast(e.message, true); }
+  refreshSync();
+}
+
+async function syncConfig() {
+  const auto = document.getElementById("kb-auto").checked;
+  const days = parseInt(document.getElementById("kb-days").value, 10);
+  try {
+    await api("/v1/admin/sync/config", { method: "PATCH",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ auto_enabled: auto, interval_days: days }) });
+    toast(auto ? `Avtomatik yangilash: har ${days} kunda` : "Avtomatik yangilash o'chirildi");
+  } catch (e) { toast(e.message, true); }
+  refreshSync();
+}
+
 async function run() {
   const btn = document.getElementById("run");
   const out = document.getElementById("out");
@@ -291,7 +416,13 @@ async function run() {
 }
 
 refresh();
+refreshSync();
 setInterval(refresh, 15000);
+// Sinxronizatsiya ishlayotganda tez-tez yangilanadi, aks holda kamdan-kam
+setInterval(() => {
+  const running = document.getElementById("kb-status").textContent === "running";
+  if (running || Math.random() < 0.2) refreshSync();
+}, 3000);
 </script>
 </body>
 </html>

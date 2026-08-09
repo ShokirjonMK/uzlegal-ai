@@ -17,7 +17,11 @@ from uzlegal.types import GenerationParams
 
 app = typer.Typer(help="UzLegal-AI — O'zbekiston huquqiy AI platformasi", no_args_is_help=True)
 models_app = typer.Typer(help="Model boshqaruvi", no_args_is_help=True)
+eval_app = typer.Typer(help="Baholash", no_args_is_help=True)
+kb_app = typer.Typer(help="Bilim bazasi", no_args_is_help=True)
 app.add_typer(models_app, name="models")
+app.add_typer(eval_app, name="eval")
+app.add_typer(kb_app, name="kb")
 
 console = Console()
 
@@ -147,17 +151,188 @@ def models_unload() -> None:
     console.print("[green]✓[/green] Xotira bo'shatildi")
 
 
-@models_app.command("bench")
-def models_bench(
-    candidates: str = typer.Option(..., "--candidates", help="Vergul bilan ajratilgan ID lar"),
+@eval_app.command("bench")
+def eval_bench(
+    candidates: str = typer.Option(..., "--candidates", help="Vergul bilan ajratilgan model ID lari"),
     suite: str = typer.Option("bench-uz-legal-v0", "--suite"),
+    limit: int = typer.Option(None, "--limit", help="Faqat birinchi N savol (tez sinov)"),
+    out: Path = typer.Option(Path("reports/model-selection.md"), "--out"),
 ) -> None:
     """Nomzod modellarni o'zbek yuridik to'plamida solishtirish (Faza 0, ADR-001)."""
-    console.print("[yellow]Baholash to'plami hali tayyorlanmagan.[/yellow]")
-    console.print(f"Kerak: data/eval/{suite}.jsonl — 100 ta o'zbekcha yuridik savol")
-    console.print(f"Nomzodlar: {candidates}")
-    console.print("\nTo'plam tayyor bo'lgach shu buyruq ularni o'lchab, ADR-001 ni to'ldiradi.")
-    raise typer.Exit(4)
+    from uzlegal.eval.bench import decide, load_items, render_report, run_model
+
+    suite_dir = Path("data/eval") / suite
+    if not (suite_dir / "items.jsonl").exists():
+        console.print(f"[red]✕[/red] To'plam topilmadi: {suite_dir}/items.jsonl")
+        raise typer.Exit(4)
+
+    items = load_items(suite_dir, limit)
+    ids = [c.strip() for c in candidates.split(",") if c.strip()]
+    console.print(f"To'plam: [bold]{suite}[/bold] — {len(items)} savol")
+    console.print(f"Nomzodlar: {', '.join(ids)}\n")
+
+    reg = get_registry()
+    scores = []
+    for model_id in ids:
+        console.print(f"[bold]{model_id}[/bold] baholanmoqda…")
+        try:
+            with console.status(f"{model_id}: {len(items)} savol"):
+                score = run_model(reg, model_id, items)
+        except Exception as exc:
+            console.print(f"  [red]✕ o'tkazib yuborildi: {exc}[/red]")
+            continue
+        scores.append(score)
+        console.print(
+            f"  ball {score.weighted:.2f}/5 · o'zbek {score.uzbek_fluency * 5:.2f} · "
+            f"mulohaza {score.context_reasoning:.0%} · {score.tokens_per_second:.1f} tok/s"
+        )
+        raw = out.parent / f"bench-{model_id}.jsonl"
+        raw.parent.mkdir(parents=True, exist_ok=True)
+        import json as _json
+        raw.write_text(
+            "\n".join(
+                _json.dumps(
+                    {"id": i.item_id, "category": i.category, "answer": i.answer,
+                     "failures": i.failures, "lang": round(i.lang_score, 2)},
+                    ensure_ascii=False,
+                )
+                for i in score.items
+            ),
+            encoding="utf-8",
+        )
+
+    if not scores:
+        console.print("[red]✕[/red] Hech bir model baholanmadi")
+        raise typer.Exit(1)
+
+    winner, notes = decide(scores)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(render_report(scores, winner, notes), encoding="utf-8")
+
+    console.print(f"\n[bold]Natija:[/bold] {out}")
+    for n in notes:
+        console.print(f"  {n}")
+    if winner:
+        console.print(f"\n[green]⭐ Tanlangan model: [bold]{winner}[/bold][/green]")
+
+
+# --------------------------------------------------------------------------- #
+# Bilim bazasi
+# --------------------------------------------------------------------------- #
+
+
+@kb_app.command("status")
+def kb_status() -> None:
+    """Bilim bazasi holati: oxirgi yangilash, muddat, tarix."""
+    from uzlegal.ingest.sync import SyncManager
+
+    info = SyncManager().info()
+    console.print(f"Holat          {info['status']}")
+    console.print(f"Versiya        {info['kb_version'] or '[dim]qurilmagan[/dim]'}")
+    console.print(f"Oxirgi yangilash  {info['last_sync_at'] or '[dim]hech qachon[/dim]'}"
+                  + (f" ({info['age_days']} kun)" if info['age_days'] is not None else ""))
+    console.print(f"Keyingi muddat    {info['next_due_at'] or '—'}")
+    console.print(f"Avtomatik      {'yoqilgan' if info['auto_enabled'] else 'o’chirilgan'}"
+                  f", har {info['interval_days']} kunda")
+    if info["is_stale"]:
+        console.print("\n[yellow]⚠ Bilim bazasi eskirgan — bekor qilingan normalar xavfi bor.[/yellow]")
+    elif info["is_due"]:
+        console.print("\n[yellow]⏰ Yangilash muddati keldi.[/yellow]")
+
+
+@kb_app.command("sync")
+def kb_sync(
+    docs: str = typer.Option(None, "--docs", help="Vergul bilan ajratilgan hujjat ID lari"),
+    wait: bool = typer.Option(True, "--wait/--no-wait", help="Tugashini kutish"),
+) -> None:
+    """Bilim bazasini yangilash.
+
+    Diqqat: lex.uz `Crawl-delay: 20` talab qiladi — har hujjat kamida 20 soniya.
+    """
+    import time as _time
+
+    from uzlegal.ingest.sync import SyncAlreadyRunningError, SyncManager, SyncStatus
+
+    manager = SyncManager()
+    doc_ids = [d.strip() for d in docs.split(",")] if docs else None
+    try:
+        report = manager.start(trigger="manual", doc_ids=doc_ids)
+    except SyncAlreadyRunningError as exc:
+        console.print(f"[red]✕[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    console.print(f"Boshlandi: {report.run_id} — {report.total} hujjat")
+    console.print(f"[dim]Taxminiy vaqt: ~{report.total * 20 // 60 + 1} daqiqa (Crawl-delay 20 s)[/dim]\n")
+    if not wait:
+        return
+
+    with console.status("yangilanmoqda…") as status:
+        while manager.status is SyncStatus.RUNNING:
+            cur = manager.current
+            if cur:
+                status.update(
+                    f"{cur.processed}/{cur.total} · yangi {cur.new} · "
+                    f"o'zgargan {cur.changed} · o'zgarmagan {cur.unchanged} · xato {cur.errors}"
+                )
+            _time.sleep(1)
+
+    cur = manager.current
+    if cur is None:
+        return
+    console.print(
+        f"[green]✓[/green] {cur.status.value} — yangi {cur.new}, o'zgargan {cur.changed}, "
+        f"o'zgarmagan {cur.unchanged}, xato {cur.errors} ({cur.duration_s:.0f} s)"
+    )
+    for d in cur.documents:
+        if d.status in ("new", "changed"):
+            console.print(f"  {d.status:9} {d.doc_id}  {d.articles or 0} modda"
+                          + (f", {d.amendments} o'zgartirish" if d.amendments else ""))
+        elif d.status == "error":
+            console.print(f"  [red]error[/red]     {d.doc_id}  {d.error}")
+
+
+@kb_app.command("config")
+def kb_config(
+    interval: int = typer.Option(None, "--interval", help="Yangilash oralig'i (kun)"),
+    auto: bool = typer.Option(None, "--auto/--no-auto", help="Avtomatik yangilash"),
+) -> None:
+    """Avtomatik yangilash sozlamalari."""
+    from uzlegal.ingest.sync import SyncManager
+
+    manager = SyncManager()
+    try:
+        manager.configure(interval_days=interval, auto_enabled=auto)
+    except ValueError as exc:
+        console.print(f"[red]✕[/red] {exc}")
+        raise typer.Exit(2) from exc
+    console.print(f"[green]✓[/green] Avtomatik: "
+                  f"{'yoqilgan' if manager.state.auto_enabled else 'o’chirilgan'}, "
+                  f"har {manager.state.interval_days} kunda")
+
+
+@kb_app.command("parse")
+def kb_parse(
+    doc_id: str = typer.Argument(..., help="Hujjat ID (arxivdan o'qiladi)"),
+) -> None:
+    """Arxivdagi hujjatni ajratib, statistikasini ko'rsatish (tarmoqsiz)."""
+    from uzlegal.ingest.connectors.lex_uz import LexUzConnector
+    from uzlegal.ingest.parsers.lex_uz import LexUzParser
+
+    raw = LexUzConnector().load_cached(doc_id)
+    if raw is None:
+        console.print(f"[red]✕[/red] Arxivda topilmadi: {doc_id}. Avval: uzlegal kb sync --docs {doc_id}")
+        raise typer.Exit(4)
+
+    doc = LexUzParser().parse(raw)
+    console.print(f"[bold]{doc.title[:90]}[/bold]")
+    console.print(f"  turi {doc.doc_type} · til {doc.lang} · qabul {doc.adopted_at or '—'}")
+    console.print(f"  {doc.stats()}")
+    console.print(f"  o'zgartirish eslatmalari: {len(doc.amendments)}")
+    empty = [a for a in doc.articles if len(a.body) < 30]
+    if empty:
+        console.print(f"  [yellow]tanasi bo'sh moddalar: {len(empty)}[/yellow]")
+    for w in doc.warnings[:5]:
+        console.print(f"  [yellow]⚠ {w}[/yellow]")
 
 
 # --------------------------------------------------------------------------- #

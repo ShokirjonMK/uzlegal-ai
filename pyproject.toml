@@ -73,6 +73,11 @@ ignore = [
     "RUF001", "RUF002", "RUF003",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Typer ning standart uslubi — parametr standartida `typer.Option(...)`.
+# B008 bu yerda noto'g'ri ogohlantirish.
+"src/uzlegal/cli/*.py" = ["B008"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = true

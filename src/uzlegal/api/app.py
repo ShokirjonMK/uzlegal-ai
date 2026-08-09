@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from uzlegal.config import PROJECT_ROOT, get_registry, get_settings
 from uzlegal.inference.backend import BackendUnavailableError, available_backends
 from uzlegal.inference.registry import ModelSwapError
+from uzlegal.ingest.sync import SyncAlreadyRunningError, SyncManager
 from uzlegal.types import GenerationParams
 
 log = logging.getLogger(__name__)
@@ -160,6 +161,61 @@ def generate_stream(req: GenerateRequest) -> StreamingResponse:
 
 
 # --------------------------------------------------------------------------- #
+# Bilim bazasini yangilash (admin)
+# --------------------------------------------------------------------------- #
+
+_sync = SyncManager()
+
+
+class SyncStartRequest(BaseModel):
+    doc_ids: list[str] | None = None
+
+
+class SyncConfigRequest(BaseModel):
+    interval_days: int | None = None
+    auto_enabled: bool | None = None
+
+
+@app.get("/v1/admin/sync", tags=["admin"])
+def sync_status() -> dict[str, Any]:
+    """Bilim bazasi yangilanishi holati — oxirgi sinxronizatsiya, muddat, tarix."""
+    return _sync.info()
+
+
+@app.post("/v1/admin/sync", tags=["admin"])
+def sync_start(req: SyncStartRequest) -> dict[str, Any]:
+    """Yangilashni qo'lda ishga tushirish.
+
+    Fonda bajariladi — javob darhol qaytadi. Jarayonni `GET /v1/admin/sync`
+    orqali kuzating.
+
+    Diqqat: lex.uz `Crawl-delay: 20` talab qiladi, shuning uchun har bir
+    hujjat kamida 20 soniya oladi.
+    """
+    try:
+        report = _sync.start(trigger="manual", doc_ids=req.doc_ids)
+    except SyncAlreadyRunningError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return {"ok": True, "run_id": report.run_id, "total": report.total}
+
+
+@app.delete("/v1/admin/sync", tags=["admin"])
+def sync_cancel() -> dict[str, Any]:
+    """Ishlayotgan yangilashni to'xtatish (joriy hujjat tugagach)."""
+    return {"ok": True, "cancelled": _sync.cancel()}
+
+
+@app.patch("/v1/admin/sync/config", tags=["admin"])
+def sync_configure(req: SyncConfigRequest) -> dict[str, Any]:
+    """Avtomatik yangilash sozlamalari (interval, yoqilgan/o'chirilgan)."""
+    try:
+        _sync.configure(interval_days=req.interval_days, auto_enabled=req.auto_enabled)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, **_sync.info()}
+
+
+# --------------------------------------------------------------------------- #
 # Tizim
 # --------------------------------------------------------------------------- #
 
@@ -171,7 +227,10 @@ def health() -> dict[str, Any]:
         "status": "healthy" if reg.active_id else "degraded",
         "model_ready": reg.active_id is not None,
         "active_model": reg.active_id,
-        "kb_ready": False,  # Faza 2
+        "kb_ready": _sync.state.kb_version is not None,
+        "kb_version": _sync.state.kb_version,
+        "kb_stale": _sync.state.is_stale(),
+        "sync_status": _sync.status.value,
     }
 
 
@@ -186,7 +245,11 @@ def meta() -> dict[str, Any]:
         "active_model": reg.active_id,
         "available_backends": available_backends(),
         "total_memory_gb": round(reg.total_memory_gb, 1),
-        "kb_version": None,
+        "kb_version": _sync.state.kb_version,
+        "kb_updated_at": (
+            _sync.state.last_sync_at.isoformat() if _sync.state.last_sync_at else None
+        ),
+        "kb_age_days": _sync.state.age_days(),
         "available_agents": ["jurist", "advocate", "prosecutor", "professor", "judge"],
     }
 
@@ -210,6 +273,12 @@ def _startup() -> None:
     restored = reg.restore_state()
     if restored:
         log.info("Oxirgi model tiklandi: %s", restored)
+
+    if _sync.state.is_stale():
+        log.warning(
+            "Bilim bazasi eskirgan (%s kun) — yangilash tavsiya etiladi",
+            _sync.state.age_days(),
+        )
 
 
 def serve(host: str | None = None, port: int | None = None) -> None:
