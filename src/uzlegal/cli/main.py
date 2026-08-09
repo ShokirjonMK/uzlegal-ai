@@ -19,9 +19,11 @@ app = typer.Typer(help="UzLegal-AI — O'zbekiston huquqiy AI platformasi", no_a
 models_app = typer.Typer(help="Model boshqaruvi", no_args_is_help=True)
 eval_app = typer.Typer(help="Baholash", no_args_is_help=True)
 kb_app = typer.Typer(help="Bilim bazasi", no_args_is_help=True)
+index_app = typer.Typer(help="Indeks", no_args_is_help=True)
 app.add_typer(models_app, name="models")
 app.add_typer(eval_app, name="eval")
 app.add_typer(kb_app, name="kb")
+app.add_typer(index_app, name="index")
 
 console = Console()
 
@@ -333,6 +335,110 @@ def kb_parse(
         console.print(f"  [yellow]tanasi bo'sh moddalar: {len(empty)}[/yellow]")
     for w in doc.warnings[:5]:
         console.print(f"  [yellow]⚠ {w}[/yellow]")
+
+
+# --------------------------------------------------------------------------- #
+# Indeks
+# --------------------------------------------------------------------------- #
+
+
+@index_app.command("build")
+def index_build(
+    docs: str = typer.Option(None, "--docs", help="Hujjat ID lari (standart: arxivdagi hammasi)"),
+    out: Path = typer.Option(Path("kb/current"), "--out"),
+    batch_size: int = typer.Option(16, "--batch-size"),
+) -> None:
+    """Arxivdagi hujjatlardan qidiruv indeksini qurish (tarmoqsiz)."""
+    from uzlegal.index.chunker import Chunker
+    from uzlegal.index.embedder import Embedder
+    from uzlegal.index.store import KnowledgeIndex
+    from uzlegal.ingest.connectors.lex_uz import LexUzConnector
+    from uzlegal.ingest.parsers.lex_uz import LexUzParser
+    from uzlegal.ingest.sync import SyncManager
+
+    connector = LexUzConnector()
+    ids = ([d.strip() for d in docs.split(",")] if docs
+           else sorted(p.stem for p in connector.raw_dir.glob("*.html")))
+    if not ids:
+        console.print("[red]✕[/red] Arxiv bo'sh. Avval: uzlegal kb sync")
+        raise typer.Exit(4)
+
+    parser, chunker = LexUzParser(), Chunker()
+    chunks = []
+    for doc_id in ids:
+        raw = connector.load_cached(doc_id)
+        if raw is None:
+            console.print(f"  [yellow]⚠ arxivda yo'q: {doc_id}[/yellow]")
+            continue
+        doc = parser.parse(raw)
+        produced = chunker.chunk_document(doc)
+        chunks.extend(produced)
+        console.print(f"  {doc_id}  {len(doc.articles)} modda → {len(produced)} chunk")
+
+    if not chunks:
+        console.print("[red]✕[/red] Chunk yaratilmadi")
+        raise typer.Exit(1)
+
+    console.print(f"\nJami {len(chunks)} chunk. Embedding (~{len(chunks) / 4:.0f} s)…")
+    embedder = Embedder(batch_size=batch_size)
+    with console.status("vektorlar hisoblanmoqda…"):
+        vectors = embedder.encode([c.indexed_text for c in chunks])
+
+    KnowledgeIndex(out).build(chunks, vectors, kb_version=SyncManager().state.kb_version)
+    console.print(f"[green]✓[/green] Indeks tayyor: {out}")
+
+
+@index_app.command("stats")
+def index_stats(path: Path = typer.Option(Path("kb/current"), "--path")) -> None:
+    """Indeks statistikasi."""
+    from uzlegal.index.store import KnowledgeIndex
+
+    index = KnowledgeIndex(path)
+    if not index.exists():
+        console.print(f"[red]✕[/red] Indeks yo'q: {path}. Quring: uzlegal index build")
+        raise typer.Exit(4)
+    for key, value in index.meta.items():
+        console.print(f"  {key:12} {value}")
+
+
+@app.command()
+def search(
+    query: str,
+    top_k: int = typer.Option(8, "--top-k", "-k"),
+    as_of: str = typer.Option(None, "--as-of", help="Tarixiy holat, YYYY-MM-DD"),
+    full: bool = typer.Option(False, "--full", help="To'liq matn"),
+) -> None:
+    """Qonunchilikda qidirish (modelsiz — tez va arzon)."""
+    from datetime import date as _date
+
+    from uzlegal.index.store import IndexNotBuiltError, KnowledgeIndex
+    from uzlegal.retrieval.hybrid import HybridRetriever
+
+    retriever = HybridRetriever(KnowledgeIndex())
+    try:
+        result = retriever.search(
+            query, top_k=top_k, as_of=_date.fromisoformat(as_of) if as_of else None
+        )
+    except IndexNotBuiltError as exc:
+        console.print(f"[red]✕[/red] {exc}")
+        raise typer.Exit(4) from exc
+
+    console.print(
+        f"[dim]{result.query_kind} · {result.latency_ms} ms · "
+        f"vektor {result.vector_hits} · leksik {result.lexical_hits}"
+        + (f" · versiya filtri {result.dropped_by_version} ta chiqardi"
+           if result.dropped_by_version else "") + "[/dim]\n"
+    )
+    if not result.results:
+        console.print("[yellow]Ishonchli manba topilmadi.[/yellow]")
+        raise typer.Exit(5)
+
+    for i, item in enumerate(result.results, 1):
+        chunk = item.chunk
+        console.print(f"[bold]{i}. {chunk.citation_label}[/bold]  [dim]{item.score:.4f}[/dim]")
+        text = chunk.content if full else chunk.content[:220]
+        console.print(f"   {text}{'' if full else '…'}")
+        console.print(f"   [dim]{chunk.source_url}[/dim]\n")
 
 
 # --------------------------------------------------------------------------- #

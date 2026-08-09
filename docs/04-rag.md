@@ -164,6 +164,96 @@ Yuridik tizimda "bilmayman" — **to'g'ri javob**. Chegaralar:
 
 Oxirgi holat muhim: agar ikki norma bir-biriga zid bo'lsa (bu real hodisa), tizim birini tanlamaydi — **kolliziyani ko'rsatadi** va professor agenti uni tahlil qiladi (`lex specialis`, `lex posterior`, yuridik kuch ierarxiyasi).
 
+## 8A. ⚠️ O'LCHANGAN NATIJALAR (2026-08-09)
+
+> Birinchi ishlaydigan indeks qurildi: Fuqarolik kodeksi, 387 modda → 334 chunk.
+> Quyidagi raqamlar real o'lchov, baho emas.
+
+### Ishlash
+
+| Ko'rsatkich | Baho edi | **O'lchandi** | Izoh |
+|-------------|---------:|--------------:|------|
+| Embedding (BGE-M3, MPS) | 40 chunk/s | **4.1 chunk/s** | ❌ **10× sekin** |
+| Embedding (bir xil qisqa matn) | — | 8.8 chunk/s | Uzun chunklar sekinlashtiradi |
+| Model yuklash | — | ~20 s | Bir marta |
+| Retrieval (gibrid, 334 chunk) | ≤ 600 ms | **220–360 ms** | ✅ Bahodan yaxshi |
+| Indeks hajmi | — | 334 chunk ≈ 2.6 MB | |
+
+**250 000 chunk uchun ekstrapolyatsiya: ~17 soat.** Bu bir martalik kechalik
+ish sifatida maqbul, chunki inkremental yangilanishda faqat o'zgargan
+hujjatlar qayta hisoblanadi (`sha256`).
+
+Agar tezroq kerak bo'lsa: bulutda GPU (~30 daqiqa, ~$2) yoki kichikroq
+embedding modeli. Hozircha zaruriyat yo'q.
+
+### Chunking natijasi
+
+| Ko'rsatkich | Qiymat |
+|-------------|--------|
+| Moddalar → chunklar | 387 → 334 |
+| Turlari | 297 modda, 30 birlashtirilgan, 7 qism |
+| Token: median / o'rtacha / maks | 187 / 241 / 1316 |
+| 800 tokendan katta | 7 ta |
+| Bo'sh yoki nuqsonli | 0 |
+
+800 dan katta 7 ta chunk — bu **ataylab**: ular raqamlanmagan uzun moddalar
+bo'lib, bo'linsa mantiqiy butunlik buzilardi. Yuridik matnda to'liqlik
+uzunlik chegarasidan muhimroq.
+
+### Qidiruv sifati (dastlabki)
+
+| So'rov | Natija |
+|--------|--------|
+| `Статья 234` | ✅ 234-modda — 1-o'rin |
+| `юридическое лицо учредительные документы` | ✅ 43-modda — 1-o'rin |
+| `vindikatsiya da'vosi nima` | ⚠️ 228-modda — 2-o'rin (to'g'ri modda, lekin 1-emas) |
+| `мулкдорнинг ҳуқуқлари` (o'zbekcha) | ❌ Tegishsiz natijalar |
+
+---
+
+## 8B. 🚧 BLOKER: korpus rus tilida
+
+O'zbekcha so'rovlar yomon ishlashining sababi topildi va u jiddiy:
+
+**lex.uz dagi 111181 hujjati (Fuqarolik kodeksi) faqat rus tilida.**
+Tekshirildi: 3924 kontent blokining **hech birida** o'zbekcha matn yo'q.
+
+Sinab ko'rilgan yo'llar:
+
+| Usul | Natija |
+|------|--------|
+| `/docs/111181` | Rus tilida |
+| `/docs/111181?otherlang=1` | Rus tilida (ikki tilli ko'rinish, lekin ikkalasi ham rus) |
+| `/docs/111181?otherlang=4` | Rus tilida |
+| `/ru/search/nat?query=…` | Sahifa ochiladi, natijalar JS orqali yuklanadi — HTML da havola yo'q |
+
+### Xulosa
+
+O'zbek tilidagi versiyalar **alohida hujjat ID larida** joylashgan bo'lishi
+kerak. Ularni topish uchun lex.uz ning qidiruv AJAX endpointini aniqlash
+zarur.
+
+**Bu Faza 2 ning davomi uchun blokerdir.** Sabab: butun mahsulot o'zbek tilida
+javob berishi kerak, lekin korpus rus tilida bo'lsa:
+
+* Iqtiboslar rus tilida chiqadi
+* Cross-lingual retrieval (uz so'rov → ru hujjat) sifati past
+* Foydalanuvchi manbani o'z tilida ko'ra olmaydi
+
+### Variantlar
+
+| Variant | Baho |
+|---------|------|
+| **A. O'zbek hujjat ID larini topish** (AJAX endpointni aniqlash) | ✅ To'g'ri yechim, tekshirish kerak |
+| B. So'rovni rus tiliga tarjima qilib qidirish | Ishlaydi, lekin iqtibos rus tilida qoladi |
+| C. Korpusni mashina tarjimasi bilan o'girish | ❌ Yuridik matnda xavfli — tarjima xatosi normani buzadi |
+| D. Ikki tilli indeks (ru asosiy, uz so'rov kengaytmasi) | Oraliq yechim |
+
+Tavsiya: **A** ni tekshirish, ishlamasa **D**. **C** hech qanday holatda —
+yuridik matnni mashina tarjimasi bilan o'girib iqtibos qilish qabul qilinmaydi.
+
+---
+
 ## 9. Baholash
 
 RAG qatlami agentlardan **mustaqil** baholanadi. Bu muhim: agar yakuniy javob yomon bo'lsa, retrieval aybdormi yoki modelmi — bilish kerak.

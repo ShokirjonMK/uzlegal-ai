@@ -56,3 +56,6 @@ Thumbs.db
 tmp/
 scratch/
 *.log
+
+# Indeks artefaktlari (qayta quriladi)
+kb/current/
