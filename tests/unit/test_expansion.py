@@ -53,7 +53,7 @@ def test_qisqa_ozak_kesilmaydi() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_sozlashuv_atamaga_bogʻlanadi(expander: QueryExpander) -> None:
+def test_sozlashuv_atamaga_boglanadi(expander: QueryExpander) -> None:
     _, added = expander.expand("Maoshni toʻlash tartibi")
     assert "ish haqi" in added
 
