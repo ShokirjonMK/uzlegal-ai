@@ -153,6 +153,59 @@ def models_unload() -> None:
     console.print("[green]✓[/green] Xotira bo'shatildi")
 
 
+@eval_app.command("retrieval")
+def eval_retrieval(
+    suite: str = typer.Option("retrieval-gold-v1", "--suite"),
+    rerank: bool = typer.Option(False, "--rerank/--no-rerank"),
+    top_k: int = typer.Option(10, "--top-k"),
+    out: Path = typer.Option(None, "--out"),
+) -> None:
+    """Retrieval sifatini o'lchash (Recall@k, MRR) — modelsiz."""
+    from uzlegal.eval.retrieval_eval import load_cases, render_report, run_eval
+    from uzlegal.index.store import IndexNotBuiltError, KnowledgeIndex
+    from uzlegal.retrieval.hybrid import HybridRetriever
+
+    path = Path("data/eval") / suite / "cases.jsonl"
+    if not path.exists():
+        console.print(f"[red]✕[/red] To'plam topilmadi: {path}")
+        raise typer.Exit(4)
+
+    cases = load_cases(path)
+    console.print(f"To'plam: [bold]{suite}[/bold] — {len(cases)} holat"
+                  f"{' · reranker yoqilgan' if rerank else ''}\n")
+
+    retriever = HybridRetriever(KnowledgeIndex())
+    try:
+        with console.status("baholanmoqda…"):
+            report = run_eval(retriever, cases, top_k=top_k, rerank=rerank)
+    except IndexNotBuiltError as exc:
+        console.print(f"[red]✕[/red] {exc}")
+        raise typer.Exit(4) from exc
+
+    from uzlegal.eval.retrieval_eval import TARGETS
+
+    for name, target in TARGETS.items():
+        value = report.mrr if name == "mrr" else report.recall_at(int(name.split("@")[1]))
+        mark = "[green]✅[/green]" if value >= target else "[red]❌[/red]"
+        console.print(f"  {name:12} {value:6.0%}  (maqsad {target:.0%})  {mark}")
+    leak = report.deprecated_leak
+    console.print(f"  {'deprecated':12} {leak:6.0%}  (maqsad 0%)   "
+                  f"{'[green]✅[/green]' if leak == 0 else '[red]❌[/red]'}")
+    console.print(f"  {'kechikish':12} {report.median_latency_ms:4d} ms median, "
+                  f"{report.p95_latency_ms} ms p95")
+
+    if report.failures:
+        console.print(f"\n[yellow]Topilmagan ({len(report.failures)}):[/yellow]")
+        for r in report.failures[:8]:
+            console.print(f"  {r.case.id:10} {r.case.query[:52]}")
+            console.print(f"             kutilgan {r.case.expected_articles} · olindi {r.top_articles}")
+
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render_report(report, "reranker" if rerank else "gibrid"), encoding="utf-8")
+        console.print(f"\n[green]✓[/green] Hisobot: {out}")
+
+
 @eval_app.command("bench")
 def eval_bench(
     candidates: str = typer.Option(..., "--candidates", help="Vergul bilan ajratilgan model ID lari"),
@@ -389,8 +442,15 @@ def index_build(
     docs: str = typer.Option(None, "--docs", help="Hujjat ID lari (standart: arxivdagi hammasi)"),
     out: Path = typer.Option(Path("kb/current"), "--out"),
     batch_size: int = typer.Option(16, "--batch-size"),
+    lang: str = typer.Option("uz", "--lang", help="Faqat shu tildagi hujjatlar ('' = hammasi)"),
 ) -> None:
-    """Arxivdagi hujjatlardan qidiruv indeksini qurish (tarmoqsiz)."""
+    """Arxivdagi hujjatlardan qidiruv indeksini qurish (tarmoqsiz).
+
+    Standart bo'yicha faqat o'zbek tilidagi hujjatlar indekslanadi.
+    Arxivda rus nashrlari ham bo'lishi mumkin (masalan 111181) — ular
+    o'zbekcha so'rovlar natijasini ifloslantiradi. Arxiv o'zgarmas
+    qoladi, filtr faqat indekslashda qo'llaniladi.
+    """
     from uzlegal.index.chunker import Chunker
     from uzlegal.index.embedder import Embedder
     from uzlegal.index.store import KnowledgeIndex
@@ -414,6 +474,9 @@ def index_build(
             console.print(f"  [yellow]⚠ arxivda yo'q: {doc_id}[/yellow]")
             continue
         doc = parser.parse(raw)
+        if lang and doc.lang != lang:
+            console.print(f"  [dim]{doc_id}  o'tkazib yuborildi (til: {doc.lang})[/dim]")
+            continue
         produced = chunker.chunk_document(doc)
         chunks.extend(produced)
         console.print(f"  {doc_id}  {len(doc.articles)} modda → {len(produced)} chunk")

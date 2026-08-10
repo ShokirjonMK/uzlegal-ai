@@ -1,9 +1,9 @@
 {
-  "last_sync_at": "2026-08-09T16:51:20.190819Z",
-  "last_run_id": "sync_20260809T165039",
+  "last_sync_at": "2026-08-10T01:07:44.318565Z",
+  "last_run_id": "sync_20260810T010123",
   "interval_days": 7,
   "auto_enabled": true,
-  "kb_version": "v2026.08.09",
+  "kb_version": "v2026.08.10",
   "history": [
     {
       "run_id": "sync_20260809T130914",
@@ -94,6 +94,183 @@
         }
       ],
       "kb_version": "v2026.08.09",
+      "message": null
+    },
+    {
+      "run_id": "sync_20260810T010123",
+      "started_at": "2026-08-10T01:01:23.473527Z",
+      "finished_at": "2026-08-10T01:07:44.318565Z",
+      "trigger": "manual",
+      "status": "completed",
+      "total": 20,
+      "processed": 20,
+      "new": 17,
+      "changed": 0,
+      "unchanged": 3,
+      "errors": 0,
+      "documents": [
+        {
+          "doc_id": "-111189",
+          "title": "Fuqarolik kodeksi (birinchi qism)",
+          "status": "unchanged",
+          "articles": null,
+          "amendments": null,
+          "error": null
+        },
+        {
+          "doc_id": "-180552",
+          "title": "OʻZBEKISTON RESPUBLIKASINING FUQAROLIK KODEKSI",
+          "status": "new",
+          "articles": 811,
+          "amendments": 8,
+          "error": null
+        },
+        {
+          "doc_id": "-6257288",
+          "title": "Mehnat kodeksi",
+          "status": "unchanged",
+          "articles": null,
+          "amendments": null,
+          "error": null
+        },
+        {
+          "doc_id": "-111453",
+          "title": "OʻZBEKISTON RESPUBLIKASINING JINOYAT KODEKSI",
+          "status": "new",
+          "articles": 404,
+          "amendments": 35,
+          "error": null
+        },
+        {
+          "doc_id": "-111460",
+          "title": "OʻZBEKISTON RESPUBLIKASINING JINOYAT-PROTSESSUAL KODEKSI",
+          "status": "new",
+          "articles": 769,
+          "amendments": 36,
+          "error": null
+        },
+        {
+          "doc_id": "-163629",
+          "title": "OʻZBEKISTON RESPUBLIKASINING JINOYAT-IJROIYA KODEKSI",
+          "status": "new",
+          "articles": 201,
+          "amendments": 12,
+          "error": null
+        },
+        {
+          "doc_id": "-3517337",
+          "title": "Oʻzbekiston Respublikasining Fuqarolik protsessual kodeksi",
+          "status": "new",
+          "articles": 508,
+          "amendments": 5,
+          "error": null
+        },
+        {
+          "doc_id": "-3523891",
+          "title": "Oʻzbekiston Respublikasining Iqtisodiy protsessual kodeksi",
+          "status": "new",
+          "articles": 390,
+          "amendments": 2,
+          "error": null
+        },
+        {
+          "doc_id": "-3527353",
+          "title": "Oʻzbekiston Respublikasining Maʼmuriy sud ishlarini yuritish toʻgʻrisidagi kodeksi",
+          "status": "new",
+          "articles": 306,
+          "amendments": 3,
+          "error": null
+        },
+        {
+          "doc_id": "-97664",
+          "title": "Oʻzbekiston Respublikasining Maʼmuriy javobgarlik toʻgʻrisidagi kodeksi",
+          "status": "new",
+          "articles": 663,
+          "amendments": 89,
+          "error": null
+        },
+        {
+          "doc_id": "-104720",
+          "title": "Oila kodeksi",
+          "status": "unchanged",
+          "articles": null,
+          "amendments": null,
+          "error": null
+        },
+        {
+          "doc_id": "-4674902",
+          "title": "Oʻzbekiston Respublikasining Soliq kodeksi",
+          "status": "new",
+          "articles": 500,
+          "amendments": 13,
+          "error": null
+        },
+        {
+          "doc_id": "-2304138",
+          "title": "Oʻzbekiston Respublikasining Budjet kodeksi",
+          "status": "new",
+          "articles": 179,
+          "amendments": 11,
+          "error": null
+        },
+        {
+          "doc_id": "-2876354",
+          "title": "Oʻzbekiston Respublikasining Bojxona kodeksi",
+          "status": "new",
+          "articles": 419,
+          "amendments": 5,
+          "error": null
+        },
+        {
+          "doc_id": "-152653",
+          "title": "OʻZBEKISTON RESPUBLIKASINING YER KODEKSI",
+          "status": "new",
+          "articles": 110,
+          "amendments": 10,
+          "error": null
+        },
+        {
+          "doc_id": "-106136",
+          "title": "Oʻzbekiston Respublikasining UY-JOY KODEKSI",
+          "status": "new",
+          "articles": 141,
+          "amendments": 5,
+          "error": null
+        },
+        {
+          "doc_id": "-5307951",
+          "title": "Oʻzbekiston Respublikasining Shaharsozlik kodeksi",
+          "status": "new",
+          "articles": 85,
+          "amendments": 2,
+          "error": null
+        },
+        {
+          "doc_id": "-7655343",
+          "title": "Oʻzbekiston Respublikasining Suv kodeksi",
+          "status": "new",
+          "articles": 165,
+          "amendments": 0,
+          "error": null
+        },
+        {
+          "doc_id": "-55594",
+          "title": "OʻZBEKISTON RESPUBLIKASINING HAVO KODEKSI",
+          "status": "new",
+          "articles": 136,
+          "amendments": 0,
+          "error": null
+        },
+        {
+          "doc_id": "-4386848",
+          "title": "Oʻzbekiston Respublikasining Saylov kodeksi",
+          "status": "new",
+          "articles": 116,
+          "amendments": 5,
+          "error": null
+        }
+      ],
+      "kb_version": "v2026.08.10",
       "message": null
     }
   ]

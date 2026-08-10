@@ -201,8 +201,20 @@ def detect_doc_type(title: str) -> DocType:
     return "boshqa"
 
 
+# «Prim» moddalar: keyinchalik kiritilgan qo'shimcha moddalar yuqori indeks
+# bilan raqamlanadi — 358¹, 26², 176³. HTML da bu `<sup>` tegi:
+#
+#     358<sup>1</sup>-modda. Korporativ shartnoma
+#
+# Teglarni oddiy bo'sh joyga aylantirsak «358 1 -modda» chiqadi va modda
+# raqami **1** deb ajratiladi — u haqiqiy 1-modda bilan to'qnashadi.
+# Shuning uchun `<sup>` avval kanonik `-N` shakliga o'giriladi: `358-1`.
+_SUPERSCRIPT = re.compile(r"<sup>\s*(\d{1,2})\s*</sup>", re.IGNORECASE)
+
+
 def clean_text(fragment: str) -> str:
     fragment = _SCRIPT_STYLE.sub(" ", fragment)
+    fragment = _SUPERSCRIPT.sub(r"-\1", fragment)
     fragment = fragment.replace("<br />", "\n").replace("<br/>", "\n").replace("<br>", "\n")
     fragment = _TAG.sub(" ", fragment)
     fragment = html_lib.unescape(fragment)

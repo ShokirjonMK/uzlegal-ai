@@ -200,3 +200,44 @@ def test_notogri_html_xato_bermaydi() -> None:
 def test_can_parse() -> None:
     parser = LexUzParser()
     assert parser.can_parse(_raw("<html></html>"))
+
+
+# --------------------------------------------------------------------------- #
+# «Prim» moddalar — 358¹, 26², 176³
+# --------------------------------------------------------------------------- #
+
+
+def test_yuqori_indeks_modda_raqami() -> None:
+    """358<sup>1</sup>-modda → "358-1", "1" EMAS.
+
+    Real xato: teglar bo'sh joyga aylantirilib «358 1 -modda» chiqardi va
+    modda raqami «1» deb ajratildi — haqiqiy 1-modda bilan to'qnashardi.
+    """
+    from uzlegal.ingest.normalize import extract_article_number
+    from uzlegal.ingest.parsers.lex_uz import clean_text
+
+    text = clean_text("<strong>358<sup>1</sup>-modda. Korporativ shartnoma</strong>")
+    assert text.startswith("358-1-modda")
+    assert extract_article_number(text) == "358-1"
+
+
+@pytest.mark.parametrize(
+    ("html", "expected"),
+    [
+        ("26<sup>1</sup>-modda. Jismoniy shaxs", "26-1"),
+        ("176<sup>2</sup>-moddasi", "176-2"),
+        ("358<sup>1</sup>-modda", "358-1"),
+        ("12-modda", "12"),
+    ],
+)
+def test_prim_moddalar(html: str, expected: str) -> None:
+    from uzlegal.ingest.normalize import extract_article_number
+    from uzlegal.ingest.parsers.lex_uz import clean_text
+
+    assert extract_article_number(clean_text(html)) == expected
+
+
+def test_oddiy_sup_matnni_buzmaydi() -> None:
+    from uzlegal.ingest.parsers.lex_uz import clean_text
+
+    assert "m-2" in clean_text("m<sup>2</sup>")

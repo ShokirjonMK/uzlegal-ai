@@ -1,0 +1,36 @@
+{"id":"vind-01","query":"O'g'irlangan mulkimni egallab olgan odamdan qaytarib olsam bo'ladimi","expected_articles":["228"],"doc_hint":"Fuqarolik","category":"mulk","note":"228 = vindikatsiya; savolda bu atama yo'q"}
+{"id":"vind-02","query":"Mulk egasi o'z ashyosini qonunsiz egallovchidan talab qilishi","expected_articles":["228"],"doc_hint":"Fuqarolik","category":"mulk"}
+{"id":"dm-01","query":"Sudga murojaat qilish uchun necha yil vaqt bor","expected_articles":["149","150"],"doc_hint":"Fuqarolik","category":"muddat"}
+{"id":"dm-02","query":"Umumiy da'vo muddati necha yil","expected_articles":["150","149"],"doc_hint":"Fuqarolik","category":"muddat"}
+{"id":"dm-03","query":"Sud muddat o'tganini o'zi hisobga oladimi yoki tomon aytishi kerakmi","expected_articles":["153"],"doc_hint":"Fuqarolik","category":"muddat"}
+{"id":"sinov-01","query":"Yangi xodimni tekshirib ko'rish uchun qancha vaqt belgilash mumkin","expected_articles":["130","131","130-131"],"doc_hint":"Mehnat","category":"mehnat"}
+{"id":"sinov-02","query":"Dastlabki sinov eng ko'pi bilan qancha davom etadi","expected_articles":["130","131","130-131"],"doc_hint":"Mehnat","category":"mehnat"}
+{"id":"bosh-01","query":"Ishdan bo'shatishni kim rasmiylashtiradi","expected_articles":["170"],"doc_hint":"Mehnat","category":"mehnat"}
+{"id":"tatil-01","query":"Xodimga yiliga necha kun dam olish beriladi","expected_articles":["216","217"],"doc_hint":"Mehnat","category":"mehnat"}
+{"id":"tatil-02","query":"Eng kam yillik dam olish davomiyligi","expected_articles":["217","216"],"doc_hint":"Mehnat","category":"mehnat"}
+{"id":"ish-haqi-01","query":"Maoshni to'lash tartibi va muddatlari","expected_articles":["333"],"doc_hint":"Mehnat","category":"mehnat"}
+{"id":"mshart-01","query":"Ish beruvchi mehnat shartnomasini rasmiylashtirishga majburmi","expected_articles":["32"],"doc_hint":"Mehnat","category":"mehnat"}
+{"id":"mshart-02","query":"Qaysi hollarda muddatli mehnat shartnomasi tuziladi","expected_articles":["111"],"doc_hint":"Mehnat","category":"mehnat"}
+{"id":"yur-01","query":"Tashkilot qanday hujjat asosida faoliyat yuritadi","expected_articles":["43"],"doc_hint":"Fuqarolik","category":"korporativ"}
+{"id":"yur-02","query":"Yuridik shaxs deb nima tushuniladi","expected_articles":["39"],"doc_hint":"Fuqarolik","category":"korporativ"}
+{"id":"voyaga-01","query":"O'n olti yoshli o'smir o'zi bitim tuza oladimi","expected_articles":["27"],"doc_hint":"Fuqarolik","category":"shaxs"}
+{"id":"voyaga-02","query":"Kichik yoshdagi bola nomidan kim shartnoma imzolaydi","expected_articles":["29","27"],"doc_hint":"Fuqarolik","category":"shaxs"}
+{"id":"garov-01","query":"Qarzni ta'minlash uchun mulkni ta'minot sifatida berish","expected_articles":["264"],"doc_hint":"Fuqarolik","category":"majburiyat"}
+{"id":"majb-01","query":"Majburiyat deganda nima tushuniladi","expected_articles":["234"],"doc_hint":"Fuqarolik","category":"majburiyat"}
+{"id":"sotuv-01","query":"Mol sotish va sotib olish kelishuvi","expected_articles":["386"],"doc_hint":"Fuqarolik","category":"shartnoma"}
+{"id":"ijara-01","query":"Ijara tugagach mulkni egasiga qaytarish majburiyati","expected_articles":["554"],"doc_hint":"Fuqarolik","category":"shartnoma"}
+{"id":"bekor-01","query":"Shartnoma buzilganda zarar qanday hisoblanadi","expected_articles":["456"],"doc_hint":"Fuqarolik","category":"shartnoma"}
+{"id":"zarar-01","query":"Kelajakda zarar yetkazilishining oldini olish uchun sudga murojaat","expected_articles":["986"],"doc_hint":"Fuqarolik","category":"zarar"}
+{"id":"meros-01","query":"Vasiyatnoma qanday shaklda yozilishi kerak","expected_articles":["1124"],"doc_hint":"Fuqarolik","category":"meros"}
+{"id":"meros-02","query":"Vasiyatda ko'rsatilmagan mol-mulk kimga o'tadi","expected_articles":["1123"],"doc_hint":"Fuqarolik","category":"meros"}
+{"id":"jin-01","query":"Jinoyat deb nima hisoblanadi","expected_articles":["14"],"doc_hint":"Jinoyat kodeksi","category":"jinoyat"}
+{"id":"jin-02","query":"Aybi bo'lmagan holda zarar keltirgan shaxs javobgarmi","expected_articles":["24"],"doc_hint":"Jinoyat kodeksi","category":"jinoyat"}
+{"id":"jin-03","query":"Farzandlikka olish siri oshkor qilinsa qanday javobgarlik","expected_articles":["125"],"doc_hint":"Jinoyat kodeksi","category":"jinoyat"}
+{"id":"fpk-01","query":"Er-xotinni ajratish to'g'risidagi ishni sud qanday ko'radi","expected_articles":["185"],"doc_hint":"Fuqarolik protsessual","category":"protsessual"}
+{"id":"fpk-02","query":"Bola uchun to'lov undirish bo'yicha sud ishi","expected_articles":["186","187"],"doc_hint":"Fuqarolik protsessual","category":"protsessual"}
+{"id":"fpk-03","query":"Sudga murojaat qilishda qanday to'lovlar bo'ladi","expected_articles":["127"],"doc_hint":"Fuqarolik protsessual","category":"protsessual"}
+{"id":"jpk-01","query":"Hukm ustidan birinchi instansiyadan keyin shikoyat berish","expected_articles":["497-1","497-2"],"doc_hint":"Jinoyat-protsessual","category":"protsessual"}
+{"id":"art-01","query":"FK 228-modda","expected_articles":["228"],"doc_hint":"Fuqarolik","category":"modda-lookup"}
+{"id":"art-02","query":"Mehnat kodeksi 130-modda","expected_articles":["130","130-131"],"doc_hint":"Mehnat","category":"modda-lookup"}
+{"id":"art-03","query":"JK 14-modda","expected_articles":["14"],"doc_hint":"Jinoyat kodeksi","category":"modda-lookup"}
+{"id":"art-04","query":"Fuqarolik kodeksi 1124-modda","expected_articles":["1124"],"doc_hint":"Fuqarolik","category":"modda-lookup"}

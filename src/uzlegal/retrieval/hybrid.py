@@ -170,6 +170,7 @@ class RetrievalResult:
     lexical_hits: int
     dropped_by_version: int
     exact_hits: int = 0
+    reranked: bool = False
     latency_ms: int = 0
 
     @property
@@ -184,7 +185,12 @@ class RetrievalResult:
         shuning uchun chegara ham kichik. Muhimi — ikkala qidiruv ham
         topganmi yoki bittasi tasodifan chiqarganmi.
         """
-        return bool(self.results) and self.top_score >= 0.02
+        if not self.results:
+            return False
+        # Reranker ballari boshqa shkalada (logit, taxminan −10…+10),
+        # RRF ballari esa 0…0.05 atrofida. Chegara shunga qarab tanlanadi.
+        threshold = 0.0 if self.reranked else 0.02
+        return self.top_score >= threshold
 
 
 # --------------------------------------------------------------------------- #
@@ -193,9 +199,18 @@ class RetrievalResult:
 
 
 class HybridRetriever:
-    def __init__(self, index: KnowledgeIndex, embedder: object | None = None) -> None:
+    def __init__(
+        self,
+        index: KnowledgeIndex,
+        embedder: object | None = None,
+        reranker: object | None = None,
+        *,
+        use_reranker: bool = False,
+    ) -> None:
         self.index = index
         self._embedder = embedder
+        self._reranker = reranker
+        self.use_reranker = use_reranker
 
     @property
     def embedder(self) -> object:
@@ -205,6 +220,14 @@ class HybridRetriever:
             self._embedder = Embedder()
         return self._embedder
 
+    @property
+    def reranker(self) -> object:
+        if self._reranker is None:
+            from uzlegal.retrieval.reranker import Reranker
+
+            self._reranker = Reranker()
+        return self._reranker
+
     def search(
         self,
         query: str,
@@ -213,6 +236,7 @@ class HybridRetriever:
         candidates: int = 50,
         as_of: date | None = None,
         kind: QueryKind | None = None,
+        rerank: bool | None = None,
     ) -> RetrievalResult:
         import time
 
@@ -237,7 +261,16 @@ class HybridRetriever:
         fused = self._rrf(vector_hits, lexical_hits, w_vec, w_lex, exact_hits)
         filtered, dropped = version_filter(fused, as_of)
 
+        # Cross-encoder faqat versiya filtridan keyin ishlaydi — bekor
+        # qilingan normani qayta tartiblashning ma'nosi yo'q va u qimmat.
+        reranked = False
+        if (self.use_reranker if rerank is None else rerank) and filtered:
+            head = filtered[: max(top_k * 3, 20)]
+            filtered = self.reranker.rerank(query, head) + filtered[len(head) :]  # type: ignore[attr-defined]
+            reranked = True
+
         return RetrievalResult(
+            reranked=reranked,
             results=filtered[:top_k],
             query_kind=kind,
             vector_hits=len(vector_hits),
