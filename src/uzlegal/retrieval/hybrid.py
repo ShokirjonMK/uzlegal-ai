@@ -53,6 +53,50 @@ WEIGHTS: dict[QueryKind, tuple[float, float]] = {
 }
 
 _ARTICLE_REF = re.compile(r"\b\d{1,4}\s*[-–]?\s*(?:modda|модда)|стать[яи]\s*\d+", re.IGNORECASE)
+_ARTICLE_NUMBER = re.compile(
+    r"(?:\b(\d{1,4})\s*[-–]?\s*(?:modda|модда)|стать[яи]\s*(\d{1,4}))", re.IGNORECASE
+)
+
+# Yuristlar kodekslarni qisqartma bilan ataydi. Bu qisqartmalar rasmiy emas,
+# lekin amalda universal — so'rovni to'g'ri hujjatga yo'naltiradi.
+DOC_ABBREVIATIONS: dict[str, str] = {
+    "fk": "fuqarolik kodeksi",
+    "гк": "fuqarolik kodeksi",
+    "mk": "mehnat kodeksi",
+    "тк": "mehnat kodeksi",
+    "jk": "jinoyat kodeksi",
+    "ук": "jinoyat kodeksi",
+    "jpk": "jinoyat-protsessual kodeksi",
+    "fpk": "fuqarolik protsessual kodeksi",
+    "ok": "oila kodeksi",
+    "sk": "soliq kodeksi",
+    "mjtk": "ma'muriy javobgarlik",
+}
+
+
+def extract_article_ref(query: str) -> tuple[str | None, str | None]:
+    """So'rovdan modda raqami va hujjat ishorasini ajratadi.
+
+    `("234", "fuqarolik kodeksi")` yoki `(None, None)`.
+    """
+    m = _ARTICLE_NUMBER.search(query)
+    if not m:
+        return None, None
+    number = next((g for g in m.groups() if g), None)
+
+    folded = fold(query)
+    doc_hint = next(
+        (full for abbr, full in DOC_ABBREVIATIONS.items() if re.search(rf"\b{abbr}\b", folded)),
+        None,
+    )
+    if doc_hint is None:
+        for name in ("fuqarolik", "mehnat", "jinoyat", "oila", "soliq", "yer", "uy-joy"):
+            if name in folded:
+                doc_hint = name
+                break
+    return number, doc_hint
+
+
 _PROCEDURAL = re.compile(
     r"\b(muddat|tartib|ariza|shikoyat|apellyatsiya|kassatsiya|sud\w*\s+murojaat|"
     r"protsessual|срок|порядок|жалоб|апелляц)", re.IGNORECASE
@@ -125,6 +169,7 @@ class RetrievalResult:
     vector_hits: int
     lexical_hits: int
     dropped_by_version: int
+    exact_hits: int = 0
     latency_ms: int = 0
 
     @property
@@ -182,7 +227,14 @@ class HybridRetriever:
 
         lexical_hits = self.index.search_lexical(query, top_k=candidates) if w_lex > 0 else []
 
-        fused = self._rrf(vector_hits, lexical_hits, w_vec, w_lex)
+        # Uchinchi kanal: modda raqami bo'yicha aniq moslik (docs/04 § 2).
+        # BM25 buni uddalay olmaydi — «modda» so'zining IDF si nolga yaqin.
+        article, doc_hint = extract_article_ref(query)
+        exact_hits = (
+            self.index.search_article(article, doc_hint) if article else []
+        )
+
+        fused = self._rrf(vector_hits, lexical_hits, w_vec, w_lex, exact_hits)
         filtered, dropped = version_filter(fused, as_of)
 
         return RetrievalResult(
@@ -190,6 +242,7 @@ class HybridRetriever:
             query_kind=kind,
             vector_hits=len(vector_hits),
             lexical_hits=len(lexical_hits),
+            exact_hits=len(exact_hits),
             dropped_by_version=dropped,
             latency_ms=int((time.time() - t0) * 1000),
         )
@@ -200,11 +253,18 @@ class HybridRetriever:
         lexical_hits: list[ScoredChunk],
         w_vec: float,
         w_lex: float,
+        exact_hits: list[ScoredChunk] | None = None,
     ) -> list[ScoredChunk]:
         scores: dict[str, float] = {}
         chunks: dict[str, ScoredChunk] = {}
 
-        for weight, hits in ((w_vec, vector_hits), (w_lex, lexical_hits)):
+        # Aniq moslik vazni yuqori: foydalanuvchi modda raqamini aytgan bo'lsa,
+        # u aynan shu moddani so'ragan — taxmin qilishning hojati yo'q.
+        sources = [(w_vec, vector_hits), (w_lex, lexical_hits)]
+        if exact_hits:
+            sources.append((2.0, exact_hits))
+
+        for weight, hits in sources:
             for rank, item in enumerate(hits, start=1):
                 scores[item.chunk_id] = scores.get(item.chunk_id, 0.0) + weight / (RRF_K + rank)
                 chunks.setdefault(item.chunk_id, item)

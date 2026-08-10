@@ -66,6 +66,25 @@ _AMENDMENT_MARKERS = re.compile(
     re.IGNORECASE,
 )
 
+# O'zbek nashrlarida tahrir eslatmalari boshqa shaklda keladi — qavs ichida,
+# modda yoki bob sarlavhasidan keyin alohida CLAUSE_DEFAULT blok sifatida:
+#
+#   (1-moddaning nomi Oʻzbekiston Respublikasining 2021-yil 21-apreldagi
+#    OʻRQ-683-sonli Qonuni tahririda — Qonunchilik maʼlumotlari milliy bazasi…)
+#
+# Ular modda deb hisoblansa, haqiqiy modda ikkiga bo'linib, birinchisining
+# tanasi bo'sh qoladi.
+_EDITORIAL_KEYWORDS = re.compile(
+    r"(tahririda|тахририда|таҳририда|asosida chiqarildi|"
+    r"kiritilgan|киритилган|chiqarib tashlangan|чиқариб ташланган|"
+    r"kuchini yo[’'ʻ]qotgan|кучини йўқотган|"
+    r"O[’'ʻ]RQ[-\s]?\d|ЎРҚ[-\s]?\d|ЗРУ[-\s]?\d|"
+    r"Qonunchilik ma[’'ʼ]lumotlari milliy bazasi)",
+    re.IGNORECASE,
+)
+
+_PARENTHESISED = re.compile(r"^\s*\(.*\)\s*$", re.DOTALL)
+
 _AMEND_TARGET = re.compile(
     r"(?:в\s+стать[юяи]\s+|стать[яи]\s+|(\d+)\s*[-–]?\s*модда|(\d+)\s*[-–]?\s*modda)(\d+)?",
     re.IGNORECASE,
@@ -80,8 +99,21 @@ _AMEND_DOC = re.compile(
 
 
 def is_amendment_note(text: str) -> bool:
-    """Matn o'zgartirish eslatmasimi (haqiqiy modda emas)."""
-    return bool(_AMENDMENT_MARKERS.search(text))
+    """Matn o'zgartirish/tahrir eslatmasimi (haqiqiy modda yoki bob emas).
+
+    Ikki shakl qo'llab-quvvatlanadi:
+
+    * Rus nashrlari: «Обратите внимание: в статью 53 внесены изменения…»
+    * O'zbek nashrlari: qavs ichidagi tahrir izohi —
+      «(1-moddaning nomi … OʻRQ-683-sonli Qonuni tahririda — …)»
+
+    Ikkinchi shakl uchun **qavs ichida bo'lishi** talab qilinadi, aks holda
+    «…tahririda…» so'zi uchraydigan oddiy modda matni ham eslatma deb
+    belgilanib qolardi.
+    """
+    if _AMENDMENT_MARKERS.search(text):
+        return True
+    return bool(_PARENTHESISED.match(text) and _EDITORIAL_KEYWORDS.search(text))
 
 
 def parse_amendment(element_id: str, text: str) -> AmendmentNote:
@@ -104,8 +136,14 @@ def parse_amendment(element_id: str, text: str) -> AmendmentNote:
 # --------------------------------------------------------------------------- #
 
 _WRAPPER = re.compile(r'<div class="([A-Z_]+) lx_elem"')
-_CONTENT = re.compile(r'<div name="(\d+)" id="\1">(.*?)</div>', re.DOTALL)
-_TOC_ENTRY = re.compile(r"scrollText\('(\d+)'\)")
+
+# DIQQAT: element ID lari **manfiy** bo'lishi mumkin.
+# lex.uz da o'zbek (lotin) nashrlari manfiy ID bilan keladi:
+#   ruscha  → /docs/111181,  element id="156152"
+#   o'zbekcha → /docs/-111189, element id="-5443895"
+# `(\d+)` minusni qamramaydi va butun hujjat bo'sh ajratilardi.
+_CONTENT = re.compile(r'<div name="(-?\d+)" id="\1">(.*?)</div>', re.DOTALL)
+_TOC_ENTRY = re.compile(r"scrollText\('(-?\d+)'\)")
 _TITLE_TAG = re.compile(r"<title>(.*?)</title>", re.DOTALL | re.IGNORECASE)
 _TAG = re.compile(r"<[^>]+>")
 _SCRIPT_STYLE = re.compile(r"<(script|style)\b.*?</\1>", re.DOTALL | re.IGNORECASE)
@@ -274,6 +312,13 @@ class LexUzParser:
                 continue
 
             if cls in HEADER_CLASSES:
+                # Bob sarlavhasi o'rnida tahrir izohi kelishi mumkin —
+                # u ierarxiya yo'liga tushmasligi kerak.
+                if is_amendment_note(flat):
+                    note = parse_amendment(element_id, flat)
+                    amendments.append(note)
+                    continue
+
                 flush()
                 level = detect_header_level(flat)
                 path[level] = flat

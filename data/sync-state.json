@@ -1,6 +1,6 @@
 {
-  "last_sync_at": "2026-08-09T13:10:31.108714Z",
-  "last_run_id": "sync_20260809T131030",
+  "last_sync_at": "2026-08-09T16:51:20.190819Z",
+  "last_run_id": "sync_20260809T165039",
   "interval_days": 7,
   "auto_enabled": true,
   "kb_version": "v2026.08.09",
@@ -49,6 +49,47 @@
           "status": "unchanged",
           "articles": null,
           "amendments": null,
+          "error": null
+        }
+      ],
+      "kb_version": "v2026.08.09",
+      "message": null
+    },
+    {
+      "run_id": "sync_20260809T165039",
+      "started_at": "2026-08-09T16:50:39.590467Z",
+      "finished_at": "2026-08-09T16:51:20.190819Z",
+      "trigger": "manual",
+      "status": "completed",
+      "total": 3,
+      "processed": 3,
+      "new": 3,
+      "changed": 0,
+      "unchanged": 0,
+      "errors": 0,
+      "documents": [
+        {
+          "doc_id": "-111189",
+          "title": "OʻZBEKISTON RESPUBLIKASINING FUQAROLIK KODEKSI",
+          "status": "new",
+          "articles": 386,
+          "amendments": 8,
+          "error": null
+        },
+        {
+          "doc_id": "-6257288",
+          "title": "Oʻzbekiston Respublikasining Mehnat kodeksi",
+          "status": "new",
+          "articles": 581,
+          "amendments": 1,
+          "error": null
+        },
+        {
+          "doc_id": "-104720",
+          "title": "OʻZBEKISTON RESPUBLIKASINING OILA KODEKSI",
+          "status": "new",
+          "articles": 220,
+          "amendments": 3,
           "error": null
         }
       ],

@@ -211,46 +211,100 @@ uzunlik chegarasidan muhimroq.
 
 ---
 
-## 8B. 🚧 BLOKER: korpus rus tilida
+## 8B. ✅ HAL QILINDI: o'zbek korpusi topildi
 
-O'zbekcha so'rovlar yomon ishlashining sababi topildi va u jiddiy:
+> Oldingi versiyada bu bo'lim «korpus rus tilida» blokerini tavsiflardi.
+> Bloker **2026-08-09 da hal qilindi.**
 
-**lex.uz dagi 111181 hujjati (Fuqarolik kodeksi) faqat rus tilida.**
-Tekshirildi: 3924 kontent blokining **hech birida** o'zbekcha matn yo'q.
+### Sabab
 
-Sinab ko'rilgan yo'llar:
+lex.uz da til nashrlari **alohida hujjatlar**, tarjima emas:
 
-| Usul | Natija |
-|------|--------|
-| `/docs/111181` | Rus tilida |
-| `/docs/111181?otherlang=1` | Rus tilida (ikki tilli ko'rinish, lekin ikkalasi ham rus) |
-| `/docs/111181?otherlang=4` | Rus tilida |
-| `/ru/search/nat?query=…` | Sahifa ochiladi, natijalar JS orqali yuklanadi — HTML da havola yo'q |
+| Nashr | ID | Manzil |
+|-------|-----|--------|
+| Гражданский кодекс (rus) | `111181` | `/ru/docs/111181` |
+| Fuqarolik kodeksi (o'zbek lotin) | **`-111189`** | `/uz/docs/-111189` |
 
-### Xulosa
+**O'zbek (lotin) nashrlari manfiy ID bilan keladi.** URL dagi `/uz/` yoki
+`/ru/` prefiksi faqat interfeys tilini o'zgartiradi — matn ID bilan
+belgilanadi. Shuning uchun `/uz/docs/111181` ham rus tilida qaytaradi.
 
-O'zbek tilidagi versiyalar **alohida hujjat ID larida** joylashgan bo'lishi
-kerak. Ularni topish uchun lex.uz ning qidiruv AJAX endpointini aniqlash
-zarur.
+### Kashfiyot API si
 
-**Bu Faza 2 ning davomi uchun blokerdir.** Sabab: butun mahsulot o'zbek tilida
-javob berishi kerak, lekin korpus rus tilida bo'lsa:
+Hujjatlarni topish mexanizmi aniqlandi:
 
-* Iqtiboslar rus tilida chiqadi
-* Cross-lingual retrieval (uz so'rov → ru hujjat) sifati past
-* Foydalanuvchi manbani o'z tilida ko'ra olmaydi
+    https://lex.uz/uz/search/nat?query=<so'z>&lang=<til>&form_id=<shakl>&status=<holat>
 
-### Variantlar
+| Parametr | Qiymatlar |
+|----------|-----------|
+| `lang` | `4` O'ZB (lotin) · `3` ЎЗБ (kirill) · `1` РУС · `2` ENG |
+| `form_id` | `4131` Konstitutsiya · `3964` Kodeks · `3968` Qonun · `3973` Farmon · `3972` Qaror |
+| `status` | `Y` amaldagi · `R` kuchini yo'qotgan · `N` amalda emas |
 
-| Variant | Baho |
-|---------|------|
-| **A. O'zbek hujjat ID larini topish** (AJAX endpointni aniqlash) | ✅ To'g'ri yechim, tekshirish kerak |
-| B. So'rovni rus tiliga tarjima qilib qidirish | Ishlaydi, lekin iqtibos rus tilida qoladi |
-| C. Korpusni mashina tarjimasi bilan o'girish | ❌ Yuridik matnda xavfli — tarjima xatosi normani buzadi |
-| D. Ikki tilli indeks (ru asosiy, uz so'rov kengaytmasi) | Oraliq yechim |
+`query` majburiy — bo'sh so'rov 302 beradi.
 
-Tavsiya: **A** ni tekshirish, ishlamasa **D**. **C** hech qanday holatda —
-yuridik matnni mashina tarjimasi bilan o'girib iqtibos qilish qabul qilinmaydi.
+Shu orqali **20 ta amaldagi kodeks** o'zbek lotin tilida topildi va
+`PRIORITY_DOCS` ga yozildi. Ro'yxat qo'lda emas, `uzlegal kb discover`
+buyrug'i bilan qayta yaratiladi.
+
+### Parserdagi ikki tuzatish
+
+1. **Manfiy element ID lari.** O'zbek nashrlarida `id="-5443895"`.
+   `(\d+)` regexi minusni qamramasdi va butun hujjat bo'sh ajratilardi.
+2. **O'zbekcha tahrir izohlari.** Ular boshqa shaklda keladi:
+   `(1-moddaning nomi … OʻRQ-683-sonli Qonuni tahririda — …)`.
+   Modda deb hisoblanib, haqiqiy moddani ikkiga bo'lardi.
+
+### Natija (o'zbek korpusi, 3 kodeks)
+
+| Hujjat | Moddalar | Chunklar |
+|--------|---------:|---------:|
+| Fuqarolik kodeksi (1-qism) | 386 | 382 |
+| Mehnat kodeksi | 581 | 580 |
+| Oila kodeksi | 220 | 208 |
+| **Jami** | **1187** | **1170** |
+
+Barchasi: 0 ogohlantirish, 0 bo'sh tana, kirill qoldig'i yo'q, apostroflar
+kanonik (`Oʻzbekiston` — U+02BB).
+
+### Qidiruv sifati (o'zbekcha so'rovlar)
+
+| So'rov | Natija |
+|--------|--------|
+| `vindikatsiya daʼvosi` | ✅ FK 228-modda — 1-o'rin (aynan vindikatsiya moddasi) |
+| `Mehnat shartnomasi qanday asoslarda bekor qilinadi` | ✅ MK 170-modda — 1-o'rin |
+| `sinov muddati qancha` | ✅ MK 130-131-modda — 1-o'rin |
+| `nikohni bekor qilish tartibi` | ✅ Oila kodeksi 50-modda — 1-o'rin |
+| `FK 234-modda` | ✅ Fuqarolik kodeksi 234-modda |
+| `MK 170-modda` | ✅ Mehnat kodeksi 170-modda |
+
+Kechikish: 50–420 ms (birinchi so'rovda +15 s model yuklash).
+
+---
+
+## 8C. Uchinchi kanal: aniq moslik
+
+Dastlab faqat vektor + BM25 qurilgan edi va `FK 234-modda` so'rovi
+**noto'g'ri modda** qaytardi.
+
+Sabab: BM25 uchun «modda» so'zi har bir chunk sarlavhasida uchraydi va uning
+IDF si nolga yaqin; «234» esa boshqa moddalarning matnida havola sifatida
+ko'p marta keladi. Leksik ball bu holatda ma'noli signal bermaydi.
+
+Yechim — metadata bo'yicha **to'g'ridan-to'g'ri qidiruv**:
+
+```python
+article, doc_hint = extract_article_ref(query)   # ("234", "fuqarolik kodeksi")
+exact = index.search_article(article, doc_hint)  # metadata filtri
+```
+
+RRF da bu kanal vazni **2.0** — foydalanuvchi modda raqamini aytgan bo'lsa,
+u aynan shuni so'ragan, taxmin qilishning hojati yo'q.
+
+**Hujjat ishorasi qat'iy:** «FK 234-modda» so'ralganda Mehnat kodeksidagi
+234-modda **umuman ko'rsatilmaydi**. Yuristlar uchun bir xil raqamli
+moddalarni aralashtirish chalkashlik manbai. Qisqartmalar qo'llab-quvvatlanadi:
+`FK`, `MK`, `JK`, `JPK`, `FPK`, `OK`, `SK` va ruscha `ГК`, `ТК`, `УК`.
 
 ---
 

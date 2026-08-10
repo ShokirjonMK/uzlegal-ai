@@ -314,6 +314,47 @@ class KnowledgeIndex:
             )
         return out
 
+    def search_article(
+        self, article: str, doc_hint: str | None = None, top_k: int = 10
+    ) -> list[ScoredChunk]:
+        """Modda raqami bo'yicha **aniq** moslik.
+
+        Nima uchun bu alohida kanal: «234-modda» so'rovida BM25 ishlamaydi,
+        chunki «modda» so'zi har bir chunk sarlavhasida bor va uning IDF si
+        nolga yaqin, «234» esa boshqa moddalarning matnida havola sifatida
+        uchraydi. Natijada to'g'ri modda yuqoriga chiqmaydi.
+
+        Metadata bo'yicha to'g'ridan-to'g'ri qidirish bu muammoni butunlay
+        hal qiladi — docs/04 § 2 dagi «aniq moslik» kanali.
+        """
+        self.load()
+        hint = fold(doc_hint) if doc_hint else None
+        matched: list[ScoredChunk] = []
+        others: list[ScoredChunk] = []
+
+        for chunk in self._chunks.values():
+            if chunk.article is None:
+                continue
+            # "130-131" kabi birlashtirilgan chunklar ham hisobga olinadi
+            numbers = chunk.article.split("-") if "-" in chunk.article else [chunk.article]
+            if article not in numbers and chunk.article != article:
+                continue
+
+            score = 1.2 if chunk.article == article else 1.0
+            item = ScoredChunk(chunk=chunk, score=score, source="exact")
+
+            if hint and hint in fold(chunk.doc_title):
+                matched.append(item)
+            else:
+                others.append(item)
+
+        # Foydalanuvchi hujjatni aytgan bo'lsa («FK 234-modda»), u aynan shuni
+        # so'ragan. Boshqa kodeksdagi bir xil raqamli modda faqat mos hujjat
+        # topilmagan holda ko'rsatiladi — aks holda ular chalkashtiradi.
+        chosen = matched or others
+        chosen.sort(key=lambda item: item.score, reverse=True)
+        return chosen[:top_k]
+
     def search_lexical(self, query: str, top_k: int = 50) -> list[ScoredChunk]:
         self.load()
         assert self._bm25 is not None

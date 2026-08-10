@@ -93,7 +93,9 @@ class LexUzConnector:
         raw_dir: Path = Path("data/raw/lex.uz"),
         timeout: float = 60.0,
         crawl_delay: float | None = None,
+        ui_lang: str = "uz",
     ) -> None:
+        self.ui_lang = ui_lang
         self.raw_dir = raw_dir
         self.raw_dir.mkdir(parents=True, exist_ok=True)
         self.limiter = RateLimiter(crawl_delay or DEFAULT_CRAWL_DELAY)
@@ -129,13 +131,34 @@ class LexUzConnector:
     # ------------------------------------------------------------------ #
 
     def doc_url(self, doc_id: str) -> str:
-        return f"{self.base_url}/docs/{doc_id}"
+        """Hujjat manzili.
+
+        DIQQAT: lex.uz da til nashrlari **alohida hujjatlar**:
+
+            /uz/docs/-111189   →  Fuqarolik kodeksi, o'zbek (lotin)
+            /ru/docs/111181    →  Гражданский кодекс, rus
+
+        O'zbek lotin nashrlari **manfiy ID** bilan keladi. URL dagi
+        `/uz/` yoki `/ru/` prefiksi faqat interfeys tilini o'zgartiradi —
+        hujjat matni ID bilan belgilanadi.
+        """
+        return f"{self.base_url}/{self.ui_lang}/docs/{doc_id}"
 
     def raw_path(self, doc_id: str) -> Path:
-        return self.raw_dir / f"{doc_id}.html"
+        # Manfiy ID lar uchun fayl nomi: "-111189" → "neg111189"
+        # (ba'zi fayl tizimlarida bosh minus muammo tug'diradi)
+        return self.raw_dir / f"{self._safe_name(doc_id)}.html"
 
     def meta_path(self, doc_id: str) -> Path:
-        return self.raw_dir / f"{doc_id}.meta.json"
+        return self.raw_dir / f"{self._safe_name(doc_id)}.meta.json"
+
+    @staticmethod
+    def _safe_name(doc_id: str) -> str:
+        return f"neg{doc_id[1:]}" if doc_id.startswith("-") else doc_id
+
+    @staticmethod
+    def _from_safe_name(name: str) -> str:
+        return f"-{name[3:]}" if name.startswith("neg") else name
 
     def fetch(self, doc_id: str) -> RawDocument:
         """Bitta hujjatni yuklab oladi. Crawl-delay avtomatik qo'llaniladi."""
@@ -247,21 +270,36 @@ class LexUzConnector:
 
 # P0 — eng ko'p so'raladigan kodekslar. To'liq katalog kashfiyot bosqichida
 # quriladi, lekin birinchi ishlaydigan bilim bazasi shulardan boshlanadi.
+# lex.uz qidiruvi orqali **tekshirilgan** ID lar (2026-08-09):
+#   /uz/search/nat?query=kodeks&lang=4&form_id=3964&status=Y
+#
+# lang=4 → O'ZB (lotin) · form_id=3964 → Kodeks · status=Y → amaldagi
+#
+# Bu ro'yxat qo'lda yozilmagan — `uzlegal kb discover` buyrug'i uni
+# qayta yaratadi va yangi kodeks qo'shilsa avtomatik topadi.
 PRIORITY_DOCS: list[DocumentRef] = [
-    DocumentRef(source="lex.uz", doc_id="111181", url="https://lex.uz/docs/111181",
-                title="Fuqarolik kodeksi (1-qism)", doc_type="kodeks"),
-    DocumentRef(source="lex.uz", doc_id="180550", url="https://lex.uz/docs/180550",
-                title="Fuqarolik kodeksi (2-qism)", doc_type="kodeks"),
-    DocumentRef(source="lex.uz", doc_id="6257288", url="https://lex.uz/docs/6257288",
-                title="Mehnat kodeksi", doc_type="kodeks"),
-    DocumentRef(source="lex.uz", doc_id="111457", url="https://lex.uz/docs/111457",
-                title="Jinoyat kodeksi", doc_type="kodeks"),
-    DocumentRef(source="lex.uz", doc_id="111460", url="https://lex.uz/docs/111460",
-                title="Jinoyat-protsessual kodeksi", doc_type="kodeks"),
-    DocumentRef(source="lex.uz", doc_id="97664", url="https://lex.uz/docs/97664",
-                title="Oila kodeksi", doc_type="kodeks"),
-    DocumentRef(source="lex.uz", doc_id="4674893", url="https://lex.uz/docs/4674893",
-                title="Soliq kodeksi", doc_type="kodeks"),
-    DocumentRef(source="lex.uz", doc_id="1181charge", url="https://lex.uz/docs/1181",
-                title="Ma'muriy javobgarlik to'g'risidagi kodeks", doc_type="kodeks"),
+    DocumentRef(source="lex.uz", doc_id=i, url=f"https://lex.uz/uz/docs/{i}", title=t,
+                doc_type="kodeks")
+    for i, t in [
+        ("-111189", "Fuqarolik kodeksi (birinchi qism)"),
+        ("-180552", "Fuqarolik kodeksi (ikkinchi qism)"),
+        ("-6257288", "Mehnat kodeksi"),
+        ("-111453", "Jinoyat kodeksi"),
+        ("-111460", "Jinoyat-protsessual kodeksi"),
+        ("-163629", "Jinoyat-ijroiya kodeksi"),
+        ("-3517337", "Fuqarolik protsessual kodeksi"),
+        ("-3523891", "Iqtisodiy protsessual kodeksi"),
+        ("-3527353", "Ma'muriy sud ishlarini yuritish to'g'risidagi kodeks"),
+        ("-97664", "Ma'muriy javobgarlik to'g'risidagi kodeks"),
+        ("-104720", "Oila kodeksi"),
+        ("-4674902", "Soliq kodeksi"),
+        ("-2304138", "Budjet kodeksi"),
+        ("-2876354", "Bojxona kodeksi"),
+        ("-152653", "Yer kodeksi"),
+        ("-106136", "Uy-joy kodeksi"),
+        ("-5307951", "Shaharsozlik kodeksi"),
+        ("-7655343", "Suv kodeksi"),
+        ("-55594", "Havo kodeksi"),
+        ("-4386848", "Saylov kodeksi"),
+    ]
 ]

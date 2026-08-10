@@ -312,6 +312,48 @@ def kb_config(
                   f"har {manager.state.interval_days} kunda")
 
 
+@kb_app.command("discover")
+def kb_discover(
+    query: str = typer.Option("kodeks", "--query", "-q"),
+    form: str = typer.Option("kodeks", "--form", help="kodeks · qonun · farmon · qaror"),
+    save: bool = typer.Option(False, "--save", help="Natijani configs/discovered.yaml ga yozish"),
+) -> None:
+    """lex.uz da o'zbek (lotin) hujjatlarini qidirib topish."""
+    import yaml as _yaml
+
+    from uzlegal.ingest.connectors.lex_uz import LexUzConnector
+    from uzlegal.ingest.discover import (
+        FORM_CODE,
+        FORM_DECREE,
+        FORM_LAW,
+        FORM_RESOLUTION,
+        DiscoveryQuery,
+        LexUzDiscovery,
+    )
+
+    forms = {"kodeks": FORM_CODE, "qonun": FORM_LAW, "farmon": FORM_DECREE, "qaror": FORM_RESOLUTION}
+    if form not in forms:
+        console.print(f"[red]✕[/red] Noma'lum shakl: {form}. Mavjud: {', '.join(forms)}")
+        raise typer.Exit(2)
+
+    with LexUzConnector() as conn:
+        refs = LexUzDiscovery(conn).search(DiscoveryQuery(query=query, form_id=forms[form]))
+
+    console.print(f"Topildi: [bold]{len(refs)}[/bold] ta {form} (o'zbek lotin, amaldagi)\n")
+    for ref in refs:
+        console.print(f"  {ref.doc_id:>10}  {ref.title[:72]}")
+
+    if save:
+        out = Path("configs/discovered.yaml")
+        out.write_text(
+            _yaml.safe_dump(
+                {"documents": [{"doc_id": r.doc_id, "title": r.title, "type": r.doc_type}
+                                for r in refs]},
+                allow_unicode=True, sort_keys=False),
+            encoding="utf-8")
+        console.print(f"\n[green]✓[/green] Saqlandi: {out}")
+
+
 @kb_app.command("parse")
 def kb_parse(
     doc_id: str = typer.Argument(..., help="Hujjat ID (arxivdan o'qiladi)"),
@@ -358,7 +400,8 @@ def index_build(
 
     connector = LexUzConnector()
     ids = ([d.strip() for d in docs.split(",")] if docs
-           else sorted(p.stem for p in connector.raw_dir.glob("*.html")))
+           else sorted(connector._from_safe_name(p.stem)
+                       for p in connector.raw_dir.glob("*.html")))
     if not ids:
         console.print("[red]✕[/red] Arxiv bo'sh. Avval: uzlegal kb sync")
         raise typer.Exit(4)

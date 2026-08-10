@@ -221,3 +221,84 @@ def test_kontekst_byudjeti_hurmat_qilinadi() -> None:
 def test_bosh_natija_bosh_kontekst() -> None:
     context, used = build_context([])
     assert context == "" and used == []
+
+
+# --------------------------------------------------------------------------- #
+# Aniq moslik — modda raqami bo'yicha (uchinchi kanal)
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    ("query", "number", "hint_contains"),
+    [
+        ("FK 234-modda", "234", "fuqarolik"),
+        ("MK 170-modda", "170", "mehnat"),
+        ("Oila kodeksi 50-modda", "50", "oila"),
+        ("Статья 234", "234", None),
+        ("228-modda", "228", None),
+        ("shartnoma haqida", None, None),
+    ],
+)
+def test_modda_havolasi_ajratiladi(
+    query: str, number: str | None, hint_contains: str | None
+) -> None:
+    from uzlegal.retrieval.hybrid import extract_article_ref
+
+    got_number, got_hint = extract_article_ref(query)
+    assert got_number == number
+    if hint_contains:
+        assert got_hint and hint_contains in got_hint
+
+
+def test_hujjat_ishorasi_boshqa_kodeksni_chiqaradi(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """«FK 234-modda» — boshqa kodeksdagi 234-modda chalkashtirmasligi kerak."""
+    from uzlegal.index.store import KnowledgeIndex
+
+    index = KnowledgeIndex(tmp_path / "kb")
+    index._chunks = {
+        "fk:234": make_chunk("fk:234", "Majburiyat", article="234"),
+        "mk:234": make_chunk("mk:234", "Mehnat ta'tili", article="234"),
+    }
+    index._chunks["mk:234"].doc_title = "Mehnat kodeksi"
+
+    hits = index.search_article("234", doc_hint="fuqarolik kodeksi")
+
+    assert len(hits) == 1
+    assert hits[0].chunk_id == "fk:234"
+
+
+def test_ishorasiz_barcha_kodekslar(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from uzlegal.index.store import KnowledgeIndex
+
+    index = KnowledgeIndex(tmp_path / "kb")
+    index._chunks = {
+        "fk:234": make_chunk("fk:234", "Majburiyat", article="234"),
+        "mk:234": make_chunk("mk:234", "Ta'til", article="234"),
+    }
+    assert len(index.search_article("234")) == 2
+
+
+def test_mos_hujjat_yoq_bolsa_boshqalar_korsatiladi(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Ishora mos kelmasa ham natijasiz qoldirmaslik kerak."""
+    from uzlegal.index.store import KnowledgeIndex
+
+    index = KnowledgeIndex(tmp_path / "kb")
+    index._chunks = {"fk:234": make_chunk("fk:234", "Majburiyat", article="234")}
+    assert len(index.search_article("234", doc_hint="soliq kodeksi")) == 1
+
+
+def test_birlashtirilgan_chunk_topiladi(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """«130-131» birlashtirilgan chunk «130» so'roviga javob berishi kerak."""
+    from uzlegal.index.store import KnowledgeIndex
+
+    index = KnowledgeIndex(tmp_path / "kb")
+    index._chunks = {"mk:130": make_chunk("mk:130", "Sinov muddati", article="130-131")}
+    assert len(index.search_article("130")) == 1
+
+
+def test_aniq_moslik_rrf_da_ustun() -> None:
+    a, b = make_chunk("A", "x"), make_chunk("B", "y")
+    vector = [ScoredChunk(chunk=b, score=0.9)]
+    exact = [ScoredChunk(chunk=a, score=1.2, source="exact")]
+    fused = HybridRetriever._rrf(vector, [], 0.7, 0.3, exact)
+    assert fused[0].chunk_id == "A"
