@@ -195,6 +195,6 @@ def test_gold_json_formati() -> None:
     """Har bir qator yaroqli JSON bo'lishi kerak."""
     if not GOLD.exists():
         pytest.skip("gold to'plam yo'q")
-    for i, line in enumerate(GOLD.read_text(encoding="utf-8").splitlines(), 1):
+    for line in GOLD.read_text(encoding="utf-8").splitlines():
         if line.strip():
             json.loads(line)  # xato bo'lsa test yiqiladi

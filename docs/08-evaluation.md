@@ -128,6 +128,71 @@ Oxirgi ikki kategoriya eng muhim. `Javobsiz` va `Tuzoq` savollarda **to'g'ri jav
 
 **Bloker** belgisi: bu metrika maqsaddan past bo'lsa reliz chiqmaydi, boshqa hamma narsa yaxshi bo'lsa ham.
 
+## 3A. Retrieval gold to'plami (amalga oshirilgan)
+
+`data/eval/retrieval-gold-v1` — **36 holat, 9 kategoriya**, o'zbek korpusiga
+asoslangan. Faza 2 da qurildi va `uzlegal eval retrieval` bilan ishga
+tushiriladi.
+
+### Asosiy prinsip: savol sarlavhaning nusxasi bo'lmasligi kerak
+
+Bu o'lchov haqiqiyligining sharti. Agar savol modda sarlavhasidagi so'zlarni
+takrorlasa, BM25 uni arzimas darajada oson topadi va natija sun'iy yuqori
+chiqadi:
+
+```
+❌  "Vindikatsiya daʼvosi"
+    → 228-moddaning sarlavhasi shu; leksik moslik 100%, o'lchov ma'nosiz
+
+✅  "O'g'irlangan mulkimni egallab olgan odamdan qaytarib olsam bo'ladimi"
+    → bir ma'no, butunlay boshqa so'zlar; retrieval haqiqatan sinaladi
+```
+
+Buni **test qo'riqlaydi**: `modda-lookup` kategoriyasidan tashqari hech bir
+savolda «N-modda» shakli bo'lishi mumkin emas.
+
+### Kategoriyalar
+
+| Kategoriya | Holatlar | Nima sinaladi |
+|------------|---------:|---------------|
+| `mulk` | 2 | Ashyoviy huquq |
+| `muddat` | 3 | Da'vo muddatlari |
+| `mehnat` | 7 | Mehnat munosabatlari |
+| `korporativ` | 2 | Yuridik shaxslar |
+| `shaxs` | 2 | Muomala layoqati |
+| `majburiyat` | 2 | Majburiyat huquqi |
+| `shartnoma` | 3 | Shartnoma turlari |
+| `zarar` · `meros` · `jinoyat` | 6 | Boshqa sohalar |
+| `protsessual` | 4 | Sud tartibi |
+| `modda-lookup` | 4 | Aniq modda so'rovi |
+
+### Kutilgan javob shakli
+
+Har bir holatda **bir nechta** to'g'ri modda bo'lishi mumkin — huquqiy
+savolga bir necha norma javob berishi normal:
+
+```json
+{"id":"dm-01","query":"Sudga murojaat qilish uchun necha yil vaqt bor",
+ "expected_articles":["149","150"],"doc_hint":"Fuqarolik","category":"muddat"}
+```
+
+`doc_hint` majburiy: boshqa kodeksdagi bir xil raqamli modda **to'g'ri javob
+hisoblanmaydi**. Mehnat kodeksining 130-moddasi va Fuqarolik kodeksining
+130-moddasi butunlay boshqa normalar.
+
+Birlashtirilgan (`130-131`) va prim (`497-1`) chunklar avtomatik hisobga
+olinadi.
+
+### Ishga tushirish
+
+```bash
+uzlegal eval retrieval                    # gibrid qidiruv
+uzlegal eval retrieval --rerank           # cross-encoder bilan
+uzlegal eval retrieval --out reports/retrieval.md
+```
+
+---
+
 ## 4. Baholash usullari
 
 ### Deterministik (avtomatik, arzon, ishonchli)
