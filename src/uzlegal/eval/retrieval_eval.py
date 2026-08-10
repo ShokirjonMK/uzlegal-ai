@@ -134,6 +134,21 @@ class EvalReport:
 # --------------------------------------------------------------------------- #
 
 
+def _label(chunk: Any) -> str:
+    """Nosozlik tahlili uchun qisqa, lekin **aniq** yorliq.
+
+    Hujjat nomini shunchaki kesish yaramaydi: barcha kodekslar
+    «Oʻzbekiston Respublikasining …» bilan boshlanadi va birinchi 18 belgi
+    hammasida bir xil — qaysi kodeks ekani ko'rinmaydi.
+    """
+    title = chunk.doc_title
+    for prefix in ("Oʻzbekiston Respublikasining ", "OʻZBEKISTON RESPUBLIKASINING "):
+        if title.upper().startswith(prefix.upper()):
+            title = title[len(prefix) :]
+            break
+    return f"{title[:22].strip()}:{chunk.article}"
+
+
 def load_cases(path: Path) -> list[EvalCase]:
     cases: list[EvalCase] = []
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -167,10 +182,7 @@ def run_eval(
                 case=case,
                 rank=rank,
                 latency_ms=latency,
-                top_articles=[
-                    f"{item.chunk.doc_title[:18]}:{item.chunk.article}"
-                    for item in found.results[:3]
-                ],
+                top_articles=[_label(item.chunk) for item in found.results[:3]],
                 deprecated_leaked=any(
                     item.chunk.status != "in_force" for item in found.results
                 ),

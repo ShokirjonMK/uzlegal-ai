@@ -308,6 +308,81 @@ moddalarni aralashtirish chalkashlik manbai. Qisqartmalar qo'llab-quvvatlanadi:
 
 ---
 
+## 8D. O'LCHANGAN RETRIEVAL SIFATI (to'liq korpus)
+
+> **Bu bo'lim eng muhim raqamlarni saqlaydi.** Ular ko'z bilan emas,
+> `retrieval-gold-v1` (36 holat, 9 kategoriya) bilan o'lchangan.
+
+Korpus: **20 kodeks, 8603 chunk, 60 MB** (2026-08-10).
+
+### Uch konfiguratsiya taqqoslandi
+
+| Metrika | Gibrid | + Reranker | **+ Kengaytma** | Maqsad |
+|---------|-------:|-----------:|----------------:|-------:|
+| Recall@1 | 28% | 31% | **36%** | 60% ❌ |
+| Recall@3 | 44% | 42% | **56%** | 80% ❌ |
+| Recall@10 | 53% | 56% | **69%** | 90% ❌ |
+| MRR | 37% | 38% | **47%** | 75% ❌ |
+| Deprecated leak | 0% | 0% | **0%** | 0% ✅ |
+| Kechikish (median) | 89 ms | 11 510 ms | **101 ms** | — |
+| Kechikish (p95) | 238 ms | 15 311 ms | **153 ms** | 600 ms ✅ |
+
+### Xulosa 1 — reranker bu bosqichda foydasiz
+
+Cross-encoder **+3 punkt** Recall@10 berdi, lekin kechikishni **130 barobar**
+oshirdi (89 ms → 11.5 s). Recall@3 hatto tushdi.
+
+Sabab tushunarli: reranker faqat **topilgan nomzodlarni** qayta tartiblaydi.
+To'g'ri modda top-30 ichida bo'lmasa, uni qayta tartiblab bo'lmaydi. Muammo
+tartiblashda emas — **topishda**.
+
+Shuning uchun reranker `local-dev` da **o'chirilgan** holda qoladi. U
+`server` profilida, recall yaxshilangandan keyin qayta baholanadi.
+
+### Xulosa 2 — so'rov kengaytmasi to'g'ri richag
+
+**+16 punkt** Recall@10, **+10** MRR — atigi **+12 ms** evaziga.
+
+Sabab: nosozliklarning katta qismi so'zlashuv va rasmiy atama farqidan
+kelib chiqqan edi.
+
+    savol:  "Maoshni toʻlash tartibi"
+    qonun:  "Xodimga ish haqi toʻlashni …"     ← «maosh» so'zi umuman yo'q
+
+Tezaurus (`configs/retrieval/thesaurus.yaml`) va o'zbek morfologiyasini
+soddalashtirish shu bo'shliqni to'ldiradi. Kengaytma **faqat leksik
+qidiruvga** qo'llaniladi — vektor qidiruvida atama qo'shish semantik
+markazni siljitadi.
+
+### Qolgan bo'shliq: 69% vs 90%
+
+Bu jiddiy va yashirilmasligi kerak. Qolgan 11 nosozlikda ikki naqsh:
+
+| Naqsh | Misol | Ehtimoliy yechim |
+|-------|-------|------------------|
+| **Qo'shni modda** | 234 kutilgan, 235 topilgan | Embedding aniqligi |
+| **Noto'g'ri kodeks** | Protsessual savol → Oila kodeksi | Hujjat turi bo'yicha yo'naltirish |
+
+Keyingi qadamlar, ustuvorlik bo'yicha:
+
+1. **Embeddingni fine-tune qilish** — o'zbek yuridik juftliklarida
+   contrastive learning (~10k juftlik). `docs/04 § 3` da oldindan
+   ko'rsatilgan: «recall < 85% bo'lsa fine-tune qilinadi». Bu asosiy richag.
+2. **Gold to'plamni kengaytirish** — 36 holat kam. Ular menikim tomonidan
+   yozilgan; **yurist tekshiruvi** va 150+ holat kerak. Hozirgi to'plamga
+   qarab sozlash — unga moslashib qolish xavfi.
+3. **Hujjat turi bo'yicha yo'naltirish** — protsessual savol protsessual
+   kodeksga. `thesaurus.yaml` dagi `domain_hints` shu uchun tayyorlangan,
+   lekin hali ulanmagan.
+4. **Graf kengaytmasi** (§ 6) — hali amalga oshirilmagan.
+
+> **Ochiq holat:** hozirgi retrieval sifati ishlab chiqarish uchun yetarli
+> emas. Faza 5 (agentlar) ni boshlashdan oldin Recall@10 ≥ 85% ga
+> yetkazish kerak — aks holda model to'g'ri moddani **umuman ko'rmaydi**
+> va uning javobi ham to'g'ri bo'la olmaydi.
+
+---
+
 ## 9. Baholash
 
 RAG qatlami agentlardan **mustaqil** baholanadi. Bu muhim: agar yakuniy javob yomon bo'lsa, retrieval aybdormi yoki modelmi — bilish kerak.

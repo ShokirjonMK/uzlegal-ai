@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from enum import StrEnum
 
@@ -171,6 +171,7 @@ class RetrievalResult:
     dropped_by_version: int
     exact_hits: int = 0
     reranked: bool = False
+    expansion_terms: list[str] = field(default_factory=list)
     latency_ms: int = 0
 
     @property
@@ -206,11 +207,14 @@ class HybridRetriever:
         reranker: object | None = None,
         *,
         use_reranker: bool = False,
+        expand: bool = True,
     ) -> None:
         self.index = index
         self._embedder = embedder
         self._reranker = reranker
         self.use_reranker = use_reranker
+        self.expand = expand
+        self._expander: object | None = None
 
     @property
     def embedder(self) -> object:
@@ -219,6 +223,14 @@ class HybridRetriever:
 
             self._embedder = Embedder()
         return self._embedder
+
+    @property
+    def expander(self) -> object:
+        if self._expander is None:
+            from uzlegal.retrieval.expansion import QueryExpander
+
+            self._expander = QueryExpander()
+        return self._expander
 
     @property
     def reranker(self) -> object:
@@ -237,6 +249,7 @@ class HybridRetriever:
         as_of: date | None = None,
         kind: QueryKind | None = None,
         rerank: bool | None = None,
+        expand: bool | None = None,
     ) -> RetrievalResult:
         import time
 
@@ -244,12 +257,22 @@ class HybridRetriever:
         kind = kind or classify_query(query)
         w_vec, w_lex = WEIGHTS[kind]
 
+        # Kengaytma **faqat leksik qidiruvga** qo'llaniladi. Vektor qidiruvida
+        # atama qo'shish semantik markazni siljitadi va sifatni tushiradi —
+        # embedding modeli asl savolni yaxshiroq tushunadi.
+        search_query = query
+        expansion_terms: list[str] = []
+        if (self.expand if expand is None else expand) and kind != QueryKind.ARTICLE_LOOKUP:
+            search_query, expansion_terms = self.expander.expand(query)  # type: ignore[attr-defined]
+
         vector_hits: list[ScoredChunk] = []
         if w_vec > 0:
             qvec = self.embedder.encode_one(query, is_query=True)  # type: ignore[attr-defined]
             vector_hits = self.index.search_vector(qvec, top_k=candidates)
 
-        lexical_hits = self.index.search_lexical(query, top_k=candidates) if w_lex > 0 else []
+        lexical_hits = (
+            self.index.search_lexical(search_query, top_k=candidates) if w_lex > 0 else []
+        )
 
         # Uchinchi kanal: modda raqami bo'yicha aniq moslik (docs/04 § 2).
         # BM25 buni uddalay olmaydi — «modda» so'zining IDF si nolga yaqin.
@@ -276,6 +299,7 @@ class HybridRetriever:
             vector_hits=len(vector_hits),
             lexical_hits=len(lexical_hits),
             exact_hits=len(exact_hits),
+            expansion_terms=expansion_terms,
             dropped_by_version=dropped,
             latency_ms=int((time.time() - t0) * 1000),
         )

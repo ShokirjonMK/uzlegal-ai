@@ -1,0 +1,75 @@
+# O'zbek yuridik tezaurusi — so'zlashuv ↔ rasmiy atama
+#
+# Nima uchun kerak: foydalanuvchi kundalik til bilan so'raydi, qonun esa
+# rasmiy atama ishlatadi. Retrieval baholashida aniqlangan nosozliklarning
+# katta qismi aynan shu farqdan kelib chiqdi:
+#
+#   "Maoshni to'lash tartibi"        → qonunda "ish haqi to'lash"
+#   "Xodimga yiliga necha kun dam"   → qonunda "mehnat taʼtili"
+#   "Er-xotinni ajratish"            → qonunda "nikohni bekor qilish"
+#
+# Format: kalit — so'rovda uchraydigan shakl, qiymat — qo'shiladigan
+# rasmiy atamalar. Kengaytma **qo'shimcha** sifatida ishlaydi: asl so'rov
+# saqlanadi, atamalar unga qo'shiladi.
+#
+# Bu ro'yxat qo'lda tuzilgan va to'liq emas. Yangi juftliklar baholash
+# nosozliklaridan aniqlanadi — `uzlegal eval retrieval` chiqishiga qarang.
+
+synonyms:
+  # ── Mehnat ──────────────────────────────────────────────────────────
+  maosh: [ish haqi, mehnatga haq toʻlash]
+  oylik: [ish haqi]
+  dam olish: [taʼtil, mehnat taʼtili]
+  ishdan boʻshatish: [mehnat shartnomasini bekor qilish]
+  ishga olish: [mehnat shartnomasini tuzish]
+  sinov: [dastlabki sinov]
+  ishchi: [xodim]
+  boshliq: [ish beruvchi]
+  ortiqcha ish: [ish vaqtidan tashqari ish]
+
+  # ── Oila ────────────────────────────────────────────────────────────
+  ajrashish: [nikohni bekor qilish]
+  ajralish: [nikohni bekor qilish]
+  er-xotin: [turmush oʻrtoqlar, nikoh]
+  bola uchun toʻlov: [aliment]
+  bolani boqish: [aliment, taʼminlash]
+
+  # ── Mulk va fuqarolik ───────────────────────────────────────────────
+  oʻgʻirlangan mulk: [qonunsiz egalik, vindikatsiya]
+  mulkni qaytarish: [talab qilib olish, vindikatsiya]
+  kelishuv: [shartnoma, bitim]
+  qarz: [majburiyat, qarz shartnomasi]
+  jarima: [neustoyka, penya]
+  uy: [turar joy, koʻchmas mulk]
+  kvartira: [turar joy]
+  yer uchastkasi: [yer uchastkasi, yer]
+  garov: [garov, zalog]
+  sotish: [oldi-sotdi]
+  ijaraga berish: [mulk ijarasi]
+
+  # ── Shaxs ───────────────────────────────────────────────────────────
+  bola: [voyaga yetmagan]
+  oʻsmir: [voyaga yetmagan]
+  tashkilot: [yuridik shaxs]
+  firma: [yuridik shaxs, tadbirkorlik subʼyekti]
+
+  # ── Protsessual ─────────────────────────────────────────────────────
+  sudga murojaat: [daʼvo arizasi, daʼvo]
+  shikoyat: [apellyatsiya, kassatsiya]
+  sud toʻlovi: [sud xarajatlari, davlat boji]
+  muddat: [daʼvo muddati, muddat]
+
+  # ── Jinoyat ─────────────────────────────────────────────────────────
+  jazo: [jinoiy jazo, javobgarlik]
+  qamoq: [ozodlikdan mahrum qilish]
+  ayb: [aybdorlik, ayb]
+
+# So'rovda uchrasa hujjat turini cheklaydigan ishoralar
+# (kelajakda `doc_type` filtri uchun — hozircha ishlatilmaydi)
+domain_hints:
+  mehnat: [Mehnat kodeksi]
+  ish haqi: [Mehnat kodeksi]
+  nikoh: [Oila kodeksi]
+  aliment: [Oila kodeksi]
+  jinoyat: [Jinoyat kodeksi]
+  soliq: [Soliq kodeksi]
