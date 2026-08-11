@@ -15,6 +15,7 @@ from uzlegal.index.store import BM25Index, ScoredChunk, tokenize
 from uzlegal.retrieval.hybrid import (
     HybridRetriever,
     QueryKind,
+    RetrievalResult,
     build_context,
     classify_query,
     version_filter,
@@ -435,3 +436,41 @@ def test_yonaltirish_mos_hujjatni_kotaradi(tmp_path) -> None:  # type: ignore[no
 
     assert boosted[0].chunk_id == "mk:333"
     assert boosted[1].score == 0.10, "mos kelmagan hujjat jazolanmasligi kerak"
+
+
+def test_ishonch_chegarasi_rrf_k_dan_kelib_chiqadi() -> None:
+    """Chegara qo'lda yozilmaydi — `k` o'zgarganda u ham to'g'rilanadi.
+
+    Bu haqiqiy tuzoq edi: `k` 60 dan 3 ga tushganda ballar shkalasi
+    10 barobar siljidi va qo'lda yozilgan 0.02 chegarasi hamma narsani
+    «ishonchli» deb ko'rsatardi.
+    """
+    from uzlegal.retrieval.hybrid import CONFIDENCE_RANK, CONFIDENCE_RANK_EQUIVALENT, RRF_K
+
+    assert CONFIDENCE_RANK_EQUIVALENT == 1.0 / (RRF_K + CONFIDENCE_RANK)
+
+    def result(score: float, reranked: bool = False) -> RetrievalResult:
+        return RetrievalResult(
+            results=[ScoredChunk(chunk=make_chunk("A", "matn"), score=score)],
+            query_kind=QueryKind.FACTUAL,
+            vector_hits=1,
+            lexical_hits=0,
+            dropped_by_version=0,
+            reranked=reranked,
+        )
+
+    # Ustun kanalda 1-o'rin (0.8 vazn) — ishonchli
+    assert result(0.8 / (RRF_K + 1)).is_confident
+    # 50-o'rin — ishonchsiz
+    assert not result(0.8 / (RRF_K + 50)).is_confident
+
+
+def test_bosh_natija_ishonchsiz() -> None:
+    empty = RetrievalResult(
+        results=[],
+        query_kind=QueryKind.FACTUAL,
+        vector_hits=0,
+        lexical_hits=0,
+        dropped_by_version=0,
+    )
+    assert not empty.is_confident

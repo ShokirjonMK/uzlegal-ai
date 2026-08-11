@@ -58,6 +58,12 @@ log = logging.getLogger(__name__)
 
 RRF_K = 3
 
+# Ishonch chegarasi: eng yaxshi natija ustun kanalda shu o'rindan
+# yuqori bo'lsa ishonchli hisoblanadi. `RRF_K` dan hisoblanadi, shuning
+# uchun `k` o'zgarganda chegara ham o'zi to'g'rilanadi.
+CONFIDENCE_RANK = 15
+CONFIDENCE_RANK_EQUIVALENT = 1.0 / (RRF_K + CONFIDENCE_RANK)
+
 
 class QueryKind(StrEnum):
     ARTICLE_LOOKUP = "article_lookup"  # "FK 234-modda"
@@ -211,16 +217,22 @@ class RetrievalResult:
     def is_confident(self) -> bool:
         """Ishonch chegarasi — docs/04 § 8.
 
-        RRF ballari kichik (1/61 ≈ 0.016 eng yuqori bitta manbadan),
-        shuning uchun chegara ham kichik. Muhimi — ikkala qidiruv ham
-        topganmi yoki bittasi tasodifan chiqarganmi.
+        Chegara `RRF_K` dan **kelib chiqadi**, qo'lda yozilmaydi. Sabab
+        amaliy: `k` o'zgarganda ballar shkalasi butunlay siljiydi va
+        qo'lda yozilgan chegara jimgina yaroqsiz bo'lib qoladi. `k=60`
+        da eng yuqori ball ≈ 0.016 edi, `k=3` da esa ≈ 0.2 — o'sha eski
+        0.02 chegarasi hamma narsani «ishonchli» deb ko'rsatardi.
+
+        Ma'nosi: eng yaxshi natija ustun kanalda taxminan 15-o'rindan
+        yuqori bo'lsa ishonchli hisoblanadi.
         """
         if not self.results:
             return False
-        # Reranker ballari boshqa shkalada (logit, taxminan −10…+10),
-        # RRF ballari esa 0…0.05 atrofida. Chegara shunga qarab tanlanadi.
-        threshold = 0.0 if self.reranked else 0.02
-        return self.top_score >= threshold
+        if self.reranked:
+            # Cross-encoder logit qaytaradi (taxminan −10…+10); musbat
+            # ball «savolga mos» degani.
+            return self.top_score >= 0.0
+        return self.top_score >= CONFIDENCE_RANK_EQUIVALENT
 
 
 # --------------------------------------------------------------------------- #
