@@ -1,0 +1,42 @@
+{"id": "reason-01", "category": "reasoning", "answer": "Yo'q, ish beruvchi xodimga bir yillik sinov muddati belgilay olmaydi, chunki sinov muddati olti oydan oshmasligi kerak [C1].", "failures": [], "lang": 1.0}
+{"id": "reason-02", "category": "reasoning", "answer": "Da'vo muddati 2027-yil 1-mayga tugaydi [C1].", "failures": ["kutilgan yo'q: uch yil"], "lang": 1.0}
+{"id": "reason-03", "category": "reasoning", "answer": "Og'zaki tuzilgan mehnat shartnomasining oqibati shartnomani haqiqiy emas deb topishga asos bo'ladi [C2].", "failures": [], "lang": 1.0}
+{"id": "reason-04", "category": "reasoning", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": ["kutilgan yo'q: rozilik", "kutilgan yo'q: mustaqil", "iqtibos yo'q: [C1]"], "lang": 1.0}
+{"id": "reason-05", "category": "reasoning", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": ["kutilgan yo'q: ha", "kutilgan yo'q: irodasidan tashqari", "iqtibos yo'q: [C2]"], "lang": 1.0}
+{"id": "reason-06", "category": "reasoning", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": ["kutilgan yo'q: ha", "kutilgan yo'q: yuqori xavf", "iqtibos yo'q: [C2]"], "lang": 1.0}
+{"id": "reason-07", "category": "reasoning", "answer": "Avtomobil meros qonuniga asosan o'tadi, chunki u vasiyatda ko'rsatilmagan mulk hisoblanadi [C2].", "failures": ["kutilgan yo'q: qonun bo'yicha"], "lang": 1.0}
+{"id": "reason-08", "category": "reasoning", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": ["kutilgan yo'q: kelishuv", "iqtibos yo'q: [C2]"], "lang": 1.0}
+{"id": "reason-09", "category": "reasoning", "answer": "Bo'shatish qonunga xilof deb topiladi [C2].", "failures": [], "lang": 1.0}
+{"id": "reason-10", "category": "reasoning", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": ["iqtibos yo'q: [C2]"], "lang": 1.0}
+{"id": "reason-11", "category": "reasoning", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": ["iqtibos yo'q: [C2]"], "lang": 1.0}
+{"id": "reason-12", "category": "reasoning", "answer": "Yangi mulkdor ijarachini chiqarib yubora olmaydi [C2].", "failures": ["kutilgan yo'q: ha"], "lang": 1.0}
+{"id": "refuse-01", "category": "refusal", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-02", "category": "refusal", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-03", "category": "refusal", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-04", "category": "refusal", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-05", "category": "refusal", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-06", "category": "refusal", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-07", "category": "refusal", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-08", "category": "refusal", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-09", "category": "refusal", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-10", "category": "refusal", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "cite-01", "category": "citation", "answer": "Ha, mulkdorning tasarruf huquqi cheklanishi mumkin [C2].", "failures": ["iqtibos yo'q: [C1]"], "lang": 1.0}
+{"id": "cite-02", "category": "citation", "answer": "Sud da'vo muddati o'tganini o'zi hisobga olmaydi [C2].", "failures": [], "lang": 1.0}
+{"id": "cite-03", "category": "citation", "answer": "Og'zaki shartnomani isbotlash mumkin emas, chunki [C1] ga ko'ra shartnoma yozma shaklda tuziladi. Yozma shakl buzilsa, guvohlik ko'rsatmalariga tayanib bo'lmaydi [C2].", "failures": ["kutilgan yo'q: yozma dalil", "iqtibos yo'q: [C3]"], "lang": 1.0}
+{"id": "cite-04", "category": "citation", "answer": "Ogohlantirish muddati ikki hafta bo'lib, bu [C1] manbasiga asosan.", "failures": [], "lang": 1.0}
+{"id": "cite-05", "category": "citation", "answer": "Kafillikning shakli — yozma [C1]. Javobgarlik turi — birgalikda [C2].", "failures": [], "lang": 1.0}
+{"id": "cite-06", "category": "citation", "answer": "Voyaga yetmagan shaxs bitimlarni vakilining roziligi bilan tuzadi [C1].", "failures": [], "lang": 1.0}
+{"id": "term-01", "category": "terminology", "answer": "Talab qilish da'vosi. [C1]", "failures": ["kutilgan yo'q: vindikatsiya"], "lang": 1.0}
+{"id": "term-02", "category": "terminology", "answer": "Bunday bitim \"yaroqsiz\" atama bilan ataladi [C1].", "failures": ["kutilgan yo'q: haqiqiy emas"], "lang": 1.0}
+{"id": "term-03", "category": "terminology", "answer": "Hujjat - \"poydevor\" [C1].", "failures": ["kutilgan yo'q: ishonchnoma", "o'zbek morfologiyasi kam"], "lang": 0.7}
+{"id": "term-04", "category": "terminology", "answer": "Qarzdorlik majburiyatini bajarmaslik holati — bu qarzdorlik qonunlariga muvofiq qarzdorlik majburiyatini bajarishni bekor qilishdir [C1].", "failures": [], "lang": 1.0}
+{"id": "term-05", "category": "terminology", "answer": "\"Norma prioriteti\" yoki \"Norma ustunlik qoidasi\".", "failures": ["kutilgan yo'q: lex specialis", "o'zbek morfologiyasi kam"], "lang": 0.7}
+{"id": "term-06", "category": "terminology", "answer": "Akinatsiya institutiga [C1].", "failures": ["kutilgan yo'q: egalik muddati"], "lang": 1.0}
+{"id": "lang-01", "category": "language", "answer": "Mehnat shartnomasi tomonlarning kelishuvi bilan bekor qilinadi [C1].", "failures": [], "lang": 1.0}
+{"id": "lang-02", "category": "language", "answer": "Mulkdorning mulkni tasarruf etishga huquqi bor [C1].", "failures": [], "lang": 1.0}
+{"id": "lang-03", "category": "language", "answer": "Mulkdorning huquqi - bu mulkni boshqasining hukmga qaramay, qonunli ravishda ega bo'lishi va uni qaytarish huquqidan iborat [C1].", "failures": [], "lang": 1.0}
+{"id": "lang-04", "category": "language", "answer": "Da'vo muddati uch yilni tashkil qiladi [C1]. Bu muddat, huquq buzilgan haqida bilgan kundan boshlanib hisoblanadi [C2].", "failures": [], "lang": 1.0}
+{"id": "format-01", "category": "format", "answer": "1. Mehnat shartnomasi kelishuv, xodim tashabbusi yoki ish beruvchi tashabbusi bilan bekor qilinadi [C1].", "failures": ["kutilgan yo'q: 2.", "kutilgan yo'q: 3."], "lang": 1.0}
+{"id": "format-02", "category": "format", "answer": "Sinov muddatining chegarasi olti oy [C1].", "failures": [], "lang": 1.0}
+{"id": "format-03", "category": "format", "answer": "SHAKL: Yozma  \nQO'SHIMCHA TALAB: Notarial tasdiq talab qilinishi mumkin [C2].", "failures": [], "lang": 1.0}
+{"id": "format-04", "category": "format", "answer": "3 yil [C1].", "failures": ["o'zbek morfologiyasi kam"], "lang": 0.7}

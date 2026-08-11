@@ -108,9 +108,7 @@ def test_modda_raqami_bilan_qidiruv(index: KnowledgeIndex) -> None:
 
 
 def test_simple_rejim_uchidan_uchiga(backend: EchoBackend) -> None:
-    result = consult(
-        "Oʻgʻirlangan mulkni qaytarib olish mumkinmi", mode="simple", backend=backend
-    )
+    result = consult("Oʻgʻirlangan mulkni qaytarib olish mumkinmi", mode="simple", backend=backend)
 
     assert result.mode is ConsultMode.SIMPLE
     assert result.citations, "haqiqiy indeksdan iqtibos kelishi kerak"
@@ -138,9 +136,7 @@ def test_gate_har_doim_ishlaydi(backend: EchoBackend) -> None:
 
 def test_manba_topilmasa_model_chaqirilmaydi(backend: EchoBackend) -> None:
     """Mavzuga aloqasi yo'q savol — tizim taxmin qilmasligi kerak."""
-    result = consult(
-        "zzz qqq xxx yyy vvv bunday soʻz umuman yoʻq", mode="simple", backend=backend
-    )
+    result = consult("zzz qqq xxx yyy vvv bunday soʻz umuman yoʻq", mode="simple", backend=backend)
     # Manba topilsa ham, topilmasa ham javob qaytadi va u yolg'on bo'lmaydi
     assert result.is_answered
 
@@ -148,9 +144,7 @@ def test_manba_topilmasa_model_chaqirilmaydi(backend: EchoBackend) -> None:
 def test_tarixiy_holat_soralganda_filtr_ishlaydi(backend: EchoBackend) -> None:
     from datetime import date
 
-    result = consult(
-        "Daʼvo muddati qancha", mode="simple", backend=backend, as_of=date(2021, 6, 1)
-    )
+    result = consult("Daʼvo muddati qancha", mode="simple", backend=backend, as_of=date(2021, 6, 1))
     assert result.as_of == "2021-06-01"
     assert result.is_answered
 

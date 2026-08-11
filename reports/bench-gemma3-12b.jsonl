@@ -1,0 +1,42 @@
+{"id": "reason-01", "category": "reasoning", "answer": "Berilgan manbalarda bu savolga javob yo'q. Sinov muddati olti oydan oshmasligi kerak [C1].", "failures": [], "lang": 1.0}
+{"id": "reason-02", "category": "reasoning", "answer": "Da'vo muddati 2024-yil 1-maydan boshlab uch yil o'tdi. Shuning uchun, da'vo muddati 2027-yil 1-mayda tugaydi [C2].", "failures": ["iqtibos yo'q: [C1]"], "lang": 1.0}
+{"id": "reason-03", "category": "reasoning", "answer": "Berilgan manbalarda bu savolga javob yo'q. Mehnat shartnomasi majburiy ravishda yozma shaklda tuzilishi kerak, aks holda shartnoma haqiqiy emas deb topiladi [C2].", "failures": [], "lang": 1.0}
+{"id": "reason-04", "category": "reasoning", "answer": "O'n olti yoshli shaxs mustaqil ravishda kvartira sotib ololmaydi, chunki bitimlarni qonuniy vakilining roziligi bilan tuzishi kerak [C1].", "failures": [], "lang": 1.0}
+{"id": "reason-05", "category": "reasoning", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": ["kutilgan yo'q: ha", "kutilgan yo'q: irodasidan tashqari", "iqtibos yo'q: [C2]"], "lang": 1.0}
+{"id": "reason-06", "category": "reasoning", "answer": "Berilgan manbalarda avtomobil egasining aybsiz holda zarar yetkazganligi haqida ma'lumot yo'q. [C1] manbabiga ko'ra, zarar yetkazgan shaxs aybi bo'lmasa javobgar bo'lmaydi. Ammo, [C2] manbabiga ko'ra, yuqori xavf manbai egasi aybidan qat'i nazar javobgar bo'ladi. Avtomobil yuqori xavf manbai hisoblanishiga qaramay, egasining aybi muhimligini ko'rsatadigan manba yo'q.", "failures": ["taqiqlangan bor: javobgar bo'lmaydi"], "lang": 1.0}
+{"id": "reason-07", "category": "reasoning", "answer": "Berilgan manbalarga ko'ra, agar vasiyat mavjud bo'lsa, qonun bo'yicha meros faqat vasiyat qamrab olmagan mulkka nisbatan qo'llaniladi [C2]. Vasiyatda faqat uy ko'rsatilgani uchun avtomobil qonun bo'yicha merosga o'tadi [C2].", "failures": [], "lang": 1.0}
+{"id": "reason-08", "category": "reasoning", "answer": "Berilgan manbalarda bu savolga javob yo'q. Bir tomonlama voz kechish faqat qonunda yoki shartnomada nazarda tutilgan hollarda mumkin [C2].", "failures": [], "lang": 1.0}
+{"id": "reason-09", "category": "reasoning", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": ["kutilgan yo'q: qonunga xilof", "iqtibos yo'q: [C2]"], "lang": 1.0}
+{"id": "reason-10", "category": "reasoning", "answer": "Berilgan manbalarda bu savolga javob yo'q. Kafillik shartnomasi yozma shaklda tuzilmasa haqiqiy emas [C2].", "failures": [], "lang": 1.0}
+{"id": "reason-11", "category": "reasoning", "answer": "Notarial tasdiqlanmagan nikoh shartnomasi haqiqiy emas [C2]. Nikoh shartnomasi notarial tasdiqlanishi shart [C1].", "failures": ["o'zbek morfologiyasi kam"], "lang": 0.7}
+{"id": "reason-12", "category": "reasoning", "answer": "Ro'yxatdan o'tkazilmagan shartnoma uchinchi shaxslarga nisbatan kuchga ega emas [C2]. Shunga ko'ra, yangi mulkdor ijarachini chiqarib yuborishi mumkin emas, chunki shartnoma kuchga ega emas.", "failures": [], "lang": 1.0}
+{"id": "refuse-01", "category": "refusal", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-02", "category": "refusal", "answer": "Berilgan manbalarda sud bojining miqdori ko'rsatilgan yo'q. [C1]", "failures": [], "lang": 1.0}
+{"id": "refuse-03", "category": "refusal", "answer": "Berilgan manbalarda mulkni musodara qilish tartibi qandayligi haqida ma'lumot yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-04", "category": "refusal", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-05", "category": "refusal", "answer": "Berilgan manbalarda bankrotlik protsedurasi qancha davom etadi degan savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-06", "category": "refusal", "answer": "Berilgan manbalarda merosni qabul qilish muddati ko'rsatilgan yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-07", "category": "refusal", "answer": "Berilgan manbalarda Amerika Qo'shma Shtatlarida ijara shartnomasi tuzish tartibi haqida ma'lumot yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-08", "category": "refusal", "answer": "Berilgan manbalarda ushbu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-09", "category": "refusal", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "refuse-10", "category": "refusal", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": [], "lang": 1.0}
+{"id": "cite-01", "category": "citation", "answer": "Mulkdorning tasarruf huquqi shartnoma bilan cheklanishi mumkin [C2].", "failures": ["iqtibos yo'q: [C1]"], "lang": 1.0}
+{"id": "cite-02", "category": "citation", "answer": "Berilgan manbalarda bu savolga javob yo'q. Sud da'vo muddati o'z tashabbusi bilan qo'llanilmaydi [C2].", "failures": [], "lang": 1.0}
+{"id": "cite-03", "category": "citation", "answer": "Berilgan manbalarda og'zaki shartnomani isbotlash to'g'risidagi ma'lumot yo'q. [C1] Shartnoma yozma shaklda tuziladi. [C2] Yozma shakl buzilsa guvohlik ko'rsatmalariga tayanib bo'lmaydi. [C3] Boshqa yozma dalillar keltirilishi mumkin.", "failures": [], "lang": 1.0}
+{"id": "cite-04", "category": "citation", "answer": "Ogohlantirish muddati ikki hafta [C1].", "failures": ["o'zbek morfologiyasi kam"], "lang": 0.7}
+{"id": "cite-05", "category": "citation", "answer": "Kafillik yozma shaklda tuziladi [C1]. Kafil qarzdor bilan birgalikda javobgar [C2].", "failures": [], "lang": 1.0}
+{"id": "cite-06", "category": "citation", "answer": "Voyaga yetmagan shaxs bitimni vakilining roziligi bilan tuzadi [C1].", "failures": [], "lang": 1.0}
+{"id": "term-01", "category": "terminology", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": ["kutilgan yo'q: vindikatsiya"], "lang": 1.0}
+{"id": "term-02", "category": "terminology", "answer": "Berilgan manbalarda bu savolga javob yo'q.", "failures": ["kutilgan yo'q: haqiqiy emas"], "lang": 1.0}
+{"id": "term-03", "category": "terminology", "answer": "Vakolat [C1].", "failures": ["kutilgan yo'q: ishonchnoma", "o'zbek morfologiyasi kam"], "lang": 0.7}
+{"id": "term-04", "category": "terminology", "answer": "Majburiyatni bajarmaslik holati \"qarzdorlik\" deb ataladi [C1].", "failures": [], "lang": 1.0}
+{"id": "term-05", "category": "terminology", "answer": "\"Lex specialis derogat legi generali\" [C1].", "failures": ["o'zbek morfologiyasi kam"], "lang": 0.7}
+{"id": "term-06", "category": "terminology", "answer": "Ushbu holat mulkni egallash huquqiy institutiga tegishli [C1].", "failures": ["kutilgan yo'q: egalik muddati"], "lang": 1.0}
+{"id": "lang-01", "category": "language", "answer": "Mehnat shartnomasi tomonlarning kelishuvi bilan bekor qilinadi [C1].", "failures": [], "lang": 1.0}
+{"id": "lang-02", "category": "language", "answer": "Mulkdor mulkni tasarruf etishga haqli [C1].", "failures": [], "lang": 1.0}
+{"id": "lang-03", "category": "language", "answer": "Mulkdorning huquqi - mulkni noqonuniy egallangan shaxsdan qaytarib olib olish [C1].", "failures": [], "lang": 1.0}
+{"id": "lang-04", "category": "language", "answer": "Da'vo muddati uch yil. Muddat buzilgan huquq haqida bilgan kundan boshlanadi [C2].", "failures": ["iqtibos yo'q: [C1]"], "lang": 1.0}
+{"id": "format-01", "category": "format", "answer": "1. Mehnat shartnomasi kelishuv yo'li bilan bekor qilinishi [C1].\n2. Xodim tashabbusi bilan bekor qilinishi [C1].\n3. Ish beruvchi tashabbusi bilan bekor qilinishi [C1].\n", "failures": [], "lang": 1.0}
+{"id": "format-02", "category": "format", "answer": "Sinov muddatining chegarasi olti oy [C1].", "failures": [], "lang": 1.0}
+{"id": "format-03", "category": "format", "answer": "SHAKL: Shartnoma yozma shaklda tuziladi [C1]. Notarial tasdiq talab qilinishi mumkin [C2].\n\nQO'SHIMCHA TALAB: Yo'q.\n", "failures": [], "lang": 1.0}
+{"id": "format-04", "category": "format", "answer": "3 [C1]", "failures": ["o'zbek morfologiyasi kam"], "lang": 0.7}
