@@ -26,12 +26,14 @@ app.add_typer(index_app, name="index")
 
 # Modul sub-applari. Har bir modul o'z faylida Typer ilovasini yaratadi va
 # faqat shu yerda ulanadi — shunda parallel ishlashda to'qnashuv bo'lmaydi.
-try:
-    from uzlegal.cli.pipeline import pipeline_app
-
-    app.add_typer(pipeline_app, name="pipeline")
-except ImportError as _exc:  # pragma: no cover — modul hali qo'shilmagan
-    logging.getLogger(__name__).debug("pipeline sub-app ulanmadi: %s", _exc)
+for _module, _attr, _name in (
+    ("uzlegal.cli.pipeline", "pipeline_app", "pipeline"),
+    ("uzlegal.cli.train", "train_app", "train"),
+):
+    try:
+        app.add_typer(getattr(__import__(_module, fromlist=[_attr]), _attr), name=_name)
+    except ImportError as _exc:  # pragma: no cover — modul hali qo'shilmagan
+        logging.getLogger(__name__).debug("'%s' sub-app ulanmadi: %s", _name, _exc)
 
 console = Console()
 

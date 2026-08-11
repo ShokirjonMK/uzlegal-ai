@@ -1,0 +1,48 @@
+# Rol adapteri uchun LoRA giperparametrlari — ADR-002, ADR-003
+#
+# Bu qiymatlar 24 GB unified memory va 4-bit kvantlangan 12B baza model
+# uchun tanlangan. Kattaroq model yoki uzunroq kontekst uchun
+# `max_seq_len` ni tushirish kerak — u xotirani chiziqli oshiradi.
+#
+#   uzlegal train lora --role advocate
+#   uzlegal train lora --role advocate --dry-run   # faqat tekshiruvlar
+
+lora:
+  # rank 16 — sifat va hajm o'rtasidagi muvozanat. 12B da ≈ 40 MB adapter,
+  # ya'ni beshta rol 200 MB, baza model esa xotirada bitta nusxada qoladi.
+  rank: 16
+  # alpha = 2 × rank — amaliyotdagi standart nisbat
+  alpha: 32
+  dropout: 0.05
+  # Faqat attention proyeksiyalari. MLP ni ham qo'shish sifatni biroz
+  # oshiradi, lekin adapter hajmini uch baravar kattalashtiradi.
+  target_modules: [q_proj, k_proj, v_proj, o_proj]
+
+training:
+  epochs: 3
+  learning_rate: 1.0e-4
+  # Kontekst 4096 — huquqiy kontekst (~6k token) to'liq sig'maydi, lekin
+  # trening namunalari qisqartirilgan holda beriladi. Inferencedа model
+  # to'liq kontekstni ko'radi; LoRA uzunlikka bog'liq emas.
+  max_seq_len: 4096
+  batch_size: 1
+  # Samarali batch = batch_size × grad_accum = 8
+  grad_accum: 8
+  warmup_ratio: 0.03
+  weight_decay: 0.01
+
+# Ma'lumot sifati talablari (docs/05 § 3)
+data:
+  # Tekshirilmagan namuna treningga tushmaydi. Bu qattiq cheklov:
+  # tekshirilmagan yuridik data modelni **ishonch bilan xato qilishga**
+  # o'rgatadi va bu tekshirilmagan modeldan yomonroq.
+  require_verified: true
+  min_samples: 500
+  valid_split: 0.05
+  # Rol qulflanishiga qarshi: namunalarning shu ulushi zaif pozitsiyani
+  # halol tan olish bilan tugaydi.
+  weak_position_ratio: 0.15
+
+eval:
+  role_fidelity_target: 0.90
+  citation_coverage_target: 0.95
