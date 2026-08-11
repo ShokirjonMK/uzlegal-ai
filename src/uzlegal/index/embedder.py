@@ -56,10 +56,24 @@ class Embedder:
 
     @property
     def device(self) -> str:
-        if self._device is None:
-            import torch
+        """Hisoblash qurilmasi: `mps` · `cpu` · `cuda`.
 
-            self._device = "mps" if torch.backends.mps.is_available() else "cpu"
+        `UZLEGAL_EMBED_DEVICE` bilan majburlash mumkin. Bu zaxira yo'l
+        emas, amaliy ehtiyoj: Metal kontekstini boshqa jarayon band
+        qilib qo'yganda (masalan bir vaqtda ikkita indeks qurilsa) MPS
+        cheksiz kutib qoladi va jarayon qotadi. Bunday holatda CPU ga
+        o'tish indeksni qayta qurish imkonini beradi.
+        """
+        if self._device is None:
+            import os
+
+            forced = os.getenv("UZLEGAL_EMBED_DEVICE")
+            if forced:
+                self._device = forced
+            else:
+                import torch
+
+                self._device = "mps" if torch.backends.mps.is_available() else "cpu"
         return self._device
 
     def load(self) -> None:
