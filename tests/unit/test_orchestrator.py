@@ -149,6 +149,22 @@ def test_qoplama_hisoblanadi() -> None:
     assert support_score("Bojxona tranzit deklaratsiyasi rasmiylashtiriladi", source) < 0.25
 
 
+def test_ozbek_morfologiyasi_hisobga_olinadi() -> None:
+    """«muddat» va «muddati» bir xil so'z — daʼvo noto'g'ri belgilanmasligi kerak.
+
+    Bu haqiqiy nosozlik edi: sudya normani qayta ifodalaganda
+    qo'shimchalar o'zgaradi va o'zaklashtirmasdan gate to'g'ri daʼvoni
+    «qo'llab-quvvatlanmagan» deb belgilardi.
+    """
+    norm = [citation("C1", article="150", excerpt="Umumiy daʼvo muddati uch yil qilib belgilanadi")]
+    claim = "Daʼvo uch yillik muddat ichida qoʻzgʻatilishi kerak"
+    assert support_score(claim, norm) >= 0.25
+
+    cleaned, report = GroundednessGate(norm).check(f"{claim} [C1]")
+    assert report.flagged == []
+    assert not cleaned.startswith("⚠")
+
+
 def test_iqtibos_matni_yoq_bolsa_belgilanmaydi() -> None:
     """Manba matni saqlanmagan bo'lsa bu bosqich o'tkazib yuboriladi."""
     empty = Citation(tag="C1", doc_id="fk", article="228", excerpt=None)

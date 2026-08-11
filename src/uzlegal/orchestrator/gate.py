@@ -46,6 +46,7 @@ import re
 from collections.abc import Callable
 
 from uzlegal.ingest.normalize import fold
+from uzlegal.retrieval.expansion import simplify
 from uzlegal.types import Citation, GateReport
 
 log = logging.getLogger(__name__)
@@ -163,8 +164,20 @@ def cited_tags(claim: str) -> list[str]:
 
 
 def _content_words(text: str) -> set[str]:
+    """Ma'no tashuvchi so'zlarning **o'zaklari**.
+
+    O'zaklashtirmasdan bo'lmaydi: o'zbek tili agglyutinativ va daʼvo
+    normani qayta ifodalaganda qo'shimchalar o'zgaradi.
+
+        daʼvo:  "…uch yillik muddat ichida qoʻzgʻatilishi kerak"
+        norma:  "Umumiy daʼvo muddati uch yil qilib belgilanadi"
+
+    `muddat` va `muddati`, `yil` va `yillik` — bir xil ma'no, lekin
+    harfma-harf boshqa. O'zaklashtirmasdan bu daʼvo «qo'llab-quvvatlanmagan»
+    deb belgilanardi, holbuki u aynan shu normadan kelib chiqadi.
+    """
     words = re.findall(r"[a-zʻʼ0-9]{4,}", fold(text))
-    return {w for w in words if w not in _STOPWORDS}
+    return {simplify(w) for w in words if w not in _STOPWORDS}
 
 
 def support_score(claim: str, citations: list[Citation]) -> float:
