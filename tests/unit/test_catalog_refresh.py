@@ -42,9 +42,7 @@ def _status(reg: ModelRegistry, model_id: str) -> ModelStatus:
     return next(m.status for m in reg.list_models() if m.spec.id == model_id)
 
 
-def test_yuklab_olingandan_keyin_holat_yangilanadi(
-    registry: ModelRegistry, tmp_path: Path
-) -> None:
+def test_yuklab_olingandan_keyin_holat_yangilanadi(registry: ModelRegistry, tmp_path: Path) -> None:
     assert _status(registry, "keyin-yuklanadi") is ModelStatus.NOT_DOWNLOADED
 
     # Yuklab olishni taqlid qilamiz

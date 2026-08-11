@@ -89,9 +89,7 @@ def test_sudya_ismi_qoladi(natija) -> None:  # type: ignore[no-untyped-def]
     assert "Rahimov Bahodir Anvarovich" in natija.text
 
 
-@pytest.mark.parametrize(
-    "rol", ["Sudya", "Prokuror", "Tergovchi", "Raislik qiluvchi"]
-)
+@pytest.mark.parametrize("rol", ["Sudya", "Prokuror", "Tergovchi", "Raislik qiluvchi"])
 def test_rasmiy_rol_ismi_qoladi(rol: str) -> None:
     text = f"{rol} Ergashev Sanjar Alisherovich ishtirok etdi."
     assert "Ergashev Sanjar Alisherovich" in redact_text(text).text

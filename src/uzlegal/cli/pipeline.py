@@ -75,17 +75,29 @@ def versions(
     for doc, _html in _load(docs):
         report = build_versions(doc, today=today)
         present = {a.article_number for a in doc.articles}
-        dated = sum(1 for n, v in report.versions.items() if n in present and (v.valid_from or v.valid_to))
-        repealed = sum(1 for n, v in report.versions.items() if n in present and v.status == "repealed")
-        row = [len(doc.articles), report.notes_seen, dated, repealed,
-               len(report.repealed_absent), len(report.warnings)]
+        dated = sum(
+            1 for n, v in report.versions.items() if n in present and (v.valid_from or v.valid_to)
+        )
+        repealed = sum(
+            1 for n, v in report.versions.items() if n in present and v.status == "repealed"
+        )
+        row = [
+            len(doc.articles),
+            report.notes_seen,
+            dated,
+            repealed,
+            len(report.repealed_absent),
+            len(report.warnings),
+        ]
         totals = [t + r for t, r in zip(totals, row, strict=True)]
         table.add_row(doc.doc_id, *(str(v) for v in row))
 
         for number in sorted(report.versions)[:show]:
             v = report.versions[number]
-            console.print(f"  [dim]{number:>8}  {v.valid_from or '—'} → {v.valid_to or '—'}  "
-                          f"{v.status}  {','.join(v.amended_by[:3])}[/dim]")
+            console.print(
+                f"  [dim]{number:>8}  {v.valid_from or '—'} → {v.valid_to or '—'}  "
+                f"{v.status}  {','.join(v.amended_by[:3])}[/dim]"
+            )
 
     table.add_section()
     table.add_row("[bold]jami[/bold]", *(f"[bold]{v}[/bold]" for v in totals))
@@ -132,8 +144,10 @@ def validate(
     documents = [apply_versions(d, today=today) for d, _ in _load(docs)]
     summary = validate_documents(documents, today=today)
 
-    console.print(f"Hujjat {summary.documents} · modda {summary.articles} · "
-                  f"xato {summary.errors} · ogohlantirish {summary.warnings}")
+    console.print(
+        f"Hujjat {summary.documents} · modda {summary.articles} · "
+        f"xato {summary.errors} · ogohlantirish {summary.warnings}"
+    )
     for code, count in summary.by_code().items():
         console.print(f"  {code:24} {count}")
 
@@ -160,8 +174,10 @@ def redact(
         raise typer.Exit(4)
 
     result = Redactor().redact(path.read_text(encoding="utf-8"))
-    console.print(f"Almashtirildi: {len(result.redactions)} · shaxs {len(result.persons)} · "
-                  f"ishonch {result.confidence:.2f}")
+    console.print(
+        f"Almashtirildi: {len(result.redactions)} · shaxs {len(result.persons)} · "
+        f"ishonch {result.confidence:.2f}"
+    )
     if result.quarantine:
         console.print("[yellow]⚠ Karantin:[/yellow] " + "; ".join(result.reasons))
 

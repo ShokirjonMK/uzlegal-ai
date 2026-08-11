@@ -44,10 +44,10 @@ HTML = "".join(
             "ACT_TEXT",
             "-11",
             'Ushbu Kodeksning <a href="/uz/docs/-500#-20">46-moddasida</a> nazarda '
-            'tutilgan hollarda Mehnat kodeksining '
+            "tutilgan hollarda Mehnat kodeksining "
             '<a href="/uz/docs/-600#-338735">176-moddasi</a> qoʻllaniladi. '
             '<a href="/uz/docs/-500?ONDATE=01.03.1997 00#-11">Oldingi</a> '
-            '<a href="javascript:scrollText(\'-20\');">46</a> '
+            "<a href=\"javascript:scrollText('-20');\">46</a> "
             '<a href="/uz/docs/-700#-900">17-bandi</a>',
         ),
         _block("CLAUSE_DEFAULT", "-20", "46-modda. Egalik huquqi"),

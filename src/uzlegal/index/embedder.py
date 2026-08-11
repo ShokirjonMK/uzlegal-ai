@@ -94,7 +94,8 @@ class Embedder:
         )
 
     def encode_one(self, text: str, *, is_query: bool = False) -> NDArray[Any]:
-        return self.encode([text], is_query=is_query)[0]
+        vector: NDArray[Any] = self.encode([text], is_query=is_query)[0]
+        return vector
 
     def unload(self) -> None:
         self._model = None

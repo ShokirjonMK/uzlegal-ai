@@ -177,9 +177,7 @@ class DocumentRouter:
         # («mehnat nizosi bo'yicha sudga murojaat» ikki sohaga tegishli).
         threshold = best * 0.6
         winners = [
-            domain
-            for domain in self.config.domains
-            if scores.get(domain.name, 0.0) >= threshold
+            domain for domain in self.config.domains if scores.get(domain.name, 0.0) >= threshold
         ]
         winners.sort(key=lambda d: scores[d.name], reverse=True)
 

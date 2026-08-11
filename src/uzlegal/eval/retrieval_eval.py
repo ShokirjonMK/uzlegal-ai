@@ -183,9 +183,7 @@ def run_eval(
                 rank=rank,
                 latency_ms=latency,
                 top_articles=[_label(item.chunk) for item in found.results[:3]],
-                deprecated_leaked=any(
-                    item.chunk.status != "in_force" for item in found.results
-                ),
+                deprecated_leaked=any(item.chunk.status != "in_force" for item in found.results),
             )
         )
 

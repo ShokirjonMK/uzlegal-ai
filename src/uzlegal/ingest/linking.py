@@ -359,9 +359,7 @@ class ReferenceGraph:
 
     def save(self, path: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            "\n".join(r.model_dump_json() for r in self.references), encoding="utf-8"
-        )
+        path.write_text("\n".join(r.model_dump_json() for r in self.references), encoding="utf-8")
         return path
 
     @classmethod

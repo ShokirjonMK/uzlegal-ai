@@ -80,7 +80,7 @@ def test_qisqa_sarlavha_otkazib_yuboriladi() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_urugʻ_savollar_yaratiladi() -> None:
+def test_urug_savollar_yaratiladi() -> None:
     chunks = [make_chunk(str(i), f"Huquqiy institut raqam {i}") for i in range(1, 6)]
     seeds = list(seed_questions(chunks, "jurist"))
     assert len(seeds) == 5
@@ -149,7 +149,11 @@ def test_javob_savolni_takrorlamasin() -> None:
 
 
 def test_filtr_sabablarni_sanaydi() -> None:
-    samples = [sample(id="a"), sample(id="b", answer="Qisqa [C1]."), sample(id="c", answer="x " * 700)]
+    samples = [
+        sample(id="a"),
+        sample(id="b", answer="Qisqa [C1]."),
+        sample(id="c", answer="x " * 700),
+    ]
     passed, reasons = filter_samples(samples)
     assert len(passed) == 1
     assert sum(reasons.values()) == 2
@@ -270,9 +274,7 @@ def test_xotira_bahosi_oshib_boradi() -> None:
 
 def test_konfiguratsiya_yamldan(tmp_path: Path) -> None:
     path = tmp_path / "c.yaml"
-    path.write_text(
-        "lora:\n  rank: 32\n  alpha: 64\ntraining:\n  epochs: 3\n", encoding="utf-8"
-    )
+    path.write_text("lora:\n  rank: 32\n  alpha: 64\ntraining:\n  epochs: 3\n", encoding="utf-8")
     config = TrainingConfig.from_yaml(
         path, role="judge", base_model="m", data_path=tmp_path / "d", output_path=tmp_path / "o"
     )

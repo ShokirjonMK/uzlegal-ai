@@ -232,7 +232,7 @@ SYSTEM_PROMPT = (
     "1. Faqat berilgan [C1], [C2] manbalariga tayanib javob ber.\n"
     "2. Har bir huquqiy da'voga manba belgisini qo'y, masalan [C1].\n"
     "3. Agar berilgan manbalarda javob bo'lmasa, aniq ayt: "
-    "\"Berilgan manbalarda bu savolga javob yo'q\". Taxmin qilma.\n"
+    '"Berilgan manbalarda bu savolga javob yo\'q". Taxmin qilma.\n'
     "4. Faqat o'zbek tilida (lotin yozuvida) javob ber.\n"
     "5. Qisqa va aniq yoz."
 )
@@ -337,9 +337,17 @@ def render_report(scores: list[ModelScore], winner: str | None, notes: list[str]
             f"{s.refusal_accuracy:.0%} | {s.tokens_per_second:.1f} | {s.memory_gb:.1f} GB |"
         )
 
-    lines += ["", "## Kategoriya bo'yicha", "", "| Model | " + " | ".join(
-        c for c in ["reasoning", "refusal", "citation", "terminology", "language", "format"]
-    ) + " |", "|---|" + "---|" * 6]
+    lines += [
+        "",
+        "## Kategoriya bo'yicha",
+        "",
+        "| Model | "
+        + " | ".join(
+            c for c in ["reasoning", "refusal", "citation", "terminology", "language", "format"]
+        )
+        + " |",
+        "|---|" + "---|" * 6,
+    ]
     for s in sorted(scores, key=lambda x: x.weighted, reverse=True):
         cells = []
         for cat in ["reasoning", "refusal", "citation", "terminology", "language", "format"]:

@@ -50,9 +50,25 @@ DEFAULT_THESAURUS = Path("configs/retrieval/thesaurus.yaml")
 # O'zbek tilidagi eng keng tarqalgan otlashuvchi qo'shimchalar.
 # Tartib muhim: uzunroq qo'shimcha avval olib tashlanadi.
 _SUFFIXES = [
-    "larining", "lariga", "larida", "laridan", "larini", "larning",
-    "sining", "siga", "sida", "sidan", "sini",
-    "ning", "lar", "ga", "da", "dan", "ni", "si", "i",
+    "larining",
+    "lariga",
+    "larida",
+    "laridan",
+    "larini",
+    "larning",
+    "sining",
+    "siga",
+    "sida",
+    "sidan",
+    "sini",
+    "ning",
+    "lar",
+    "ga",
+    "da",
+    "dan",
+    "ni",
+    "si",
+    "i",
 ]
 
 _MIN_STEM = 4  # bundan qisqa o'zakni kesmaymiz — ma'no yo'qoladi

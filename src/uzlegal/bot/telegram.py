@@ -236,7 +236,7 @@ def render(result: ConsultResult) -> str:
                 f"{citation.doc_title or citation.doc_id}, {citation.article}-modda"
             )
             lines.append(
-                f"[{citation.tag}] <a href=\"{citation.url}\">{label}</a>"
+                f'[{citation.tag}] <a href="{citation.url}">{label}</a>'
                 if citation.url
                 else f"[{citation.tag}] {label}"
             )

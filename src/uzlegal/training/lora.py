@@ -156,18 +156,30 @@ def train_lora(config: TrainingConfig, *, dry_run: bool = False) -> dict[str, ob
     data_dir = config.output_path.parent / f"{config.role}-mlx-data"
     counts = prepare_mlx_data(samples, data_dir)
 
-    iterations = max(1, (counts["train"] * config.epochs) // (config.batch_size * config.grad_accum))
+    iterations = max(
+        1, (counts["train"] * config.epochs) // (config.batch_size * config.grad_accum)
+    )
     command = [
-        sys.executable, "-m", "mlx_lm.lora",
-        "--model", config.base_model,
+        sys.executable,
+        "-m",
+        "mlx_lm.lora",
+        "--model",
+        config.base_model,
         "--train",
-        "--data", str(data_dir),
-        "--adapter-path", str(config.output_path),
-        "--iters", str(iterations),
-        "--batch-size", str(config.batch_size),
-        "--num-layers", str(config.rank),
-        "--learning-rate", str(config.learning_rate),
-        "--max-seq-length", str(config.max_seq_len),
+        "--data",
+        str(data_dir),
+        "--adapter-path",
+        str(config.output_path),
+        "--iters",
+        str(iterations),
+        "--batch-size",
+        str(config.batch_size),
+        "--num-layers",
+        str(config.rank),
+        "--learning-rate",
+        str(config.learning_rate),
+        "--max-seq-length",
+        str(config.max_seq_len),
     ]
 
     if dry_run:

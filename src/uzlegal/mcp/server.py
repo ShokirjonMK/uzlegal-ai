@@ -114,9 +114,7 @@ def tool_search(args: dict[str, Any]) -> str:
     for i, item in enumerate(found.results, 1):
         chunk = item.chunk
         blocks.append(
-            f"### {i}. {chunk.citation_label}\n"
-            f"{chunk.content}\n"
-            f"Manba: {chunk.source_url or '—'}"
+            f"### {i}. {chunk.citation_label}\n{chunk.content}\nManba: {chunk.source_url or '—'}"
         )
     return "\n\n".join(blocks)
 
@@ -124,9 +122,7 @@ def tool_search(args: dict[str, Any]) -> str:
 def tool_consult(args: dict[str, Any]) -> str:
     from uzlegal.core import consult
 
-    result = consult(
-        args["question"], mode=args.get("mode"), as_of=_as_of(args.get("as_of"))
-    )
+    result = consult(args["question"], mode=args.get("mode"), as_of=_as_of(args.get("as_of")))
     lines = [result.answer]
     if result.citations:
         lines.append("\n## Manbalar")

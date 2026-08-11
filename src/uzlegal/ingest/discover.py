@@ -145,12 +145,11 @@ class LexUzDiscovery:
             log.warning(
                 "Sahifada %d ta natija ko'rsatildi, lekin %d tasi ajratildi — "
                 "sahifalash qo'llab-quvvatlanmaydi (hozircha)",
-                total, len(refs),
+                total,
+                len(refs),
             )
         return refs
 
     def discover_codes(self) -> list[DocumentRef]:
         """Barcha amaldagi kodekslarni o'zbek (lotin) tilida topadi."""
-        return self.search(
-            DiscoveryQuery(query="kodeks", lang=LANG_UZ_LATIN, form_id=FORM_CODE)
-        )
+        return self.search(DiscoveryQuery(query="kodeks", lang=LANG_UZ_LATIN, form_id=FORM_CODE))

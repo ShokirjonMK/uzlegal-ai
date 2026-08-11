@@ -97,8 +97,13 @@ root_package = "uzlegal"
 name = "Interfeys qatlami yadroga bog'liq, aksincha emas"
 type = "layers"
 layers = [
-    "uzlegal.api | uzlegal.cli | uzlegal.mcp | uzlegal.bot",
+    # CLI boshqa interfeyslardan yuqorida: u ularni **ishga tushiradi**
+    # (`uzlegal serve`, `uzlegal bot`, `uzlegal mcp`). Bir qatlamga
+    # qo'yilsa bu import taqiqlanardi, holbuki u to'g'ri yo'nalish.
+    "uzlegal.cli",
+    "uzlegal.api | uzlegal.mcp | uzlegal.bot | uzlegal.sdk",
     "uzlegal.core",
+    "uzlegal.orchestrator",
     "uzlegal.agents",
     "uzlegal.inference | uzlegal.retrieval",
     "uzlegal.index",

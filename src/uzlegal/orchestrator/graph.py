@@ -131,13 +131,9 @@ def run(
         result.answer = checked
         result.citations = report.citations or ctx.citations
         if report.dropped:
-            result.warnings.append(
-                f"{len(report.dropped)} ta iqtibossiz da'vo javobdan chiqarildi"
-            )
+            result.warnings.append(f"{len(report.dropped)} ta iqtibossiz da'vo javobdan chiqarildi")
         if report.flagged:
-            result.warnings.append(
-                f"{len(report.flagged)} ta da'vo «noaniq» deb belgilandi (⚠)"
-            )
+            result.warnings.append(f"{len(report.flagged)} ta da'vo «noaniq» deb belgilandi (⚠)")
 
     return result
 
@@ -169,9 +165,7 @@ def _run_jurist(ctx: AgentContext, emit: Observer) -> LegalFrame | None:
     return frame
 
 
-def _run_debate(
-    ctx: AgentContext, frame: LegalFrame | None, emit: Observer
-) -> dict[str, Position]:
+def _run_debate(ctx: AgentContext, frame: LegalFrame | None, emit: Observer) -> dict[str, Position]:
     """Ikki raundli munozara. Ikkinchi raund shartli.
 
     Advokat va prokuror **ketma-ket** ishlaydi: bitta baza modelda

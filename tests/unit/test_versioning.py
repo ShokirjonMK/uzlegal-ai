@@ -285,6 +285,8 @@ def test_arxivda_yolgon_bekor_qilish_yoq(fuqarolik_kodeksi: ParsedDocument) -> N
     """FK birinchi qismida bekor qilingan moddalar matndan olib tashlangan."""
     report = build_versions(fuqarolik_kodeksi, today=TODAY)
     present = {a.article_number for a in fuqarolik_kodeksi.articles}
-    still_present = [n for n, v in report.versions.items() if n in present and v.status == "repealed"]
+    still_present = [
+        n for n, v in report.versions.items() if n in present and v.status == "repealed"
+    ]
     assert still_present == []
     assert "176" in report.repealed_absent

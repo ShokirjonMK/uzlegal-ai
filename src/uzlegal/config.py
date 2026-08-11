@@ -68,7 +68,7 @@ class Settings(BaseModel):
 
     @classmethod
     def load(cls, profile: str | None = None) -> Settings:
-        profile = profile or os.getenv("UZLEGAL_PROFILE", "local-dev")
+        profile = profile or os.getenv("UZLEGAL_PROFILE") or "local-dev"
         _load_dotenv()
         raw: dict[str, Any] = {}
 

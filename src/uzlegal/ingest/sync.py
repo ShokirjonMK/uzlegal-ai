@@ -191,8 +191,10 @@ class SyncManager:
             "status": self.status.value,
             "auto_enabled": self.state.auto_enabled,
             "interval_days": self.state.interval_days,
-            "last_sync_at": self.state.last_sync_at.isoformat() if self.state.last_sync_at else None,
-            "next_due_at": self.state.next_due().isoformat() if self.state.next_due() else None,
+            "last_sync_at": self.state.last_sync_at.isoformat()
+            if self.state.last_sync_at
+            else None,
+            "next_due_at": due.isoformat() if (due := self.state.next_due()) else None,
             "age_days": round(age, 1) if age is not None else None,
             "is_due": self.state.is_due(),
             "is_stale": self.state.is_stale(),
@@ -297,15 +299,21 @@ class SyncManager:
             self._save_state()
             log.info(
                 "Sinxronizatsiya tugadi: %s — %s (yangi %d, o'zgargan %d, o'zgarmagan %d, xato %d)",
-                report.run_id, report.status.value,
-                report.new, report.changed, report.unchanged, report.errors,
+                report.run_id,
+                report.status.value,
+                report.new,
+                report.changed,
+                report.unchanged,
+                report.errors,
             )
 
     # ------------------------------------------------------------------ #
     # Sozlamalar
     # ------------------------------------------------------------------ #
 
-    def configure(self, *, interval_days: int | None = None, auto_enabled: bool | None = None) -> None:
+    def configure(
+        self, *, interval_days: int | None = None, auto_enabled: bool | None = None
+    ) -> None:
         if interval_days is not None:
             if not 1 <= interval_days <= 90:
                 raise ValueError("interval_days 1 dan 90 gacha bo'lishi kerak")

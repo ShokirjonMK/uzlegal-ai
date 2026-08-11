@@ -72,7 +72,9 @@ def test_modda_tanasi_bosh_emas(parsed: ParsedDocument) -> None:
 
 def test_tana_sarlavhani_takrorlamaydi(parsed: ParsedDocument) -> None:
     for a in parsed.articles:
-        assert not a.body.startswith(a.title), f"modda {a.article_number} tanasi sarlavha bilan boshlanmasin"
+        assert not a.body.startswith(a.title), (
+            f"modda {a.article_number} tanasi sarlavha bilan boshlanmasin"
+        )
 
 
 def test_ierarxiya_yoli(parsed: ParsedDocument) -> None:
@@ -179,10 +181,14 @@ def test_hujjat_turi(title: str, doc_type: str) -> None:
 
 def _raw(content: str) -> RawDocument:
     return RawDocument(
-        source="lex.uz", doc_id="test", url="https://lex.uz/docs/test",
+        source="lex.uz",
+        doc_id="test",
+        url="https://lex.uz/docs/test",
         fetched_at=datetime.now(UTC),
         content_sha256=hashlib.sha256(content.encode()).hexdigest(),
-        http_status=200, content_type="text/html", content=content,
+        http_status=200,
+        content_type="text/html",
+        content=content,
     )
 
 

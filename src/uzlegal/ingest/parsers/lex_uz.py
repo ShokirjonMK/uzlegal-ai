@@ -131,6 +131,7 @@ def parse_amendment(element_id: str, text: str) -> AmendmentNote:
         effective_date=extract_date(text),
     )
 
+
 # --------------------------------------------------------------------------- #
 # Regexlar
 # --------------------------------------------------------------------------- #
@@ -187,8 +188,18 @@ def detect_header_level(title: str) -> str:
 _DOC_TYPE_PATTERNS: list[tuple[DocType, re.Pattern[str]]] = [
     ("plenum", re.compile(r"\b(пленум\w*|plenum\w*)", re.I)),
     ("kodeks", re.compile(r"\b(кодекс\w*|kodeks\w*)", re.I)),
-    ("PF", re.compile(r"(Президент\w*\s+фармон\w*|Prezident\w*\s+farmon\w*|\bПФ[-\s]?\d|\bPF[-\s]?\d)", re.I)),
-    ("PQ", re.compile(r"(Президент\w*\s+қарор\w*|Prezident\w*\s+qaror\w*|\bПҚ[-\s]?\d|\bPQ[-\s]?\d)", re.I)),
+    (
+        "PF",
+        re.compile(
+            r"(Президент\w*\s+фармон\w*|Prezident\w*\s+farmon\w*|\bПФ[-\s]?\d|\bPF[-\s]?\d)", re.I
+        ),
+    ),
+    (
+        "PQ",
+        re.compile(
+            r"(Президент\w*\s+қарор\w*|Prezident\w*\s+qaror\w*|\bПҚ[-\s]?\d|\bPQ[-\s]?\d)", re.I
+        ),
+    ),
     ("VMQ", re.compile(r"(Вазирлар\s+Маҳкамас\w*|Vazirlar\s+Mahkamas\w*)", re.I)),
     ("qonun", re.compile(r"\b(закон\w*|qonun\w*|қонун\w*)", re.I)),
 ]
@@ -310,9 +321,7 @@ class LexUzParser:
         def flush() -> None:
             nonlocal current_article, body_parts
             if current_article is not None:
-                current_article.body = canonical(
-                    "\n".join(body_parts), transliterate=translit
-                )
+                current_article.body = canonical("\n".join(body_parts), transliterate=translit)
                 elements.append(current_article)
             current_article = None
             body_parts = []
@@ -334,7 +343,7 @@ class LexUzParser:
                 flush()
                 level = detect_header_level(flat)
                 path[level] = flat
-                for deeper in _LEVEL_ORDER[_LEVEL_ORDER.index(level) + 1:]:
+                for deeper in _LEVEL_ORDER[_LEVEL_ORDER.index(level) + 1 :]:
                     path.pop(deeper, None)
                 elements.append(
                     Element(
@@ -401,6 +410,5 @@ class LexUzParser:
         missing = toc_ids - body_ids
         if missing:
             warnings.append(
-                f"TOC da {len(missing)} ta element tanada topilmadi "
-                f"(masalan {sorted(missing)[:3]})"
+                f"TOC da {len(missing)} ta element tanada topilmadi (masalan {sorted(missing)[:3]})"
             )

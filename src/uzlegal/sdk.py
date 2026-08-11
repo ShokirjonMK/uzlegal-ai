@@ -93,9 +93,7 @@ class UzLegal:
         from uzlegal.index.store import KnowledgeIndex
         from uzlegal.retrieval.hybrid import HybridRetriever
 
-        found = HybridRetriever(KnowledgeIndex()).search(
-            query, top_k=top_k, as_of=_to_date(as_of)
-        )
+        found = HybridRetriever(KnowledgeIndex()).search(query, top_k=top_k, as_of=_to_date(as_of))
         return found.results
 
     def health(self) -> dict[str, Any]:

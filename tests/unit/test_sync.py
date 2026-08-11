@@ -100,8 +100,16 @@ def test_boshlangich_holat(manager: SyncManager) -> None:
 
 def test_info_admin_uchun_toliq(manager: SyncManager) -> None:
     info = manager.info()
-    for key in ("status", "auto_enabled", "interval_days", "last_sync_at",
-                "next_due_at", "is_due", "is_stale", "kb_version"):
+    for key in (
+        "status",
+        "auto_enabled",
+        "interval_days",
+        "last_sync_at",
+        "next_due_at",
+        "is_due",
+        "is_stale",
+        "kb_version",
+    ):
         assert key in info
 
 

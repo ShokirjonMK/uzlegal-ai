@@ -212,7 +212,8 @@ class LexUzConnector:
             return None
         import json
 
-        return json.loads(meta.read_text(encoding="utf-8")).get("content_sha256")
+        digest = json.loads(meta.read_text(encoding="utf-8")).get("content_sha256")
+        return str(digest) if digest else None
 
     # ------------------------------------------------------------------ #
     # O'zgarishni aniqlash
@@ -278,8 +279,9 @@ class LexUzConnector:
 # Bu ro'yxat qo'lda yozilmagan — `uzlegal kb discover` buyrug'i uni
 # qayta yaratadi va yangi kodeks qo'shilsa avtomatik topadi.
 PRIORITY_DOCS: list[DocumentRef] = [
-    DocumentRef(source="lex.uz", doc_id=i, url=f"https://lex.uz/uz/docs/{i}", title=t,
-                doc_type="kodeks")
+    DocumentRef(
+        source="lex.uz", doc_id=i, url=f"https://lex.uz/uz/docs/{i}", title=t, doc_type="kodeks"
+    )
     for i, t in [
         ("-111189", "Fuqarolik kodeksi (birinchi qism)"),
         ("-180552", "Fuqarolik kodeksi (ikkinchi qism)"),

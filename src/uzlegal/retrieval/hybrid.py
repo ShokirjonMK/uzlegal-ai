@@ -124,11 +124,13 @@ def extract_article_ref(query: str) -> tuple[str | None, str | None]:
 
 _PROCEDURAL = re.compile(
     r"\b(muddat|tartib|ariza|shikoyat|apellyatsiya|kassatsiya|sud\w*\s+murojaat|"
-    r"protsessual|срок|порядок|жалоб|апелляц)", re.IGNORECASE
+    r"protsessual|срок|порядок|жалоб|апелляц)",
+    re.IGNORECASE,
 )
 _ANALYTICAL = re.compile(
     r"\b(mumkinmi|bo['ʻ]ladimi|haqlimi|haqiqiymi|kim\s+haq|qanday\s+himoya|"
-    r"oqibat|javobgar\w*mi|можно\s+ли|вправе\s+ли)", re.IGNORECASE
+    r"oqibat|javobgar\w*mi|можно\s+ли|вправе\s+ли)",
+    re.IGNORECASE,
 )
 
 
@@ -311,9 +313,7 @@ class HybridRetriever:
         kind = kind or classify_query(query)
         w_vec, w_lex = WEIGHTS[kind]
 
-        routing = (
-            self.router.route(query) if (self.route if route is None else route) else Route()
-        )
+        routing = self.router.route(query) if (self.route if route is None else route) else Route()
 
         # Kengaytma **faqat leksik qidiruvga** qo'llaniladi. Vektor qidiruvida
         # atama qo'shish semantik markazni siljitadi va sifatni tushiradi —
@@ -382,9 +382,7 @@ class HybridRetriever:
     # Yo'naltirish va graf
     # ------------------------------------------------------------------ #
 
-    def _apply_routing(
-        self, results: list[ScoredChunk], routing: Route
-    ) -> list[ScoredChunk]:
+    def _apply_routing(self, results: list[ScoredChunk], routing: Route) -> list[ScoredChunk]:
         """Yo'naltirilgan hujjatlarning ballini ko'taradi.
 
         Bu **qat'iy filtr emas**: mos kelmagan hujjat ro'yxatda qoladi,
@@ -421,9 +419,7 @@ class HybridRetriever:
 
         present = {item.chunk_id for item in results}
         seen_norms = {
-            (item.chunk.doc_id, item.chunk.article)
-            for item in results
-            if item.chunk.article
+            (item.chunk.doc_id, item.chunk.article) for item in results if item.chunk.article
         }
         added: list[ScoredChunk] = []
 
@@ -444,9 +440,7 @@ class HybridRetriever:
                         continue
                     present.add(chunk.chunk_id)
                     seen_norms.add((doc_id, article))
-                    added.append(
-                        ScoredChunk(chunk=chunk, score=item.score * 0.4, source="graph")
-                    )
+                    added.append(ScoredChunk(chunk=chunk, score=item.score * 0.4, source="graph"))
 
         kept, _ = version_filter(added, as_of)
         return kept

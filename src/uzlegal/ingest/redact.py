@@ -198,9 +198,7 @@ _FULL_NAME_KIN = re.compile(
 )
 
 # Familiya + initsiallar: «Karimov A.B.» yoki «A.B. Karimov»
-_NAME_INITIALS = re.compile(
-    rf"\b([{_UPPER}]{_WORD}+)\s+([{_UPPER}]\.\s?[{_UPPER}]?\.?)(?!\w)"
-)
+_NAME_INITIALS = re.compile(rf"\b([{_UPPER}]{_WORD}+)\s+([{_UPPER}]\.\s?[{_UPPER}]?\.?)(?!\w)")
 _INITIALS_NAME = re.compile(rf"\b([{_UPPER}]\.\s?[{_UPPER}]?\.)\s*([{_UPPER}]{_WORD}+)\b")
 
 # Ikki so'zli nomzod — past ishonch, faqat shaxs konteksti bo'lsa

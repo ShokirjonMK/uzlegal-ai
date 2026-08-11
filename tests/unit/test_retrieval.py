@@ -211,9 +211,7 @@ def test_kontekst_iqtibos_va_manba() -> None:
 
 
 def test_kontekst_byudjeti_hurmat_qilinadi() -> None:
-    items = [
-        ScoredChunk(chunk=make_chunk(str(i), "so'z " * 200), score=1.0) for i in range(20)
-    ]
+    items = [ScoredChunk(chunk=make_chunk(str(i), "so'z " * 200), score=1.0) for i in range(20)]
     _, used = build_context(items, budget_tokens=1000)
     assert 0 < len(used) < 20
 
@@ -346,9 +344,7 @@ def test_graf_havola_qilingan_norma_qoshiladi(tmp_path) -> None:  # type: ignore
     retriever = HybridRetriever(index)
     retriever._graph, retriever._graph_loaded = _graph([("fk:228", "fk:229")]), True
 
-    added = retriever._graph_neighbours(
-        [ScoredChunk(chunk=found, score=1.0)], limit=3, as_of=None
-    )
+    added = retriever._graph_neighbours([ScoredChunk(chunk=found, score=1.0)], limit=3, as_of=None)
 
     assert [a.chunk_id for a in added] == ["fk:229"]
     assert added[0].source == "graph"
@@ -376,9 +372,10 @@ def test_graf_bekor_qilingan_normani_qoshmaydi(tmp_path) -> None:  # type: ignor
     retriever = HybridRetriever(index)
     retriever._graph, retriever._graph_loaded = _graph([("fk:228", "fk:229")]), True
 
-    assert retriever._graph_neighbours(
-        [ScoredChunk(chunk=found, score=1.0)], limit=3, as_of=None
-    ) == []
+    assert (
+        retriever._graph_neighbours([ScoredChunk(chunk=found, score=1.0)], limit=3, as_of=None)
+        == []
+    )
 
 
 def test_graf_ochirilganda_hech_narsa_qoshilmaydi(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -387,9 +384,10 @@ def test_graf_ochirilganda_hech_narsa_qoshilmaydi(tmp_path) -> None:  # type: ig
     retriever = HybridRetriever(index)
     retriever._graph, retriever._graph_loaded = _graph([("fk:228", "fk:229")]), True
 
-    assert retriever._graph_neighbours(
-        [ScoredChunk(chunk=found, score=1.0)], limit=0, as_of=None
-    ) == []
+    assert (
+        retriever._graph_neighbours([ScoredChunk(chunk=found, score=1.0)], limit=0, as_of=None)
+        == []
+    )
 
 
 def test_graf_yoq_bolsa_qidiruv_ishlayveradi(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -399,9 +397,10 @@ def test_graf_yoq_bolsa_qidiruv_ishlayveradi(tmp_path) -> None:  # type: ignore[
     retriever = HybridRetriever(index)
     retriever._graph, retriever._graph_loaded = None, True
 
-    assert retriever._graph_neighbours(
-        [ScoredChunk(chunk=found, score=1.0)], limit=3, as_of=None
-    ) == []
+    assert (
+        retriever._graph_neighbours([ScoredChunk(chunk=found, score=1.0)], limit=3, as_of=None)
+        == []
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -420,9 +419,7 @@ def test_yonaltirish_mos_hujjatni_kotaradi(tmp_path) -> None:  # type: ignore[no
     retriever = HybridRetriever(_index_with(tmp_path, {}))
     retriever._router = DocumentRouter(
         RoutingConfig(
-            domains=(
-                Domain(name="mehnat", documents=("mehnat kodeksi",), triggers=("maosh",)),
-            ),
+            domains=(Domain(name="mehnat", documents=("mehnat kodeksi",), triggers=("maosh",)),),
             boost=0.8,
             min_score=1.0,
         )

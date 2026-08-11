@@ -13,6 +13,7 @@ import gc
 import logging
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import mlx.core as mx
 from mlx_lm import generate, load, stream_generate
@@ -28,8 +29,10 @@ log = logging.getLogger(__name__)
 class MLXBackend(InferenceBackend):
     def __init__(self, spec: ModelSpec) -> None:
         self.spec = spec
-        self._model = None
-        self._tokenizer = None
+        # mlx_lm model va tokenizer turlari kutubxona ichida e'lon qilinmagan
+        # va ular versiyadan versiyaga o'zgaradi — shuning uchun `Any`.
+        self._model: Any = None
+        self._tokenizer: Any = None
         self._adapter: str | None = None
         self._loaded_from: str | None = None
 
@@ -55,7 +58,9 @@ class MLXBackend(InferenceBackend):
             )
 
         log.info("MLX model yuklanmoqda: %s", source)
-        self._model, self._tokenizer = load(source)
+        # mlx_lm.load() versiyaga qarab 2 yoki 3 qiymat qaytaradi
+        loaded = load(source)
+        self._model, self._tokenizer = loaded[0], loaded[1]
         self._loaded_from = source
 
     def unload(self) -> None:
@@ -125,11 +130,11 @@ class MLXBackend(InferenceBackend):
         # va kechikishni oshiradi. Shablon qo'llab-quvvatlasa o'chiriladi.
         if "enable_thinking" in (tokenizer.chat_template or ""):
             kwargs["enable_thinking"] = params.thinking
-        return tokenizer.apply_chat_template(messages, **kwargs)  # type: ignore[no-any-return]
+        return str(tokenizer.apply_chat_template(messages, **kwargs))
 
     def generate(self, prompt: str, params: GenerationParams) -> str:
         self._require_loaded()
-        return generate(  # type: ignore[no-any-return]
+        text: str = generate(
             self._model,
             self._tokenizer,
             prompt=self._apply_template(prompt, params),
@@ -137,6 +142,7 @@ class MLXBackend(InferenceBackend):
             sampler=self._sampler(params),
             verbose=False,
         )
+        return text
 
     def stream(self, prompt: str, params: GenerationParams) -> Iterator[str]:
         self._require_loaded()
@@ -158,8 +164,8 @@ class MLXBackend(InferenceBackend):
         from mlx_lm.models.cache import make_prompt_cache
 
         cache = make_prompt_cache(self._model)
-        tokens = self._tokenizer.encode(prefix)  # type: ignore[union-attr]
-        self._model(mx.array(tokens)[None], cache=cache)  # type: ignore[misc]
+        tokens = self._tokenizer.encode(prefix)
+        self._model(mx.array(tokens)[None], cache=cache)
         mx.eval([c.state for c in cache])
         return cache
 

@@ -122,9 +122,7 @@ class BM25Index:
                 if tf == 0:
                     continue
                 norm = 1 - self.b + self.b * (self.doc_lens[i] / (self.avg_len or 1))
-                scores[i] = scores.get(i, 0.0) + idf * (tf * (self.k1 + 1)) / (
-                    tf + self.k1 * norm
-                )
+                scores[i] = scores.get(i, 0.0) + idf * (tf * (self.k1 + 1)) / (tf + self.k1 * norm)
 
         ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)[:top_k]
         return [(self.doc_ids[i], s) for i, s in ranked]
@@ -134,9 +132,13 @@ class BM25Index:
         with path.open("wb") as fh:
             pickle.dump(
                 {
-                    "k1": self.k1, "b": self.b,
-                    "doc_ids": self.doc_ids, "doc_freqs": self.doc_freqs,
-                    "doc_lens": self.doc_lens, "df": self.df, "avg_len": self.avg_len,
+                    "k1": self.k1,
+                    "b": self.b,
+                    "doc_ids": self.doc_ids,
+                    "doc_freqs": self.doc_freqs,
+                    "doc_lens": self.doc_lens,
+                    "df": self.df,
+                    "avg_len": self.avg_len,
                 },
                 fh,
             )

@@ -107,6 +107,8 @@ _RU_TARGET = re.compile(r"стать[юяие]\s+(\d+(?:-\d+)?)")
 # butunlay o'tkazib yuboriladi — bob bekor qilinganda uning moddalari
 # konsolidatsiyalangan matndan allaqachon olib tashlangan.
 _STRUCTURE_ONLY = re.compile(r"(?:\d+|[ivxl]+)\s*-?\s*(?:bob|bo'lim)\b|paragraf|\bглав[аы]\b")
+
+
 def note_targets(head: str) -> list[str]:
     """Izoh boshidan nishon modda raqamlarini ajratadi (kanonik: `234`, `173-1`)."""
     out: list[str] = []
@@ -300,9 +302,7 @@ class ArticleVersion(BaseModel):
     status: str = "in_force"
     amended_by: list[str] = Field(default_factory=list)
     note_count: int = 0
-    pending_from: str | None = Field(
-        default=None, description="Hali kuchga kirmagan tahrir sanasi"
-    )
+    pending_from: str | None = Field(default=None, description="Hali kuchga kirmagan tahrir sanasi")
 
 
 class VersionReport(BaseModel):
@@ -421,7 +421,5 @@ def apply_versions(doc: ParsedDocument, *, today: date | None = None) -> ParsedD
     if undated:
         doc.warnings.append(f"{undated} ta tahrir izohida sana topilmadi")
 
-    log.debug(
-        "%s: %d izoh → %d modda versiyalandi", doc.doc_id, report.notes_seen, report.dated
-    )
+    log.debug("%s: %d izoh → %d modda versiyalandi", doc.doc_id, report.notes_seen, report.dated)
     return doc

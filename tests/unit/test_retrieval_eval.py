@@ -20,7 +20,9 @@ from uzlegal.eval.retrieval_eval import (
 from uzlegal.index.chunker import Chunk
 
 
-def make_chunk(article: str, doc_title: str = "Fuqarolik kodeksi", status: str = "in_force") -> Chunk:
+def make_chunk(
+    article: str, doc_title: str = "Fuqarolik kodeksi", status: str = "in_force"
+) -> Chunk:
     return Chunk(
         chunk_id=f"c:{article}",
         doc_id="fk",

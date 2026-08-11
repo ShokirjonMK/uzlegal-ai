@@ -372,7 +372,7 @@ class ModelRegistry:
         except json.JSONDecodeError:
             return None
 
-        model_id = state.get("active_model")
+        model_id = str(state.get("active_model") or "")
         if not model_id or model_id not in self._specs:
             return None
         try:

@@ -35,7 +35,7 @@ import re
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -120,7 +120,9 @@ def extract_topic(chunk: Chunk) -> str | None:
     return match[0].lower() + match[1:]
 
 
-def seed_questions(chunks: list[Chunk], role: str, limit: int | None = None) -> Iterator[dict]:
+def seed_questions(
+    chunks: list[Chunk], role: str, limit: int | None = None
+) -> Iterator[dict[str, Any]]:
     """Korpusdan urug' savollar yaratadi.
 
     Har bir chunk uchun bitta savol — ko'proq bo'lsa bir modda haqida
@@ -212,9 +214,7 @@ class Dataset:
 
     def write(self, samples: list[TrainingSample]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            "\n".join(s.model_dump_json() for s in samples), encoding="utf-8"
-        )
+        self.path.write_text("\n".join(s.model_dump_json() for s in samples), encoding="utf-8")
 
     def read(self) -> list[TrainingSample]:
         if not self.path.exists():

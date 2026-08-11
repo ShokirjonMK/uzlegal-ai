@@ -179,8 +179,10 @@ def eval_retrieval(
         raise typer.Exit(4)
 
     cases = load_cases(path)
-    console.print(f"To'plam: [bold]{suite}[/bold] — {len(cases)} holat"
-                  f"{' · reranker yoqilgan' if rerank else ''}\n")
+    console.print(
+        f"To'plam: [bold]{suite}[/bold] — {len(cases)} holat"
+        f"{' · reranker yoqilgan' if rerank else ''}\n"
+    )
 
     retriever = HybridRetriever(KnowledgeIndex())
     try:
@@ -197,16 +199,22 @@ def eval_retrieval(
         mark = "[green]✅[/green]" if value >= target else "[red]❌[/red]"
         console.print(f"  {name:12} {value:6.0%}  (maqsad {target:.0%})  {mark}")
     leak = report.deprecated_leak
-    console.print(f"  {'deprecated':12} {leak:6.0%}  (maqsad 0%)   "
-                  f"{'[green]✅[/green]' if leak == 0 else '[red]❌[/red]'}")
-    console.print(f"  {'kechikish':12} {report.median_latency_ms:4d} ms median, "
-                  f"{report.p95_latency_ms} ms p95")
+    console.print(
+        f"  {'deprecated':12} {leak:6.0%}  (maqsad 0%)   "
+        f"{'[green]✅[/green]' if leak == 0 else '[red]❌[/red]'}"
+    )
+    console.print(
+        f"  {'kechikish':12} {report.median_latency_ms:4d} ms median, "
+        f"{report.p95_latency_ms} ms p95"
+    )
 
     if report.failures:
         console.print(f"\n[yellow]Topilmagan ({len(report.failures)}):[/yellow]")
         for r in report.failures[:8]:
             console.print(f"  {r.case.id:10} {r.case.query[:52]}")
-            console.print(f"             kutilgan {r.case.expected_articles} · olindi {r.top_articles}")
+            console.print(
+                f"             kutilgan {r.case.expected_articles} · olindi {r.top_articles}"
+            )
 
     if out:
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -216,7 +224,9 @@ def eval_retrieval(
 
 @eval_app.command("bench")
 def eval_bench(
-    candidates: str = typer.Option(..., "--candidates", help="Vergul bilan ajratilgan model ID lari"),
+    candidates: str = typer.Option(
+        ..., "--candidates", help="Vergul bilan ajratilgan model ID lari"
+    ),
     suite: str = typer.Option("bench-uz-legal-v0", "--suite"),
     limit: int = typer.Option(None, "--limit", help="Faqat birinchi N savol (tez sinov)"),
     out: Path = typer.Option(Path("reports/model-selection.md"), "--out"),
@@ -252,11 +262,17 @@ def eval_bench(
         raw = out.parent / f"bench-{model_id}.jsonl"
         raw.parent.mkdir(parents=True, exist_ok=True)
         import json as _json
+
         raw.write_text(
             "\n".join(
                 _json.dumps(
-                    {"id": i.item_id, "category": i.category, "answer": i.answer,
-                     "failures": i.failures, "lang": round(i.lang_score, 2)},
+                    {
+                        "id": i.item_id,
+                        "category": i.category,
+                        "answer": i.answer,
+                        "failures": i.failures,
+                        "lang": round(i.lang_score, 2),
+                    },
                     ensure_ascii=False,
                 )
                 for i in score.items
@@ -292,13 +308,19 @@ def kb_status() -> None:
     info = SyncManager().info()
     console.print(f"Holat          {info['status']}")
     console.print(f"Versiya        {info['kb_version'] or '[dim]qurilmagan[/dim]'}")
-    console.print(f"Oxirgi yangilash  {info['last_sync_at'] or '[dim]hech qachon[/dim]'}"
-                  + (f" ({info['age_days']} kun)" if info['age_days'] is not None else ""))
+    console.print(
+        f"Oxirgi yangilash  {info['last_sync_at'] or '[dim]hech qachon[/dim]'}"
+        + (f" ({info['age_days']} kun)" if info["age_days"] is not None else "")
+    )
     console.print(f"Keyingi muddat    {info['next_due_at'] or '—'}")
-    console.print(f"Avtomatik      {'yoqilgan' if info['auto_enabled'] else 'o’chirilgan'}"
-                  f", har {info['interval_days']} kunda")
+    console.print(
+        f"Avtomatik      {'yoqilgan' if info['auto_enabled'] else 'o’chirilgan'}"
+        f", har {info['interval_days']} kunda"
+    )
     if info["is_stale"]:
-        console.print("\n[yellow]⚠ Bilim bazasi eskirgan — bekor qilingan normalar xavfi bor.[/yellow]")
+        console.print(
+            "\n[yellow]⚠ Bilim bazasi eskirgan — bekor qilingan normalar xavfi bor.[/yellow]"
+        )
     elif info["is_due"]:
         console.print("\n[yellow]⏰ Yangilash muddati keldi.[/yellow]")
 
@@ -325,7 +347,9 @@ def kb_sync(
         raise typer.Exit(1) from exc
 
     console.print(f"Boshlandi: {report.run_id} — {report.total} hujjat")
-    console.print(f"[dim]Taxminiy vaqt: ~{report.total * 20 // 60 + 1} daqiqa (Crawl-delay 20 s)[/dim]\n")
+    console.print(
+        f"[dim]Taxminiy vaqt: ~{report.total * 20 // 60 + 1} daqiqa (Crawl-delay 20 s)[/dim]\n"
+    )
     if not wait:
         return
 
@@ -348,8 +372,10 @@ def kb_sync(
     )
     for d in cur.documents:
         if d.status in ("new", "changed"):
-            console.print(f"  {d.status:9} {d.doc_id}  {d.articles or 0} modda"
-                          + (f", {d.amendments} o'zgartirish" if d.amendments else ""))
+            console.print(
+                f"  {d.status:9} {d.doc_id}  {d.articles or 0} modda"
+                + (f", {d.amendments} o'zgartirish" if d.amendments else "")
+            )
         elif d.status == "error":
             console.print(f"  [red]error[/red]     {d.doc_id}  {d.error}")
 
@@ -368,9 +394,11 @@ def kb_config(
     except ValueError as exc:
         console.print(f"[red]✕[/red] {exc}")
         raise typer.Exit(2) from exc
-    console.print(f"[green]✓[/green] Avtomatik: "
-                  f"{'yoqilgan' if manager.state.auto_enabled else 'o’chirilgan'}, "
-                  f"har {manager.state.interval_days} kunda")
+    console.print(
+        f"[green]✓[/green] Avtomatik: "
+        f"{'yoqilgan' if manager.state.auto_enabled else 'o’chirilgan'}, "
+        f"har {manager.state.interval_days} kunda"
+    )
 
 
 @kb_app.command("discover")
@@ -392,7 +420,12 @@ def kb_discover(
         LexUzDiscovery,
     )
 
-    forms = {"kodeks": FORM_CODE, "qonun": FORM_LAW, "farmon": FORM_DECREE, "qaror": FORM_RESOLUTION}
+    forms = {
+        "kodeks": FORM_CODE,
+        "qonun": FORM_LAW,
+        "farmon": FORM_DECREE,
+        "qaror": FORM_RESOLUTION,
+    }
     if form not in forms:
         console.print(f"[red]✕[/red] Noma'lum shakl: {form}. Mavjud: {', '.join(forms)}")
         raise typer.Exit(2)
@@ -408,10 +441,16 @@ def kb_discover(
         out = Path("configs/discovered.yaml")
         out.write_text(
             _yaml.safe_dump(
-                {"documents": [{"doc_id": r.doc_id, "title": r.title, "type": r.doc_type}
-                                for r in refs]},
-                allow_unicode=True, sort_keys=False),
-            encoding="utf-8")
+                {
+                    "documents": [
+                        {"doc_id": r.doc_id, "title": r.title, "type": r.doc_type} for r in refs
+                    ]
+                },
+                allow_unicode=True,
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
         console.print(f"\n[green]✓[/green] Saqlandi: {out}")
 
 
@@ -425,7 +464,9 @@ def kb_parse(
 
     raw = LexUzConnector().load_cached(doc_id)
     if raw is None:
-        console.print(f"[red]✕[/red] Arxivda topilmadi: {doc_id}. Avval: uzlegal kb sync --docs {doc_id}")
+        console.print(
+            f"[red]✕[/red] Arxivda topilmadi: {doc_id}. Avval: uzlegal kb sync --docs {doc_id}"
+        )
         raise typer.Exit(4)
 
     doc = LexUzParser().parse(raw)
@@ -468,9 +509,11 @@ def index_build(
     from uzlegal.ingest.versioning import apply_versions
 
     connector = LexUzConnector()
-    ids = ([d.strip() for d in docs.split(",")] if docs
-           else sorted(connector._from_safe_name(p.stem)
-                       for p in connector.raw_dir.glob("*.html")))
+    ids = (
+        [d.strip() for d in docs.split(",")]
+        if docs
+        else sorted(connector._from_safe_name(p.stem) for p in connector.raw_dir.glob("*.html"))
+    )
     if not ids:
         console.print("[red]✕[/red] Arxiv bo'sh. Avval: uzlegal kb sync")
         raise typer.Exit(4)
@@ -547,8 +590,12 @@ def search(
     console.print(
         f"[dim]{result.query_kind} · {result.latency_ms} ms · "
         f"vektor {result.vector_hits} · leksik {result.lexical_hits}"
-        + (f" · versiya filtri {result.dropped_by_version} ta chiqardi"
-           if result.dropped_by_version else "") + "[/dim]\n"
+        + (
+            f" · versiya filtri {result.dropped_by_version} ta chiqardi"
+            if result.dropped_by_version
+            else ""
+        )
+        + "[/dim]\n"
     )
     if not result.results:
         console.print("[yellow]Ishonchli manba topilmadi.[/yellow]")
