@@ -107,6 +107,18 @@ def consult(
         result.total_ms = _ms(started)
         return result
 
+    # Foydalanuvchi aniq modda raqamini aytgan, lekin u indeksda yo'q.
+    # Bu holatda semantik jihatdan yaqin moddalarni ko'rsatish **xato**:
+    # savol «9999-moddada nima yozilgan» edi, javob esa boshqa modda
+    # haqida bo'lardi va foydalanuvchi buni sezmasligi mumkin.
+    missing = _missing_article(question, found)
+    if missing is not None:
+        result.answer = NO_SUCH_ARTICLE.format(article=missing)
+        result.citations = citations
+        result.warnings.append(f"So'ralgan {missing}-modda bilim bazasida topilmadi")
+        result.total_ms = _ms(started)
+        return result
+
     # --- 2. Model ------------------------------------------------------- #
 
     if backend is None:
@@ -162,6 +174,28 @@ NO_MODEL = (
     "Modelni tanlang: `uzlegal models use <model-id>`.\n"
     "Quyida savolga tegishli topilgan normalar keltirilgan."
 )
+
+NO_SUCH_ARTICLE = (
+    "So'ralgan {article}-modda bilim bazasida topilmadi.\n\n"
+    "Modda raqami noto'g'ri bo'lishi yoki hujjat bilim bazasiga hali "
+    "qo'shilmagan bo'lishi mumkin. Quyida mavzuga yaqin normalar "
+    "keltirilgan — lekin ular so'ralgan modda **emas**."
+)
+
+
+def _missing_article(question: str, found: Any) -> str | None:
+    """So'ralgan modda raqami indeksda yo'qmi.
+
+    Faqat foydalanuvchi modda raqamini ochiq aytgan holatda ishlaydi
+    (`FK 9999-modda`). Aniq moslik kanali bo'sh qaytgan bo'lsa — bunday
+    modda yo'q, va bu deterministik javob: taxmin qilinmaydi.
+    """
+    from uzlegal.retrieval.hybrid import QueryKind, extract_article_ref
+
+    if found.query_kind is not QueryKind.ARTICLE_LOOKUP or found.exact_hits:
+        return None
+    article, _ = extract_article_ref(question)
+    return article
 
 
 def _resolve_mode(

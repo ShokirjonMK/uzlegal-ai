@@ -221,3 +221,50 @@ def test_gate_iqtibossiz_davoni_javobdan_chiqaradi() -> None:
     )
     assert result.gate.dropped, "iqtibossiz huquqiy daʼvo o'chirilishi kerak"
     assert "228-moddaga koʻra talab qilishga haqli" not in result.answer
+
+
+# --------------------------------------------------------------------------- #
+# Mavjud bo'lmagan modda — taxmin qilinmaydi
+# --------------------------------------------------------------------------- #
+
+
+class ArticleLookupRetriever(FakeRetriever):
+    """Modda raqami bo'yicha so'rov, lekin aniq moslik topilmagan."""
+
+    def __init__(self, exact_hits: int = 0) -> None:
+        super().__init__()
+        self.exact_hits = exact_hits
+
+    def search(self, query: str, **kwargs: Any) -> Any:
+        from uzlegal.retrieval.hybrid import QueryKind
+
+        result = super().search(query, **kwargs)
+        result.query_kind = QueryKind.ARTICLE_LOOKUP
+        result.exact_hits = self.exact_hits
+        return result
+
+
+def test_mavjud_bolmagan_modda_ochiq_aytiladi() -> None:
+    """«FK 9999-modda» — o'xshash moddani ko'rsatish xato javob bo'lardi."""
+    backend = ScriptedBackend(FRAME_JSON)
+    result = consult(
+        "Fuqarolik kodeksining 9999-moddasi nima haqida",
+        retriever=ArticleLookupRetriever(exact_hits=0),
+        backend=backend,
+    )
+
+    assert "9999-modda" in result.answer
+    assert "topilmadi" in result.answer
+    assert backend.calls == [], "modda yo'q — model chaqirilmasligi kerak"
+    assert result.citations, "yaqin normalar baribir ko'rsatiladi"
+
+
+def test_mavjud_modda_odatdagidek_ishlanadi() -> None:
+    result = consult(
+        "FK 228-modda",
+        mode="simple",
+        retriever=ArticleLookupRetriever(exact_hits=2),
+        backend=ScriptedBackend(FRAME_JSON),
+    )
+    assert "topilmadi" not in result.answer
+    assert result.step("jurist") is not None
