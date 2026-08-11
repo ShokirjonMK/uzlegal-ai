@@ -9,7 +9,7 @@
 import { completeJSON } from "../llm";
 import { config } from "../config";
 import { reviewSystemStable, sourcesBlock } from "../prompts";
-import { retrieve } from "../rag/retrieve";
+import { unifiedRetrieve as retrieve } from "../rag/unified";
 import { resolveLang } from "../uz/detect";
 import { polishUzbek } from "../uz/orthography";
 import type { CheckStatus, ComplianceCheck, Lang, ReviewResult, Script } from "../types";

@@ -8,7 +8,7 @@
 import { complete, streamText } from "../llm";
 import { config } from "../config";
 import { generateSystemStable, sourcesBlock, templateName } from "../prompts";
-import { retrieve } from "../rag/retrieve";
+import { unifiedRetrieve as retrieve } from "../rag/unified";
 import { resolveLang } from "../uz/detect";
 import { polishUzbek } from "../uz/orthography";
 import { UzbekStreamPolisher } from "../uz/stream-polish";

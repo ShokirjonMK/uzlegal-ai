@@ -1,5 +1,5 @@
 import { checkApiKey } from "@/lib/config";
-import { retrieve } from "@/lib/rag/retrieve";
+import { unifiedRetrieve } from "@/lib/rag/unified";
 import { stats } from "@/lib/rag/store";
 import { errorJson } from "@/lib/util/sse";
 
@@ -21,7 +21,7 @@ export async function GET(request: Request): Promise<Response> {
   const topK = Number.isFinite(k) ? Math.min(Math.max(1, k), 50) : 8;
 
   try {
-    const results = await retrieve(q, { topK });
+    const results = await unifiedRetrieve(q, { topK });
     return Response.json({
       query: q,
       count: results.length,

@@ -6,7 +6,7 @@
 import { completeJSON } from "../llm";
 import { config } from "../config";
 import { analyzeSystemStable, sourcesBlock } from "../prompts";
-import { retrieve } from "../rag/retrieve";
+import { unifiedRetrieve as retrieve } from "../rag/unified";
 import { resolveLang } from "../uz/detect";
 import { polishUzbek } from "../uz/orthography";
 import type { AnalyzeResult, Lang, Script } from "../types";
