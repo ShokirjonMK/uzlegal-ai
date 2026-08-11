@@ -1,70 +1,112 @@
 # ADR-001: Baza modelni tanlash
 
-**Holat:** 🟡 Kutilmoqda — Faza 0 baholash natijalari bilan to'ldiriladi
-**Sana:** 2026-08-08 (qoralama)
+**Holat:** ✅ Qabul qilindi
+**Sana:** 2026-08-11 (o'lchov natijasi bilan)
 **Qaror qabul qiluvchi:** ML muhandis
 
 ## Kontekst
 
-Butun tizim bitta baza model ustiga quriladi. Barcha rol adapterlari shu modelning hosilasi bo'ladi, ya'ni bu qarorni keyinchalik o'zgartirish qimmat — barcha adapterlarni qayta o'qitish kerak bo'ladi.
+Butun tizim bitta baza model ustiga quriladi. Barcha rol adapterlari shu
+modelning hosilasi bo'ladi, ya'ni bu qarorni keyinchalik o'zgartirish qimmat —
+barcha adapterlarni qayta o'qitish kerak.
 
-Cheklovlar:
-- 24 GB unified memory (~18 GB foydalanish mumkin)
-- Apple Silicon / MLX moslik
-- O'zbek tilida ishlash qobiliyati
-- Uzun kontekst (≥ 8k, ideal 32k) — yuridik hujjatlar uzun
-- Ochiq vazn va tijoriy foydalanishga ruxsat beruvchi litsenziya
+Cheklovlar: 24 GB unified memory, Apple Silicon / MLX, o'zbek tili, uzun
+kontekst, ochiq vazn.
 
-## Ko'rib chiqilgan variantlar
+## Baholash
 
-| Model | Params | 4-bit | Kontekst | Litsenziya | Ijobiy | Salbiy |
-|-------|--------|-------|----------|------------|--------|--------|
-| **Qwen3-14B** | 14B | 8.0 GB | 32k+ | Apache-2.0 | Kuchli reasoning, tool-calling, strukturali chiqish | O'zbek tili o'rtacha |
-| **Gemma-3-12B-it** | 12B | 7.0 GB | 128k | Gemma ToU | 140 til, turkiy tillar yaxshiroq | Reasoning zaifroq, litsenziya cheklovlari |
-| **Mistral-Small-3.2-24B** | 24B | 13.5 GB | 128k | Apache-2.0 | Kuchli umumiy sifat | LoRA trening qisiq, zaxira kam |
-| **Qwen3-8B** | 8B | 4.5 GB | 32k | Apache-2.0 | Tez, katta zaxira, arzon trening | Murakkab huquqiy mantiq zaif |
+`bench-uz-legal-v0` — **42 savol, 9 kategoriya**, to'liq deterministik
+tekshiruv. LLM-judge **ishlatilmadi**: natija takrorlanadi va judge bias'i
+yo'q. Har uch nomzod bir xil sharoitda, harorat 0.1.
 
-### Rad etilgan variantlar
+Muhim: bu to'plam modelning **qonunni bilishini** o'lchamaydi — u bilim RAG
+dan keladi ([ADR-006](ADR-006-rag-first.md)). O'lchanadigan narsa: berilgan
+matn ustida o'zbek tilida qanchalik yaxshi mulohaza yuritadi.
 
-- **70B+ modellar** — 24 GB ga sig'maydi, hatto 4-bit da ham
-- **Yopiq API modellari (GPT, Claude)** — oflayn ishlamaydi, maxfiy ma'lumot tashqariga chiqadi, uzoq muddatli xarajat yuqori, fine-tune cheklangan
-- **Noldan pretraining** — [ADR-002](ADR-002-lora-vs-full-finetune.md) ga qarang
+## Natijalar
 
-## Baholash protokoli
+| Model | Umumiy | Mulohaza | O'zbek tili | Atamalar | Ko'rsatma | Rad etish | tok/s | Xotira |
+|-------|-------:|---------:|------------:|---------:|----------:|----------:|------:|-------:|
+| **gemma3-12b** ⭐ | **3.77** | 83% | 4.82 | 33% | 88% | 100% | 2.9 | 6.7 GB |
+| qwen3-14b | 3.28 | 67% | 4.89 | 17% | 81% | 100% | 2.5 | 7.7 GB |
+| qwen3-8b | 3.22 | 64% | 4.79 | 17% | 81% | 80% | 5.5 | 4.3 GB |
 
-`bench-uz-legal-v0` — 100 savol, to'rtta o'lchov (1–5 ball, ikki mustaqil baholovchi):
+Kategoriya bo'yicha (to'g'ri javoblar):
 
-| O'lchov | Vazn | Nima tekshiradi |
-|---------|:----:|-----------------|
-| O'zbek tili ravonligi | 0.30 | Matn tabiiy va yuridik uslubga mos |
-| Yuridik terminologiya | 0.25 | Atamalar to'g'ri ishlatiladi |
-| Kontekstdan mulohaza | 0.30 | Berilgan matndan to'g'ri xulosa |
-| Ko'rsatmaga rioya | 0.15 | Rol, format, "bilmasang aytma" |
-
-**Muhim:** modelning qonunni *bilishi* baholanmaydi — u RAG dan keladi. Baholanadigan narsa: berilgan matn ustida o'zbek tilida qanchalik yaxshi mulohaza yuritadi.
-
-Plus texnik o'lchovlar: tok/s, xotira sarfi, 8k kontekstda barqarorlik.
-
-## Qaror qoidasi
-
-1. O'zbek tili balli **< 3.0** → nomzod rad etiladi, boshqa ballari qanday bo'lishidan qat'i nazar
-2. Umumiy ball farqi **< 0.3** → kichikroq model tanlanadi (zaxira xotira muhimroq)
-3. Litsenziya tijoriy foydalanishni cheklasa → jiddiy kamchilik
+| Model | reasoning | refusal | citation | terminology | language | format |
+|-------|----------:|--------:|---------:|------------:|---------:|-------:|
+| **gemma3-12b** | **8/12** | 10/10 | **5/6** | **2/6** | 3/4 | **4/4** |
+| qwen3-14b | 3/12 | 10/10 | 4/6 | 1/6 | **4/4** | 3/4 |
+| qwen3-8b | 7/12 | 8/10 | 4/6 | 1/6 | 1/4 | 3/4 |
 
 ## Qaror
 
-> ⏳ **Faza 0 tugagach to'ldiriladi.**
->
-> Bu yerga yoziladi: tanlangan model, ball jadvali, tanlov sababi, va agar ikkinchi o'rindagi model kelajakda muqobil bo'lsa — o'tish sharti.
+**Gemma-3-12B-it (4-bit) tanlandi.**
 
-## Kutilayotgan oqibatlar
+Uch sabab:
 
-**Agar Qwen3-14B tanlansa:** kuchli mulohaza, lekin o'zbek tilini yaxshilash uchun CPT ehtimoli yuqori (+2 hafta).
+1. **Mulohaza sezilarli ustun** — 8/12 vs 3/12 va 7/12. Yuridik tahlilda
+   asosiy qobiliyat shu.
+2. **Iqtibos intizomi eng yaxshi** — 5/6. Bu loyihaning markaziy talabi.
+3. **Kichikroq** — 6.7 GB vs 7.7 GB. Qoida bo'yicha teng natijada kichigi
+   tanlanadi; bu yerda u ham kichik, ham kuchli.
 
-**Agar Gemma-3-12B tanlansa:** yaxshiroq o'zbek tili, kamroq CPT ehtimoli, lekin murakkab huquqiy mulohazada zaifroq — buni ko'p-agentli munozara qisman qoplaydi.
+Farq 0.49 ball — qaror qoidasidagi 0.3 chegarasidan katta, shuning uchun
+"kichikroqni tanlash" qoidasi qo'llanmadi (baribir mos kelardi).
 
-**Agar Qwen3-8B tanlansa:** eng tez iteratsiya, eng arzon trening, lekin sifat shifti pastroq. `hybrid` profilida "tez rejim" modeli sifatida baribir foydali.
+### CPT shart emas
 
-## Qaytarish narxi
+Uchala modelning o'zbek tili balli **4.79–4.89 / 5**. Bu `ADR-002` dagi
+chegaradan (3.5) ancha yuqori. Continued Pretraining **rejadan chiqarildi** —
+u ~2 hafta va catastrophic forgetting xavfini olib kelardi, foydasi esa yo'q.
 
-Yuqori. Model o'zgarsa: SFT + 5 adapter qayta o'qitiladi (~$50 bulut, ~2 hafta kalendar vaqt). Shuning uchun Faza 0 baholashiga vaqt ayamaslik kerak — bu eng arzon nuqtada qilinadigan qaror.
+Bu kutilmagan yaxshi natija: dastlab o'zbek tili asosiy xavf deb
+belgilangandi.
+
+## Kutilmagan topilma: terminologiya zaif
+
+Eng yaxshi natija ham **2/6** — barcha modellar o'zbek yuridik atamalarini
+yomon biladi. Aniq nosozliklar:
+
+| Savol | Kutilgan atama | Natija |
+|-------|----------------|--------|
+| `term-01` | vindikatsiya | topilmadi |
+| `term-02` | haqiqiy emas (nohaq bitim) | topilmadi |
+| `term-03` | ishonchnoma | topilmadi |
+
+Bu **fine-tuning aynan qayerda foyda berishini ko'rsatadi**: til yoki mantiq
+emas, **domen terminologiyasi**. Faza 3–4 rejasi shunga qarab
+tartiblanadi — rol uslubidan oldin atama bilimi.
+
+## Qwen3-14B nima uchun yutqazdi
+
+Kutilmagan natija: kattaroq model mulohazada 3/12 oldi. Ehtimoliy sabab —
+`enable_thinking=False` bilan ishga tushirilgan. Qwen3 "thinking" rejimisiz
+murakkab mulohazada zaiflashadi, lekin uni yoqish javob uzunligini va
+kechikishni bir necha barobar oshiradi (yuridik javobda keraksiz).
+
+Bu alohida tekshirilishi mumkin, lekin gemma3-12b baribir tez va kichik.
+
+## Oqibatlari
+
+### Ijobiy
+- CPT rejadan chiqdi: **−2 hafta**, −1 xavf
+- Kichikroq model: KV-cache va adapterlar uchun 1 GB ko'proq joy
+- Iqtibos intizomi kuchli — gate kamroq da'vo o'chiradi
+- 128k kontekst (Qwen3 da 32k) — uzun hujjat tahlili uchun zaxira
+
+### Salbiy
+- **Gemma ToU litsenziyasi** Apache-2.0 dan cheklangan. Tijoriy foydalanish
+  oldidan shartlar yuristda tekshirilishi kerak — `docs/10 § 8` ga qo'shildi.
+- Generatsiya 2.9 tok/s (Qwen3-8B 5.5). Tezlik kerak bo'lsa `hybrid`
+  profilida 8B "tez rejim" modeli sifatida qoladi.
+
+### Qaytarish narxi
+O'rta. Model o'zgarsa adapterlar qayta o'qitiladi (~$12 bulut, 2 hafta
+kalendar). Lekin adapterlar hali yo'q, shuning uchun **hozir qaytarish
+deyarli bepul** — qaror to'g'ri vaqtda qabul qilindi.
+
+## Keyingi qadam
+
+`configs/models.yaml` da `selected: gemma3-12b`. Barcha rol adapterlari shu
+baza ustiga o'qitiladi.

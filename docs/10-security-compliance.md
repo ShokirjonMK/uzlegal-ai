@@ -272,6 +272,11 @@ Bu savollar muhandislik bilan hal qilinmaydi — ular yurist ishtirokini talab q
 3. Foydalanish shartlarida javobgarlikni cheklash qanchalik amal qiladi?
 4. Advokatlik siri bilan bog'liq ma'lumot tizimga kiritilishi mumkinmi?
 5. Mahsulot advokatlik faoliyatini litsenziyalash talablariga tegadimi?
+6. **Gemma ToU litsenziyasi** tijoriy foydalanishga imkon beradimi?
+   ADR-001 da Gemma-3-12B tanlandi (o'lchov bo'yicha eng yaxshi), lekin
+   uning litsenziyasi Apache-2.0 dan cheklangan — foydalanish siyosati va
+   hosila modellarga talablar bor. **Ishlab chiqarishdan oldin tekshirilishi
+   shart.** Muqobil: Qwen3-14B (Apache-2.0), ball 0.49 past.
 
 **Bu savollar ishlab chiqarishga chiqishdan oldin hal qilinishi shart.** Ular yo'l xaritasida Faza 6 blokeri sifatida belgilangan.
 

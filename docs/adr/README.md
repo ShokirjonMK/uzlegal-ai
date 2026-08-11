@@ -6,7 +6,7 @@ Maqsad — olti oydan keyin "nima uchun bunday qilingan?" degan savolga javob bo
 
 | # | Qaror | Holat |
 |---|-------|-------|
-| [001](ADR-001-base-model.md) | Baza modelni tanlash | 🟡 Kutilmoqda (Faza 0) |
+| [001](ADR-001-base-model.md) | Baza model: **Gemma-3-12B** | ✅ Qabul qilindi |
 | [002](ADR-002-lora-vs-full-finetune.md) | Pretraining emas, domenga moslashtirish | ✅ Qabul qilindi |
 | [003](ADR-003-single-base-multi-adapter.md) | Bitta baza + ko'p LoRA adapter | ✅ Qabul qilindi |
 | [004](ADR-004-serving-runtime.md) | MLX runtime (Apple Silicon) | ✅ Qabul qilindi |
