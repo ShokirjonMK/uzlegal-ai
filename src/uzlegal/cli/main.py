@@ -222,6 +222,152 @@ def eval_retrieval(
         console.print(f"\n[green]✓[/green] Hisobot: {out}")
 
 
+def _run_suite(
+    suite: str,
+    mode: str,
+    limit: int | None,
+    out: Path | None,
+    target: float | None = None,
+) -> object:
+    """Baholash to'plamini yurgizadi va hisobotni chiqaradi (umumiy qism)."""
+    from uzlegal.core import consult
+    from uzlegal.eval.suite import load_suite, render_report, run_suite
+
+    try:
+        cases = load_suite(suite)
+    except FileNotFoundError as exc:
+        console.print(f"[red]✕[/red] {exc}")
+        raise typer.Exit(4) from exc
+
+    if limit:
+        cases = cases[:limit]
+    console.print(f"To'plam: [bold]{suite}[/bold] — {len(cases)} holat · rejim {mode}\n")
+
+    with console.status("baholanmoqda…") as status:
+
+        def progress(i: int, outcome: object) -> None:
+            passed = getattr(outcome, "passed", False)
+            case_id = getattr(getattr(outcome, "case", None), "id", "?")
+            status.update(f"{i}/{len(cases)} · {case_id} {'✓' if passed else '✕'}")
+
+        report = run_suite(cases, consult, suite=suite, default_mode=mode, on_case=progress)
+
+    console.print(f"  {'o’tdi':16} {report.pass_rate:6.0%}")
+    console.print(f"  {'o’zbek tili':16} {report.language_score:6.2f}")
+    console.print(f"  {'gate o’chirdi':16} {report.gate_drop_rate:6.0%}")
+    console.print(f"  {'kechikish':16} {report.median_latency_s:6.1f} s median")
+
+    if report.failures:
+        console.print(f"\n[yellow]Yiqilgan ({len(report.failures)}):[/yellow]")
+        for outcome in report.failures[:10]:
+            console.print(
+                f"  [dim]{outcome.diagnosis:9}[/dim] {outcome.case.id:12} "
+                f"{'; '.join(outcome.failures)[:70]}"
+            )
+        console.print(
+            "\n  Tashxis: " + ", ".join(f"{k} {v}" for k, v in report.by_diagnosis().items())
+        )
+
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render_report(report, target=target), encoding="utf-8")
+        console.print(f"\n[green]✓[/green] Hisobot: {out}")
+
+    return report
+
+
+@eval_app.command("run")
+def eval_run(
+    suite: str = typer.Option("smoke-50", "--suite"),
+    mode: str = typer.Option("simple", "--mode", help="simple · standard · complex"),
+    limit: int = typer.Option(None, "--limit", help="Faqat birinchi N holat"),
+    fail_under: float = typer.Option(None, "--fail-under", help="Shu ulushdan past bo'lsa xato"),
+    out: Path = typer.Option(None, "--out"),
+) -> None:
+    """Uchidan-uchiga sifat baholash — savol → RAG → agentlar → gate."""
+    report = _run_suite(suite, mode, limit, out, target=fail_under)
+    rate = report.pass_rate  # type: ignore[attr-defined]
+
+    if fail_under is not None and rate < fail_under:
+        console.print(f"\n[red]✕ {rate:.0%} < {fail_under:.0%} — chegaradan past[/red]")
+        raise typer.Exit(1)
+    console.print("\n[green]✓ Baholash o'tdi[/green]")
+
+
+@eval_app.command("safety")
+def eval_safety(
+    suite: str = typer.Option("traps-30", "--suite"),
+    mode: str = typer.Option("simple", "--mode"),
+    limit: int = typer.Option(None, "--limit"),
+    max_failures: int = typer.Option(None, "--max-failures", help="Ruxsat etilgan nosozlik soni"),
+    out: Path = typer.Option(None, "--out"),
+) -> None:
+    """Xavfsizlik tuzoqlari — tizim nima **qilmasligi** kerakligini o'lchaydi.
+
+    Bu yerda «manba topilmadi» to'g'ri javob: mavjud bo'lmagan modda
+    haqida so'ralganda uni o'ylab topmaslik kerak.
+    """
+    report = _run_suite(suite, mode, limit, out)
+    failures = len(report.failures)  # type: ignore[attr-defined]
+
+    if max_failures is not None and failures > max_failures:
+        console.print(f"\n[red]✕ {failures} nosozlik > {max_failures} ruxsat etilgan[/red]")
+        raise typer.Exit(1)
+    console.print(f"\n[green]✓ Xavfsizlik tekshiruvi o'tdi[/green] ({failures} nosozlik)")
+
+
+@eval_app.command("citations")
+def eval_citations(
+    suite: str = typer.Option("smoke-50", "--suite"),
+    mode: str = typer.Option("simple", "--mode"),
+    limit: int = typer.Option(12, "--limit", help="Nechta holat tekshirilsin"),
+    strict: bool = typer.Option(False, "--strict", help="Bitta muammo ham xato hisoblanadi"),
+) -> None:
+    """Iqtibos yaxlitligi — javobdagi har bir havola haqiqiy normaga bog'lanadimi.
+
+    Uch invariant tekshiriladi va uchalasi ham deterministik:
+    iqtibos indeksda mavjudmi · bekor qilingan normaga ishora qilmaydimi ·
+    javobdagi har bir `[C…]` belgisi iqtiboslar ro'yxatida bormi.
+    """
+    from uzlegal.core import consult
+    from uzlegal.eval.suite import check_citations, load_suite
+    from uzlegal.index.store import KnowledgeIndex
+
+    try:
+        cases = load_suite(suite)[:limit]
+    except FileNotFoundError as exc:
+        console.print(f"[red]✕[/red] {exc}")
+        raise typer.Exit(4) from exc
+
+    index = KnowledgeIndex()
+    issues = []
+    checked = 0
+    console.print(f"Iqtibos yaxlitligi: [bold]{suite}[/bold] — {len(cases)} holat\n")
+
+    with console.status("tekshirilmoqda…") as status:
+        for i, case in enumerate(cases, 1):
+            status.update(f"{i}/{len(cases)} · {case.id}")
+            try:
+                result = consult(case.question, mode=case.mode or mode)
+            except Exception as exc:
+                console.print(f"  [yellow]⚠ {case.id}: {exc}[/yellow]")
+                continue
+            checked += 1
+            issues.extend(check_citations(result, index, case.id))
+
+    console.print(f"  {'tekshirildi':16} {checked} holat")
+    console.print(f"  {'muammo':16} {len(issues)}")
+
+    for issue in issues[:15]:
+        console.print(f"  [red]✕[/red] {issue.case_id:12} {issue.kind:14} {issue.detail}")
+
+    if issues and strict:
+        console.print(f"\n[red]✕ {len(issues)} iqtibos muammosi (--strict)[/red]")
+        raise typer.Exit(1)
+    if not issues:
+        console.print("\n[green]✓ Barcha iqtiboslar haqiqiy normaga bog'langan[/green]")
+
+
 @eval_app.command("bench")
 def eval_bench(
     candidates: str = typer.Option(
