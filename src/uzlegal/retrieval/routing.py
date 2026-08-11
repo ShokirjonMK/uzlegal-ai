@@ -38,6 +38,7 @@ import functools
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -95,14 +96,14 @@ class RoutingConfig:
     phrase_bonus: float = 0.5
 
 
-def _parse_config(data: dict[str, object]) -> RoutingConfig:
+def _parse_config(data: dict[str, Any]) -> RoutingConfig:
     domains: list[Domain] = []
     raw_domains = data.get("domains") or {}
     if not isinstance(raw_domains, dict):
         raise ValueError("routing.yaml: 'domains' lug'at bo'lishi kerak")
 
-    for name, body in raw_domains.items():
-        body = dict(body or {})  # type: ignore[arg-type]
+    for name, raw_body in raw_domains.items():
+        body: dict[str, Any] = dict(raw_body or {})
         documents = tuple(fold(str(d)) for d in (body.get("documents") or []))
         triggers = tuple(fold(str(t)) for t in (body.get("triggers") or []))
         if not documents or not triggers:
@@ -113,16 +114,16 @@ def _parse_config(data: dict[str, object]) -> RoutingConfig:
                 name=str(name),
                 documents=documents,
                 triggers=triggers,
-                weight=float(body.get("weight", 1.0)),  # type: ignore[arg-type]
+                weight=float(body.get("weight", 1.0)),
             )
         )
 
     return RoutingConfig(
         domains=tuple(domains),
-        boost=float(data.get("boost", 0.8)),  # type: ignore[arg-type]
-        min_score=float(data.get("min_score", 1.0)),  # type: ignore[arg-type]
-        term_weight=float(data.get("term_weight", 1.0)),  # type: ignore[arg-type]
-        phrase_bonus=float(data.get("phrase_bonus", 0.5)),  # type: ignore[arg-type]
+        boost=float(data.get("boost", 0.8)),
+        min_score=float(data.get("min_score", 1.0)),
+        term_weight=float(data.get("term_weight", 1.0)),
+        phrase_bonus=float(data.get("phrase_bonus", 0.5)),
     )
 
 

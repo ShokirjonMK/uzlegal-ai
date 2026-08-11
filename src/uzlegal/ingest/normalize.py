@@ -196,6 +196,48 @@ def extract_article_number(text: str) -> str | None:
     return None
 
 
+# Yuridik matnda moddalar guruh bo'lib keladi: «65 va 66-moddalar»,
+# «24 — 35-moddalari», «173-1 - 173-7-moddalar». Havola grafi ham,
+# versiyalash ham bu ro'yxatni alohida raqamlarga yoyishi kerak.
+_RUN_SEPARATOR = re.compile(r"\s*(?:,|\bva\b|\bhamda\b|—|–|(?<=\s)-(?=\s))\s*")
+_RUN_RANGE = re.compile(r"—|–|(?<=\s)-(?=\s)")
+
+# Diapazon chegarasi: undan kattasi ehtimol noto'g'ri ajratish natijasi
+# (masalan sana yoki nashr raqami), shuning uchun yoyilmaydi.
+MAX_ARTICLE_RANGE = 60
+
+
+def expand_article_run(run: str) -> list[str]:
+    """«173-1 - 173-7» yozuvini alohida modda raqamlariga yoyadi.
+
+    Diqqat: prim moddalarda tire ikki ma'noda ishlatiladi — `173-1` ichida
+    ajratuvchi emas, `173-1 - 173-7` da esa ajratuvchi. Farq bo'sh joyda,
+    shuning uchun tire faqat ikki tomonida bo'sh joy bo'lgandagina
+    ajratuvchi deb olinadi.
+    """
+    tokens = [t for t in _RUN_SEPARATOR.split(run.strip()) if t]
+    if len(tokens) != 2 or not _RUN_RANGE.search(run):
+        return tokens
+
+    first, last = tokens
+    if first.isdigit() and last.isdigit():
+        lo, hi = int(first), int(last)
+        if 0 < hi - lo <= MAX_ARTICLE_RANGE:
+            return [str(n) for n in range(lo, hi + 1)]
+        return tokens
+
+    base_a, _, suffix_a = first.partition("-")
+    base_b, _, suffix_b = last.partition("-")
+    if (
+        base_a == base_b
+        and suffix_a.isdigit()
+        and suffix_b.isdigit()
+        and 0 < int(suffix_b) - int(suffix_a) <= MAX_ARTICLE_RANGE
+    ):
+        return [f"{base_a}-{n}" for n in range(int(suffix_a), int(suffix_b) + 1)]
+    return tokens
+
+
 _DATE_PATTERNS = [
     (re.compile(r"\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b"), (3, 2, 1)),
     (re.compile(r"\b(\d{4})-yil\s+(\d{1,2})-\w+"), None),  # maxsus ishlov

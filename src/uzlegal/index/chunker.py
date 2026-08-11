@@ -188,6 +188,12 @@ class Chunker:
             "hierarchy": list(article.path),
             "element_id": article.element_id,
             "source_url": f"{doc.url}#{article.element_id}",
+            # Versiya maydonlari `ingest.versioning.apply_versions()` dan keladi.
+            # Ular bo'lmasa `version_filter` bo'sh ishlaydi va bekor qilingan
+            # norma qidiruvga chiqib ketadi (docs/00 «0% deprecated»).
+            "valid_from": article.valid_from,
+            "valid_to": article.valid_to,
+            "status": article.status,
         }
 
     def _chunk_article(self, doc: ParsedDocument, article: Element) -> list[Chunk]:
@@ -317,6 +323,9 @@ class Chunker:
                     element_id=first.element_id,
                     source_url=first.source_url,
                     kind="merged",
+                    valid_from=first.valid_from,
+                    valid_to=first.valid_to,
+                    status=first.status,
                 )
                 out.append(merged)
             buffer.clear()
@@ -328,10 +337,16 @@ class Chunker:
                 out.append(chunk)
                 continue
 
+            # Versiyasi boshqacha bo'lgan moddalar birlashtirilmaydi: bekor
+            # qilingan norma amaldagisi bilan bir chunkka tushsa, versiya
+            # filtri ikkalasini ham chiqarib yuboradi yoki ikkalasini ham
+            # o'tkazib yuboradi — ikkalasi ham noto'g'ri.
             same_group = (
                 buffer
                 and buffer[-1].doc_id == chunk.doc_id
                 and buffer[-1].hierarchy == chunk.hierarchy
+                and (buffer[-1].valid_from, buffer[-1].valid_to, buffer[-1].status)
+                == (chunk.valid_from, chunk.valid_to, chunk.status)
             )
             if buffer and not same_group:
                 flush()

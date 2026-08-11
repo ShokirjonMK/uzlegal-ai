@@ -73,6 +73,13 @@ class Element(BaseModel):
     path: list[str] = Field(default_factory=list, description="Ierarxiya yo'li")
     amendments: list[AmendmentNote] = Field(default_factory=list)
 
+    # Versiyalash — `uzlegal.ingest.versioning` to'ldiradi.
+    # Parser bu maydonlarni tegmaydi: u faqat matnni ajratadi, sanalarni emas.
+    valid_from: str | None = None
+    valid_to: str | None = None
+    status: Literal["in_force", "repealed"] = "in_force"
+    amended_by: list[str] = Field(default_factory=list)
+
     @property
     def token_estimate(self) -> int:
         return len(self.body.split()) * 2  # o'zbek tili uchun taxminiy
