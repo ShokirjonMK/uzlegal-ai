@@ -429,6 +429,58 @@ def court_analyze(req: CourtAnalysisRequest) -> CourtReport:
 
 
 # --------------------------------------------------------------------------- #
+# Integrity (pora belgilari)
+# --------------------------------------------------------------------------- #
+
+
+class IntegrityRequest(BaseModel):
+    decision_text: str
+
+
+class IntegrityBatchRequest(BaseModel):
+    decision_texts: list[str]
+    judge: str = ""
+
+
+@app.post("/v1/integrity/check", tags=["integrity"])
+def integrity_check(req: IntegrityRequest) -> dict:
+    """Bitta sud qarorida pora belgilarini tekshiradi.
+
+    Model chaqirilmaydi: deterministik qoidalar asosida ishlaydi.
+    Tizim BELGI topadi, XULOSA emas — pora fakti faqat vakolatli
+    organlar tomonidan aniqlanadi.
+    """
+    if not req.decision_text.strip():
+        raise HTTPException(400, "`decision_text` bo'sh")
+    try:
+        from uzlegal.integrity.detector import detect_from_text
+
+        return detect_from_text(req.decision_text).model_dump()
+    except Exception as exc:
+        raise HTTPException(500, f"Tekshiruv xatosi: {exc}") from exc
+
+
+@app.post("/v1/integrity/profile", tags=["integrity"])
+def integrity_profile(req: IntegrityBatchRequest) -> dict:
+    """Bir nechta qaror asosida sudya profilini tuzadi.
+
+    Kamida 5 qaror tavsiya etiladi — kamroq boʻlsa statistik xulosa
+    chiqarish qiyin.
+    """
+    if not req.decision_texts:
+        raise HTTPException(400, "`decision_texts` bo'sh")
+    try:
+        from uzlegal.court.parser import parse
+        from uzlegal.integrity.profile import build_profile
+
+        decisions = [parse(text) for text in req.decision_texts if text.strip()]
+        judge = req.judge or (decisions[0].judge or "Nomaʼlum" if decisions else "Nomaʼlum")
+        return build_profile(judge, decisions).model_dump()
+    except Exception as exc:
+        raise HTTPException(500, f"Profil tuzish xatosi: {exc}") from exc
+
+
+# --------------------------------------------------------------------------- #
 # Web UI
 # --------------------------------------------------------------------------- #
 
