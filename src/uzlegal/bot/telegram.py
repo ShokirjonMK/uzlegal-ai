@@ -227,7 +227,10 @@ def render(result: ConsultResult) -> str:
     foydalanuvchi normani o'zi o'qiy olishi kerak, aks holda «iqtibosga
     asoslangan» degani shunchaki so'z bo'lib qoladi.
     """
-    blocks = [html.escape(result.answer).replace("&lt;b&gt;", "<b>")]
+    # Javob matni **butunlay** ekranlanadi. Model chiqishi HTML sifatida
+    # talqin qilinmasligi kerak: `<` belgisi Telegram parseriga tushsa
+    # xabar umuman yuborilmaydi va foydalanuvchi javobsiz qoladi.
+    blocks = [html.escape(result.answer)]
 
     if result.citations:
         lines = ["", "<b>Manbalar</b>"]
