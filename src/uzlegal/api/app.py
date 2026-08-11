@@ -15,13 +15,14 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from uzlegal.config import PROJECT_ROOT, get_registry, get_settings
+from uzlegal.config import DATA_DIR, PROJECT_ROOT, get_registry, get_settings
 from uzlegal.core import ConsultRequest, ConsultResult
 from uzlegal.court import CourtReport, review
 from uzlegal.inference.backend import BackendUnavailableError, available_backends
 from uzlegal.inference.registry import ModelSwapError
 from uzlegal.ingest.sync import SyncAlreadyRunningError, SyncManager
 from uzlegal.types import GenerationParams
+from uzlegal.users.store import UserStore
 
 log = logging.getLogger(__name__)
 
@@ -478,6 +479,126 @@ def integrity_profile(req: IntegrityBatchRequest) -> dict:
         return build_profile(judge, decisions).model_dump()
     except Exception as exc:
         raise HTTPException(500, f"Profil tuzish xatosi: {exc}") from exc
+
+
+# --------------------------------------------------------------------------- #
+# Foydalanuvchi tizimi
+# --------------------------------------------------------------------------- #
+
+
+class UserCreateRequest(BaseModel):
+    user_id: str
+    telegram_id: str | None = None
+    name: str = ""
+    plan: str = "bepul"
+
+
+class PlanUpdateRequest(BaseModel):
+    plan: str
+
+
+def _get_store() -> UserStore:
+    if not hasattr(_get_store, "_instance"):
+        _get_store._instance = UserStore(DATA_DIR / "users.db")  # type: ignore[attr-defined]
+    return _get_store._instance  # type: ignore[attr-defined]
+
+
+@app.post("/v1/admin/users", tags=["users"])
+def create_user(req: UserCreateRequest) -> dict[str, Any]:
+    """Yangi foydalanuvchi yaratadi. API kalitini faqat bir marta koʻrsatadi."""
+    from uzlegal.users.models import DuplicateUserError
+    from uzlegal.users.plans import PlanTier
+
+    store = _get_store()
+    try:
+        tier = PlanTier(req.plan)
+    except ValueError:
+        raise HTTPException(400, f"Notoʻgʻri reja: {req.plan}") from None
+
+    try:
+        user, api_key = store.create_user(
+            req.user_id,
+            telegram_id=req.telegram_id,
+            name=req.name,
+            plan=tier,
+        )
+    except DuplicateUserError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+    return {"user": user.model_dump(), "api_key": api_key}
+
+
+@app.get("/v1/admin/users/{user_id}", tags=["users"])
+def get_user(user_id: str) -> dict[str, Any]:
+    from uzlegal.users.models import UserNotFoundError
+
+    store = _get_store()
+    try:
+        user = store.get_user(user_id)
+    except UserNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return user.model_dump()
+
+
+@app.patch("/v1/admin/users/{user_id}/plan", tags=["users"])
+def update_user_plan(user_id: str, req: PlanUpdateRequest) -> dict[str, Any]:
+    from uzlegal.users.models import UserNotFoundError
+    from uzlegal.users.plans import PlanTier
+
+    store = _get_store()
+    try:
+        tier = PlanTier(req.plan)
+    except ValueError:
+        raise HTTPException(400, f"Notoʻgʻri reja: {req.plan}") from None
+
+    try:
+        user = store.update_plan(user_id, tier)
+    except UserNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return user.model_dump()
+
+
+@app.get("/v1/admin/users/{user_id}/usage", tags=["users"])
+def user_usage(user_id: str) -> dict[str, Any]:
+    from uzlegal.users.models import UserNotFoundError
+
+    store = _get_store()
+    try:
+        return store.usage_summary(user_id).model_dump()
+    except UserNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.post("/v1/admin/users/{user_id}/regenerate-key", tags=["users"])
+def regenerate_api_key(user_id: str) -> dict[str, Any]:
+    from uzlegal.users.models import UserNotFoundError
+
+    store = _get_store()
+    try:
+        new_key = store.regenerate_key(user_id)
+    except UserNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return {"api_key": new_key}
+
+
+@app.delete("/v1/admin/users/{user_id}", tags=["users"])
+def deactivate_user(user_id: str) -> dict[str, Any]:
+    from uzlegal.users.models import UserNotFoundError
+
+    store = _get_store()
+    try:
+        store.deactivate(user_id)
+    except UserNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return {"ok": True}
+
+
+@app.get("/v1/plans", tags=["users"])
+def list_plans() -> list[dict[str, Any]]:
+    """Barcha obuna rejalari."""
+    from uzlegal.users.plans import PLANS
+
+    return [p.model_dump() for p in PLANS.values()]
 
 
 # --------------------------------------------------------------------------- #
