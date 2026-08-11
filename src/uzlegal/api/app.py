@@ -361,6 +361,76 @@ def meta() -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# Sud jarayoni yordami
+# --------------------------------------------------------------------------- #
+
+
+class LitigationRequest(BaseModel):
+    case: dict[str, Any]
+    role: str = "advocate"
+
+
+class CourtAnalysisRequest(BaseModel):
+    decision_text: str
+    case_type: str = "civil"
+
+
+@app.post("/v1/litigation/advise", tags=["litigation"])
+def litigation_advise(req: LitigationRequest) -> dict[str, Any]:
+    from uzlegal.litigation.advisor import advise
+    from uzlegal.litigation.case import CaseState
+
+    try:
+        case = CaseState.model_validate(req.case)
+    except Exception as exc:
+        raise HTTPException(422, f"Ish maʼlumotlari notoʻgʻri: {exc}") from exc
+
+    if req.role not in ("advocate", "prosecutor", "judge"):
+        raise HTTPException(400, "Rol: advocate, prosecutor yoki judge")
+
+    advice = advise(case, req.role)  # type: ignore[arg-type]
+    return advice.model_dump()
+
+
+@app.post("/v1/litigation/questions", tags=["litigation"])
+def litigation_questions(
+    req: LitigationRequest,
+    target: str = "defendant",
+    max_questions: int = 10,
+) -> dict[str, Any]:
+    from uzlegal.litigation.case import CaseState
+    from uzlegal.litigation.questions import generate_questions
+
+    try:
+        case = CaseState.model_validate(req.case)
+    except Exception as exc:
+        raise HTTPException(422, f"Ish maʼlumotlari notoʻgʻri: {exc}") from exc
+
+    if req.role not in ("advocate", "prosecutor", "judge"):
+        raise HTTPException(400, "Rol: advocate, prosecutor yoki judge")
+
+    plan = generate_questions(case, target, as_role=req.role, max_questions=max_questions)  # type: ignore[arg-type]
+    return plan.model_dump()
+
+
+@app.post("/v1/court/analyze", tags=["court"])
+def court_analyze(req: CourtAnalysisRequest) -> dict[str, Any]:
+    try:
+        from uzlegal.court.analyzer import analyze_decision
+        from uzlegal.court.parser import parse_decision
+
+        parsed = parse_decision(req.decision_text)
+        findings = analyze_decision(parsed)
+        return {
+            "parsed": parsed.model_dump(),
+            "findings": [f.model_dump() for f in findings],
+            "total_issues": len(findings),
+        }
+    except ImportError as exc:
+        raise HTTPException(501, "Court modul hali tayyor emas") from exc
+
+
+# --------------------------------------------------------------------------- #
 # Web UI
 # --------------------------------------------------------------------------- #
 
