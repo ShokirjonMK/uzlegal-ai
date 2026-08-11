@@ -28,8 +28,14 @@ class CaseType(StrEnum):
 class Party(BaseModel):
     name: str
     role: Literal[
-        "plaintiff", "defendant", "prosecutor", "victim",
-        "third_party", "witness", "accused", "civil_claimant",
+        "plaintiff",
+        "defendant",
+        "prosecutor",
+        "victim",
+        "third_party",
+        "witness",
+        "accused",
+        "civil_claimant",
     ]
     position: str = ""
     arguments: list[str] = Field(default_factory=list)

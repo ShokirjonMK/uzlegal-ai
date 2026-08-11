@@ -193,7 +193,10 @@ class TestAdvisor:
     def test_civil_case_advocate(self, civil_case: CaseState) -> None:
         advice = advise(civil_case, "advocate")
         assert advice.role == "advocate"
-        assert "appeal" in advice.appeal_info.next_stage or "cassation" in advice.appeal_info.next_stage
+        assert (
+            "appeal" in advice.appeal_info.next_stage
+            or "cassation" in advice.appeal_info.next_stage
+        )
 
     def test_confidence_calculation(self, criminal_case: CaseState) -> None:
         advice = advise(criminal_case, "advocate")
@@ -233,9 +236,7 @@ class TestQuestions:
         assert len(plan.questions) >= 3
 
     def test_max_questions_limit(self, criminal_case: CaseState) -> None:
-        plan = generate_questions(
-            criminal_case, "prosecutor", as_role="advocate", max_questions=3
-        )
+        plan = generate_questions(criminal_case, "prosecutor", as_role="advocate", max_questions=3)
         assert len(plan.questions) <= 3
 
     def test_strategy_note_present(self, criminal_case: CaseState) -> None:
@@ -243,9 +244,7 @@ class TestQuestions:
         assert plan.strategy_note
         assert "ayblov" in plan.strategy_note.lower()
 
-    def test_inadmissible_evidence_generates_trap_question(
-        self, criminal_case: CaseState
-    ) -> None:
+    def test_inadmissible_evidence_generates_trap_question(self, criminal_case: CaseState) -> None:
         plan = generate_questions(criminal_case, "prosecutor", as_role="advocate")
         trap_questions = [q for q in plan.questions if q.category == "trap"]
         assert len(trap_questions) >= 1

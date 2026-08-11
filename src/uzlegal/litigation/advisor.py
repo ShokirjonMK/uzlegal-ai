@@ -72,11 +72,13 @@ def _advocate_strategy(case: CaseState, norms: list[Citation]) -> StrategicAdvic
     strengths = []
     for e in strong:
         if e.admissible:
-            strengths.append(Argument(
-                claim=f"Kuchli dalil: {e.description}",
-                citations=[e.source] if e.source else [],
-                strength="strong",
-            ))
+            strengths.append(
+                Argument(
+                    claim=f"Kuchli dalil: {e.description}",
+                    citations=[e.source] if e.source else [],
+                    strength="strong",
+                )
+            )
 
     weaknesses = []
     for e in weak:
@@ -139,11 +141,13 @@ def _prosecutor_strategy(case: CaseState, norms: list[Citation]) -> StrategicAdv
 
     strengths = []
     for e in strong:
-        strengths.append(Argument(
-            claim=f"Ayblov dalili: {e.description}",
-            citations=[e.source] if e.source else [],
-            strength="strong",
-        ))
+        strengths.append(
+            Argument(
+                claim=f"Ayblov dalili: {e.description}",
+                citations=[e.source] if e.source else [],
+                strength="strong",
+            )
+        )
 
     weaknesses = []
     for e in case.evidence:
@@ -165,9 +169,7 @@ def _prosecutor_strategy(case: CaseState, norms: list[Citation]) -> StrategicAdv
     counter_args = []
     if defendant:
         for arg in defendant.arguments:
-            counter_args.append(
-                f"Mudofaaning «{arg}» argumentiga qarshi dalil tayyorlang"
-            )
+            counter_args.append(f"Mudofaaning «{arg}» argumentiga qarshi dalil tayyorlang")
 
     return StrategicAdvice(
         role="prosecutor",
@@ -207,9 +209,7 @@ def _judge_strategy(case: CaseState, norms: list[Citation]) -> StrategicAdvice:
     all_admissible = [e for e in case.evidence if e.admissible]
     inadmissible = [e for e in case.evidence if not e.admissible]
     if inadmissible:
-        weaknesses.append(
-            f"{len(inadmissible)} ta dalil qabul qilinmasligi mumkin"
-        )
+        weaknesses.append(f"{len(inadmissible)} ta dalil qabul qilinmasligi mumkin")
     if len(all_admissible) < 2:
         weaknesses.append("Dalillar bazasi juda tor — qaror asossiz boʻlishi mumkin")
 
@@ -280,8 +280,7 @@ def _identify_risks(case: CaseState, role: str) -> list[str]:
     if case.stage == CaseStage.CASSATION:
         risks.append("Kassatsiyada yangi dalil qabul qilinmaydi")
     if role == "advocate" and case.case_type == CaseType.CRIMINAL:
-        risks.append("Jinoyat ishida isbotlash yuki prokurorda — "
-                      "lekin faol mudofaa zarur")
+        risks.append("Jinoyat ishida isbotlash yuki prokurorda — lekin faol mudofaa zarur")
     return risks
 
 
@@ -289,14 +288,10 @@ def _generate_defense_questions(case: CaseState) -> list[str]:
     questions = []
     plaintiff = find_party(case, "plaintiff") or find_party(case, "prosecutor")
     if plaintiff:
-        questions.append(
-            f"{plaintiff.name} ning da'vosi uchun barcha dalillar bormi?"
-        )
+        questions.append(f"{plaintiff.name} ning da'vosi uchun barcha dalillar bormi?")
     for e in case.evidence:
         if e.strength == "strong" and e.challenges:
-            questions.append(
-                f"«{e.description}» dalilining olish tartibi qonuniymi?"
-            )
+            questions.append(f"«{e.description}» dalilining olish tartibi qonuniymi?")
     if case.case_type == CaseType.CRIMINAL:
         questions.append("Ayblanuvchining himoya huquqi toʻliq taʼminlanganmi?")
         questions.append("Tekshiruv xarakatlari sanksiya bilan bajarilganmi?")
