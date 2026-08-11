@@ -20,6 +20,39 @@ DATA_DIR = PROJECT_ROOT / "data"
 MODELS_DIR = PROJECT_ROOT / "models"
 
 
+class TelegramSettings(BaseModel):
+    """Telegram bot sozlamalari.
+
+    Token **faqat muhit o'zgaruvchisidan** o'qiladi — hech qachon
+    `configs/*.yaml` dan. Sabab: YAML fayllari repoga tushadi, token esa
+    oshkor bo'lsa bot nomidan xabar yuborish imkonini beradi
+    (docs/10-security-compliance.md § 4).
+
+    `.env.example` ga qarang.
+    """
+
+    bot_token: str | None = Field(default=None, repr=False)
+    chat_id: str | None = None
+    allowed_chats: list[str] = Field(default_factory=list)
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.bot_token and self.chat_id)
+
+    def allows(self, chat_id: str) -> bool:
+        """Bot shu chatga javob beradimi. Ro'yxat bo'sh bo'lsa — hammasiga."""
+        return not self.allowed_chats or str(chat_id) in self.allowed_chats
+
+    @classmethod
+    def from_env(cls) -> TelegramSettings:
+        allowed = os.getenv("UZLEGAL_TELEGRAM_ALLOWED_CHATS", "")
+        return cls(
+            bot_token=os.getenv("UZLEGAL_TELEGRAM_BOT_TOKEN") or None,
+            chat_id=os.getenv("UZLEGAL_TELEGRAM_CHAT_ID") or None,
+            allowed_chats=[c.strip() for c in allowed.split(",") if c.strip()],
+        )
+
+
 class Settings(BaseModel):
     profile: str = "local-dev"
     catalog_path: Path = CONFIGS_DIR / "models.yaml"
@@ -30,11 +63,13 @@ class Settings(BaseModel):
     api_port: int = 8080
     log_level: str = "INFO"
 
+    telegram: TelegramSettings = Field(default_factory=TelegramSettings)
     raw: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
     def load(cls, profile: str | None = None) -> Settings:
         profile = profile or os.getenv("UZLEGAL_PROFILE", "local-dev")
+        _load_dotenv()
         raw: dict[str, Any] = {}
 
         profile_file = CONFIGS_DIR / "profiles" / f"{profile}.yaml"
@@ -53,8 +88,27 @@ class Settings(BaseModel):
             api_host=os.getenv("UZLEGAL_API_HOST", api.get("host", "127.0.0.1")),
             api_port=int(os.getenv("UZLEGAL_API_PORT", api.get("port", 8080))),
             log_level=os.getenv("UZLEGAL_LOG_LEVEL", obs.get("log_level", "INFO")),
+            telegram=TelegramSettings.from_env(),
             raw=raw,
         )
+
+
+def _load_dotenv(path: Path = PROJECT_ROOT / ".env") -> None:
+    """`.env` faylini o'qiydi (tashqi bog'liqliksiz).
+
+    Allaqachon o'rnatilgan muhit o'zgaruvchilari **ustun** — CI va
+    ishlab chiqarishda ular fayldan emas, tashqaridan keladi.
+    """
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip().strip("'\"")
+        if key and key not in os.environ:
+            os.environ[key] = value
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
