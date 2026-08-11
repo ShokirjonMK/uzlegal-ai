@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from uzlegal.config import PROJECT_ROOT, get_registry, get_settings
 from uzlegal.core import ConsultRequest, ConsultResult
+from uzlegal.court import CourtReport, review
 from uzlegal.inference.backend import BackendUnavailableError, available_backends
 from uzlegal.inference.registry import ModelSwapError
 from uzlegal.ingest.sync import SyncAlreadyRunningError, SyncManager
@@ -414,20 +415,17 @@ def litigation_questions(
 
 
 @app.post("/v1/court/analyze", tags=["court"])
-def court_analyze(req: CourtAnalysisRequest) -> dict[str, Any]:
-    try:
-        from uzlegal.court.analyzer import analyze_decision
-        from uzlegal.court.parser import parse_decision
+def court_analyze(req: CourtAnalysisRequest) -> CourtReport:
+    """Sud qarorini tekshiradi — yettita deterministik nazorat.
 
-        parsed = parse_decision(req.decision_text)
-        findings = analyze_decision(parsed)
-        return {
-            "parsed": parsed.model_dump(),
-            "findings": [f.model_dump() for f in findings],
-            "total_issues": len(findings),
-        }
-    except ImportError as exc:
-        raise HTTPException(501, "Court modul hali tayyor emas") from exc
+    Model chaqirilmaydi: bir xil matn har doim bir xil topilmalarni
+    beradi va har bir topilma qarorning qaysi joyidan kelib chiqqani
+    ko'rsatiladi. Tizim qarorning **shakli va izchilligini** tekshiradi,
+    ishning mohiyatini emas.
+    """
+    if not req.decision_text.strip():
+        raise HTTPException(400, "`decision_text` bo'sh")
+    return review(req.decision_text)
 
 
 # --------------------------------------------------------------------------- #
