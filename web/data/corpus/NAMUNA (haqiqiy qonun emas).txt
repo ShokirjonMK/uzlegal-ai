@@ -1,0 +1,42 @@
+DIQQAT: BU FAYL — TIZIMNI SINASH UCHUN NAMUNA MATN.
+BU HAQIQIY QONUN EMAS. Undagi modda raqamlari va matnlar oʻylab topilgan.
+Ishga tushirishdan oldin bu faylni oʻchiring va lex.uz saytidan olingan
+haqiqiy qonun matnlarini `data/corpus/` papkasiga joylang.
+
+Hujjat nomi javobdagi har bir havolada koʻrinadi, shuning uchun bu faylga
+tayangan javoblarda "NAMUNA (haqiqiy qonun emas)" yozuvi chiqadi.
+
+────────────────────────────────────────────────────────────────────────
+
+1-modda. Namuna hujjatning maqsadi
+
+Ushbu namuna matn AI Lawyer tizimining qonun bazasi (RAG) qismini sinash
+uchun moʻljallangan. Tizim modda chegarasida boʻlaklarga ajratishni,
+vektor qidiruvni va javobda havola berishni shu matn ustida tekshiradi.
+
+2-modda. Shartnoma tuzish shakli
+
+Namuna qoida: tomonlar oʻrtasidagi bitim yozma shaklda tuziladi, agar
+qonunda boshqacha tartib belgilanmagan boʻlsa. Yozma shakl talabi
+buzilganda bitim oʻz-oʻzidan haqiqiy emas deb hisoblanmaydi, lekin
+tomonlar nizo yuzaga kelganda guvohlar koʻrsatuviga tayana olmaydi.
+
+3-modda. Mehnat shartnomasining sinov muddati
+
+Namuna qoida: mehnat shartnomasi tuzishda tomonlar kelishuviga koʻra sinov
+muddati belgilanishi mumkin. Sinov muddati uch oydan oshmasligi kerak.
+Sinov muddati voyaga yetmaganlar, homilador ayollar va tanlov asosida
+ishga qabul qilinganlarga nisbatan belgilanmaydi.
+
+4-modda. Ijara shartnomasining muddati
+
+Namuna qoida: ijara shartnomasi tomonlar kelishgan muddatga tuziladi.
+Muddat koʻrsatilmagan boʻlsa, shartnoma nomuayyan muddatga tuzilgan
+hisoblanadi va har bir tomon uch oy oldin yozma ogohlantirib, shartnomadan
+voz kechishi mumkin.
+
+5-modda. Daʼvo muddati
+
+Namuna qoida: umumiy daʼvo muddati uch yilni tashkil etadi. Daʼvo muddati
+shaxs oʻz huquqi buzilganini bilgan yoki bilishi lozim boʻlgan kundan
+boshlab hisoblanadi.

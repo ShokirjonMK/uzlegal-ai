@@ -1,0 +1,100 @@
+# AI Lawyer — butun tizim bitta buyruq bilan.
+#
+#   npm run docker:up      — koʻtarish (birinchi marta build ham qiladi)
+#   npm run docker:logs    — jurnalni kuzatish
+#   npm run docker:down    — toʻxtatish
+#
+# Maxfiy qiymatlar `.env.local` dan oʻqiladi va tasvirga tushmaydi.
+# MONGODB_URI bu yerda ataylab qayta belgilanadi: konteyner ichida baza
+# `127.0.0.1` da emas, `mongo` xostida turadi.
+
+name: ai-lowyer
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    # Port faqat xostning oʻzida ochiladi — tashqaridan kirib boʻlmaydi.
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.local
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+      CORPUS_DB_PATH: /app/data/corpus.db
+      CORPUS_DIR: /app/data/corpus
+      # Lokal model XOSTDA ishlaydi, konteynerda emas: Colima/Docker VM ichida
+      # Apple Metal GPU koʻrinmaydi va konteynerdagi model bir necha barobar
+      # sekin boʻlardi. `llm` profilini yoqsangiz — `http://ollama:11434`.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    volumes:
+      # Qonun bazasi va yuklangan matnlar konteynerdan tashqarida saqlanadi.
+      - ./data:/app/data
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+
+  bot:
+    # Web bilan bitta tasvir — qayta qurilmaydi.
+    build:
+      context: .
+    restart: on-failure:3
+    command: ["npm", "run", "bot:poll"]
+    env_file:
+      - .env.local
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+      CORPUS_DB_PATH: /app/data/corpus.db
+      CORPUS_DIR: /app/data/corpus
+      # Lokal model XOSTDA ishlaydi, konteynerda emas: Colima/Docker VM ichida
+      # Apple Metal GPU koʻrinmaydi va konteynerdagi model bir necha barobar
+      # sekin boʻlardi. `llm` profilini yoqsangiz — `http://ollama:11434`.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      mongo:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+  # Lokal modelni toʻliq Docker ichida ishlatish uchun (Linux server, GPU
+  # boʻlmagan muhit yoki xostga hech narsa oʻrnatmaslik kerak boʻlganda):
+  #
+  #   docker compose --profile llm up -d
+  #   docker compose exec ollama ollama pull qwen2.5:7b-instruct
+  #
+  # macOS da bu variant sekinroq — VM ichida Metal GPU yoʻq.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["llm"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+
+volumes:
+  mongo-data:
+  ollama-models:

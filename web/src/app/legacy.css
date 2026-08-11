@@ -1,0 +1,825 @@
+:root {
+  /* `--bg` aurora asosi bilan bir xil: aks holda `.nav` va `.composer`
+     chetlarida koʻrinadigan chegara paydo boʻladi. */
+  --bg: #fbfcfe;
+  --bg-soft: #f4f6f9;
+  --bg-raised: #ffffff;
+  --border: #e3e6ea;
+  --border-strong: #cdd3da;
+  --text: #16191d;
+  --text-dim: #5c6672;
+  /* Aurora asosiga nisbatan 4.76:1 — kichik matn uchun ham yetarli.
+     Ilgari #8b95a1 edi va 2.96:1 berardi. */
+  --text-faint: #68727f;
+  --accent: #1e5f9e;
+  --accent-soft: #e8f0f8;
+  /* Urgʻu va xavf rangi ustidagi matn. Dark rejimda urgʻu ochiq rangga
+     aylanadi, shuning uchun ustidagi matn ham qorayishi kerak. */
+  --accent-contrast: #ffffff;
+  --danger: #b4241f;
+  --danger-soft: #fdeceb;
+  --danger-contrast: #ffffff;
+  --warn: #8a5a00;
+  --warn-soft: #fdf3e0;
+  --ok: #1d6b3f;
+  --ok-soft: #e8f5ed;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 4%);
+  --shadow-lift: 0 2px 4px rgb(16 24 40 / 5%), 0 8px 24px rgb(16 24 40 / 7%);
+
+  /* ── Aurora fon ────────────────────────────────────────────────────────
+     Bir xil uchta rang ikkala rejimda ham ishlaydi — dark rejimda faqat
+     shaffoflik va asos rangi oʻzgaradi. Yangi rang kiritilsa fon loyqalanadi. */
+  --aurora-base: #fbfcfe;
+  --aurora-indigo: #a5b4fc;
+  --aurora-violet: #c4b5fd;
+  --aurora-cyan: #a5f3fc;
+  --aurora-blob-opacity: 0.5;
+  --aurora-mesh-opacity: 0.45;
+  --aurora-blur: 80px;
+
+  /* Yuza shaffofligi: aurora kartalar ostidan sezilib tursin. */
+  --surface-alpha: 88%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1014;
+    --bg-soft: #171b1f;
+    --bg-raised: #1b2025;
+    --border: #2a3138;
+    --border-strong: #3a434c;
+    --text: #e8ebee;
+    --text-dim: #a3adb8;
+    --text-faint: #78838f;
+    --accent: #7db4e8;
+    --accent-soft: #17293a;
+    --accent-contrast: #0d1014;
+    --danger: #f08b86;
+    --danger-soft: #351b1a;
+    --danger-contrast: #0d1014;
+    --warn: #e0b25c;
+    --warn-soft: #33280f;
+    --ok: #7fcb9d;
+    --ok-soft: #14291d;
+    --shadow: 0 1px 2px rgb(0 0 0 / 30%);
+    --shadow-lift: 0 2px 4px rgb(0 0 0 / 24%), 0 8px 24px rgb(0 0 0 / 32%);
+
+    --aurora-base: #0d1014;
+    --aurora-blob-opacity: 0.2;
+    --aurora-mesh-opacity: 0.26;
+    --aurora-blur: 100px;
+
+    --surface-alpha: 82%;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Asos rangi `html` da: aurora qatlami yuklangunicha oq yaltirash boʻlmaydi. */
+html {
+  background: var(--aurora-base);
+}
+
+body {
+  /* Shaffof — aks holda `z-index: -1` dagi aurora qatlami bekitilib qoladi. */
+  background: transparent;
+  color: var(--text);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* ── Aurora fon ──────────────────────────────────────────────────────────
+   Bezak qatlam: sichqoncha ushlamaydi, ekran oʻqiguchga koʻrinmaydi.
+   Faqat `transform` animatsiya qilinadi — har kadrda qayta chizish boʻlmaydi. */
+
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background-color: var(--aurora-base);
+}
+
+/* Mesh asos: bir-birining ustiga tushgan toʻrtta radial gradient. Aynan shu
+   qoʻshilish alohida doiralarga ajralmagan «toʻr» taassurotini beradi. */
+.aurora::before {
+  content: "";
+  position: absolute;
+  inset: -10%;
+  opacity: var(--aurora-mesh-opacity);
+  background:
+    radial-gradient(50% 55% at 18% 22%, var(--aurora-indigo) 0%, transparent 60%),
+    radial-gradient(45% 50% at 82% 18%, var(--aurora-violet) 0%, transparent 60%),
+    radial-gradient(55% 45% at 72% 82%, var(--aurora-cyan) 0%, transparent 62%),
+    radial-gradient(40% 45% at 25% 85%, var(--aurora-violet) 0%, transparent 58%);
+}
+
+.aurora-blob {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  filter: blur(var(--aurora-blur));
+  opacity: var(--aurora-blob-opacity);
+  will-change: transform;
+}
+
+.aurora-blob-1 {
+  width: 42vmax;
+  height: 42vmax;
+  top: -12vmax;
+  left: -8vmax;
+  background: var(--aurora-indigo);
+  animation: aurora-drift-1 26s ease-in-out infinite;
+}
+
+.aurora-blob-2 {
+  width: 36vmax;
+  height: 36vmax;
+  top: 8vmax;
+  right: -10vmax;
+  background: var(--aurora-violet);
+  animation: aurora-drift-2 32s ease-in-out infinite;
+}
+
+.aurora-blob-3 {
+  width: 38vmax;
+  height: 38vmax;
+  bottom: -14vmax;
+  left: 22vmax;
+  background: var(--aurora-cyan);
+  animation: aurora-drift-3 29s ease-in-out infinite;
+}
+
+/* Davomiyliklar ataylab teng emas — aks holda uchala blob bir vaqtda
+   boshlangan joyiga qaytadi va takrorlanish koʻzga tashlanadi. */
+@keyframes aurora-drift-1 {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6vmax, 4vmax, 0) scale(1.12);
+  }
+}
+
+@keyframes aurora-drift-2 {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.08);
+  }
+  50% {
+    transform: translate3d(-5vmax, 6vmax, 0) scale(1);
+  }
+}
+
+@keyframes aurora-drift-3 {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4vmax, -5vmax, 0) scale(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob {
+    animation: none;
+  }
+}
+
+/* ── Tuzilma ─────────────────────────────────────────────────────────── */
+
+.shell {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0 16px 64px;
+}
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.nav-inner {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.brand {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin-inline-end: 10px;
+  text-decoration: none;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.brand span {
+  color: var(--accent);
+}
+
+.nav a.tab {
+  padding: 5px 11px;
+  border-radius: 999px;
+  text-decoration: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.nav a.tab:hover {
+  background: var(--bg-soft);
+  color: var(--text);
+}
+
+.nav a.tab.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 550;
+}
+
+h1 {
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  margin: 4px 0 4px;
+}
+
+h2 {
+  font-size: 16px;
+  margin: 22px 0 8px;
+}
+
+.lede {
+  color: var(--text-dim);
+  margin: 0 0 20px;
+  font-size: 14px;
+}
+
+/* ── Boshqaruv elementlari ───────────────────────────────────────────── */
+
+textarea,
+input[type="text"],
+select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg-raised) 92%, transparent);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+textarea:focus,
+input:focus,
+select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 12px 0 5px;
+  font-weight: 550;
+}
+
+button {
+  padding: 9px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--text-dim);
+  border-color: var(--border-strong);
+}
+
+button.ghost:hover:not(:disabled) {
+  background: var(--bg-soft);
+  color: var(--text);
+  filter: none;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ── Chat ────────────────────────────────────────────────────────────── */
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.msg .who {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.msg .body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.msg.user .body {
+  background: color-mix(in srgb, var(--bg-soft) var(--surface-alpha), transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 13px;
+}
+
+.composer {
+  position: sticky;
+  bottom: 0;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter: blur(8px);
+  padding: 12px 0 16px;
+  border-top: 1px solid var(--border);
+}
+
+.status {
+  font-size: 13px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* ── Kartochkalar ────────────────────────────────────────────────────── */
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  /* Yarim shaffof — aurora karta ostidan sezilib turadi. `backdrop-filter`
+     ataylab qoʻyilmagan: sahifada oʻnlab karta boʻlishi mumkin. */
+  background: color-mix(in srgb, var(--bg-raised) var(--surface-alpha), transparent);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+  margin-bottom: 12px;
+}
+
+.card h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.sources {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg-soft) var(--surface-alpha), transparent);
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.sources summary {
+  cursor: pointer;
+  color: var(--text-dim);
+  font-weight: 550;
+}
+
+.source-item {
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+.source-item:first-of-type {
+  border-top: none;
+}
+
+.source-head {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.source-text {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+/* ── Belgilar ────────────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge.yuqori,
+.badge.otmadi {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.badge.orta,
+.badge.ogohlantirish {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.badge.past,
+.badge.otdi {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.badge.aniqlanmadi {
+  background: var(--bg-soft);
+  color: var(--text-faint);
+}
+
+.alert {
+  border: 1px solid var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 14px;
+  margin: 12px 0;
+}
+
+.notice {
+  border: 1px solid var(--border);
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px;
+  margin: 12px 0;
+}
+
+.disclaimer {
+  margin-top: 28px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+.dim {
+  color: var(--text-dim);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) 1fr;
+  gap: 4px 14px;
+  font-size: 14px;
+}
+
+.kv dt {
+  color: var(--text-dim);
+}
+
+.kv dd {
+  margin: 0;
+}
+
+.doc {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg-soft) var(--surface-alpha), transparent);
+  padding: 14px 16px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+ul.tight {
+  margin: 6px 0;
+  padding-inline-start: 20px;
+}
+
+ul.tight li {
+  margin: 3px 0;
+}
+
+/* Namuna savol — tugma, lekin havolaga oʻxshab koʻrinadi. */
+.namuna {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.namuna:hover:not(:disabled) {
+  filter: none;
+  text-decoration-thickness: 2px;
+}
+
+/* ── Klaviatura va fokus ─────────────────────────────────────────────────
+   Fokus konturi yagona naqsh boʻyicha: 2px `--accent`. `outline: none`
+   hech qayerda ishlatilmaydi. */
+
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -60px;
+  z-index: 100;
+  padding: 9px 16px;
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 550;
+  transition: top 0.15s ease;
+}
+
+.skip-link:focus {
+  top: 8px;
+}
+
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+input[type="file"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Yuklanish holatlari ─────────────────────────────────────────────── */
+
+.spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  vertical-align: -2px;
+  margin-inline-end: 7px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.skeleton {
+  border-radius: var(--radius);
+  background: linear-gradient(
+    90deg,
+    var(--bg-soft) 25%,
+    color-mix(in srgb, var(--border) 60%, var(--bg-soft)) 50%,
+    var(--bg-soft) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-line {
+  height: 12px;
+  margin: 9px 0;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Harakatni kamaytirish soʻralganda — jimirlash ham, aylanish ham toʻxtaydi. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .spinner {
+    animation: none;
+  }
+  .skip-link {
+    transition: none;
+  }
+}
+
+/* ── Natija ustidagi amallar ─────────────────────────────────────────── */
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 10px 0 6px;
+}
+
+.actions .done {
+  color: var(--ok);
+  font-size: 13px;
+  font-weight: 550;
+}
+
+/* ── Mobil koʻrinish ─────────────────────────────────────────────────────
+   880px — `.shell` kengligi; undan pastda navigatsiya va kartalar siqiladi. */
+
+@media (max-width: 620px) {
+  body {
+    font-size: 15px;
+  }
+
+  .shell {
+    padding: 0 13px 56px;
+  }
+
+  .nav-inner {
+    padding: 8px 13px;
+    gap: 4px;
+    /* Tablar sigʻmasa — koʻchirilmaydi, yon tomonga suriladi. */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav-inner::-webkit-scrollbar {
+    display: none;
+  }
+
+  .brand {
+    margin-inline-end: 4px;
+  }
+
+  h1 {
+    font-size: 20px;
+  }
+
+  /* Bir ustunli grid: uzun qiymat sarlavha ostiga tushadi, siqilib qolmaydi. */
+  .kv {
+    grid-template-columns: 1fr;
+    gap: 0 0;
+  }
+
+  .kv dt {
+    margin-top: 8px;
+    font-size: 13px;
+  }
+
+  .kv dd {
+    margin-bottom: 2px;
+  }
+
+  /* Tugmalar toʻliq kenglikda — barmoq bilan bosish osonroq. */
+  .row > button,
+  .actions > button {
+    flex: 1 1 auto;
+    min-width: 132px;
+  }
+
+  .card {
+    padding: 12px 13px;
+  }
+
+  .doc {
+    font-size: 12.5px;
+    max-height: 50vh;
+  }
+}
+
+/* ── Admin panel ─────────────────────────────────────────────────────── */
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 12px 0 18px;
+}
+
+.stat {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg-raised) var(--surface-alpha), transparent);
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+}
+
+.stat .n {
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.stat .t {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.doc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.doc-row:first-of-type {
+  border-top: none;
+}
+
+.doc-row .name {
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.login-box {
+  max-width: 380px;
+  margin: 48px auto;
+}
+
+.log {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg-soft) var(--surface-alpha), transparent);
+  padding: 10px 13px;
+  max-height: 260px;
+  overflow: auto;
+}

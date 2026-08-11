@@ -1,0 +1,25 @@
+# Maxfiy — tasvirga hech qachon tushmaydi. Qiymatlar ishga tushganda beriladi.
+.env
+.env.local
+.env.*.local
+
+node_modules
+.next
+out
+dist
+*.tsbuildinfo
+
+# Lokal bazalar — konteynerda hajm sifatida ulanadi.
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+.git
+.gitignore
+.claude
+.DS_Store
+*.log
+
+Dockerfile
+compose.yaml

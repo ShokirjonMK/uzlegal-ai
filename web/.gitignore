@@ -1,0 +1,26 @@
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+.env
+.env.local
+.env.*.local
+
+# Barcha lokal bazalar: korpus, statistika va yon fayllari (WAL/SHM).
+# Statistika bazasida foydalanuvchi maʼlumoti bor — git ga hech qachon tushmaydi.
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+.DS_Store
+*.log
+
+# Claude Code lokal sozlamalari
+.claude/settings.local.json
+
+# Vaqtinchalik QA skriptlari (qoʻlda ishga tushiriladi, tarixda saqlanmaydi)
+.qa-*.mts

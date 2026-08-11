@@ -1,0 +1,71 @@
+/*
+ * Uslublarning kirish nuqtasi.
+ *
+ * Loyihada ikkita tizim yonma-yon yashaydi:
+ *  - `legacy.css` — mavjud sof CSS (`.shell`, `.card`, `.nav`, aurora fon…);
+ *  - Tailwind utilitalari — yangi bo'limlar (`/admin`, `/kabinet`) uchun.
+ *
+ * QATLAM TARTIBI MUHIM. CSS da qatlamga solinmagan qoidalar HAR QANDAY
+ * qatlamdan ustun turadi. Ya'ni `legacy.css` ni shunchaki qoldirsak, undagi
+ * `button { background: … }` Tailwind ning `bg-…` utilitasini bosib ketardi.
+ * Shuning uchun eski uslublar `legacy` qatlamiga solinadi va u `utilities`
+ * dan oldin turadi — natijada ikkalasi ham to'g'ri ishlaydi.
+ *
+ * Tailwind ning `preflight` (reset) qismi ATAYLAB ulanmagan: u `button`,
+ * `input`, `h1` kabi elementlarning uslubini nolga tushiradi va hozirgi to'rt
+ * sahifa buziladi.
+ */
+
+@layer theme, base, legacy, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "./legacy.css" layer(legacy);
+
+/*
+ * Loyiha tokenlarini Tailwind mavzusiga ulaydi. `inline` — qiymat nusxalanmaydi,
+ * `var(--…)` havolasi o'sha holida qoladi. Shuning uchun dark rejim o'z-o'zidan
+ * ishlaydi: `--accent` o'zgarganda `bg-primary` ham o'zgaradi, Tailwind ning
+ * `dark:` variantiga umuman ehtiyoj yo'q.
+ *
+ * Nomlar shadcn/ui bilan bir xil — komponentlarni o'zgartirmasdan olish uchun.
+ */
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+
+  --color-card: var(--bg-raised);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--bg-raised);
+  --color-popover-foreground: var(--text);
+
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-contrast);
+
+  --color-secondary: var(--bg-soft);
+  --color-secondary-foreground: var(--text);
+
+  --color-muted: var(--bg-soft);
+  --color-muted-foreground: var(--text-dim);
+  --color-faint: var(--text-faint);
+
+  /* shadcn da `accent` — bu ustiga borilgandagi fon, urg'u rangi emas. */
+  --color-accent: var(--accent-soft);
+  --color-accent-foreground: var(--accent);
+
+  --color-destructive: var(--danger);
+  --color-destructive-foreground: var(--danger-contrast);
+  --color-destructive-soft: var(--danger-soft);
+
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--border-strong);
+  --color-ring: var(--accent);
+
+  --radius-token: var(--radius);
+}
