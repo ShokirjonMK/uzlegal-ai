@@ -8,15 +8,15 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterator
-from datetime import date
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from uzlegal.config import PROJECT_ROOT, get_registry, get_settings
+from uzlegal.core import ConsultRequest, ConsultResult
 from uzlegal.inference.backend import BackendUnavailableError, available_backends
 from uzlegal.inference.registry import ModelSwapError
 from uzlegal.ingest.sync import SyncAlreadyRunningError, SyncManager
@@ -165,72 +165,46 @@ def generate_stream(req: GenerateRequest) -> StreamingResponse:
 # --------------------------------------------------------------------------- #
 # Maslahat — asosiy endpoint
 # --------------------------------------------------------------------------- #
-
-
-class ConsultRequest(BaseModel):
-    """`POST /v1/consult` kirishi — `schemas/consult.schema.json` bilan bir xil."""
-
-    question: str = Field(min_length=1, max_length=4000)
-    mode: str | None = Field(
-        default=None, description="simple · standard · complex. Berilmasa router tanlaydi."
-    )
-    as_of: str | None = Field(default=None, description="Tarixiy holat, YYYY-MM-DD")
-    client_position: str | None = Field(default=None, max_length=8000)
-    top_k: int = Field(default=8, ge=1, le=20)
-
-
-def _parse_as_of(value: str | None) -> date | None:
-    if not value:
-        return None
-    try:
-        return date.fromisoformat(value)
-    except ValueError as exc:
-        raise HTTPException(400, f"`as_of` noto'g'ri formatda: {value!r} (YYYY-MM-DD)") from exc
-
-
-def _run_consult(req: ConsultRequest, observe: object | None = None) -> Any:
-    from uzlegal.core import consult
-
-    try:
-        return consult(
-            req.question,
-            mode=req.mode,
-            as_of=_parse_as_of(req.as_of),
-            client_position=req.client_position,
-            top_k=req.top_k,
-            observe=observe,  # type: ignore[arg-type]
-        )
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+#
+# So'rov va javob shakli `uzlegal.core` da belgilangan va bu yerda
+# **qayta e'lon qilinmaydi**. Sabab: shakl ikki joyda turса, ular albatta
+# ajralib ketadi va REST mijozi CLI dan boshqa javob oladi.
 
 
 @app.post("/v1/consult", tags=["consult"])
-def consult_endpoint(req: ConsultRequest) -> dict[str, Any]:
+def consult_endpoint(req: ConsultRequest) -> ConsultResult:
     """Savolga iqtibosga asoslangan javob.
 
     Javobdagi har bir huquqiy da'vo `citations` dagi manbaga bog'langan —
-    bog'lanmagani groundedness gate tomonidan o'chirilgan va `gate.dropped`
-    da ko'rinadi.
+    bog'lanmagani groundedness gate tomonidan o'chirilgan va sababi
+    `caveats` da ko'rinadi.
 
-    Kechikish rejimga bog'liq: `simple` ~5 s, `complex` ~60 s. Uzoq
+    Kechikish rejimga bog'liq: `simple` ~5 s, `complex` ~45 s. Uzoq
     so'rov uchun `/v1/consult/stream` ni ishlating.
     """
-    return _run_consult(req).model_dump()  # type: ignore[no-any-return]
+    from uzlegal.core import consult
+
+    try:
+        return consult(req)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        log.exception("Maslahat bajarilmadi")
+        raise HTTPException(500, str(exc)) from exc
 
 
 @app.post("/v1/consult/stream", tags=["consult"])
 def consult_stream(req: ConsultRequest) -> StreamingResponse:
     """Maslahat oqimi (SSE) — har bosqich tugagach hodisa yuboriladi.
 
-    Nima uchun bosqich oqimi, token oqimi emas: `complex` rejimda beshta
-    agent ketma-ket ishlaydi va foydalanuvchi 60 soniya bo'sh ekranga
-    qaraydi. Bosqich hodisalari «hozir prokuror javob bermoqda» deb
-    ko'rsatadi — bu kutishni tushunarli qiladi.
+    Nima uchun **bosqich** oqimi, token oqimi emas: `complex` rejimda
+    beshta agent ketma-ket ishlaydi va foydalanuvchi 45 soniya bo'sh
+    ekranga qaraydi. Bosqich hodisalari «hozir prokuror javob bermoqda»
+    deb ko'rsatadi — bu kutishni tushunarli qiladi.
 
-    Yakuniy javob **oqim tugashida bir marta** yuboriladi: gate uni
-    to'liq matn ustida tekshiradi, shuning uchun uni bo'lak-bo'lak
-    yuborish tekshiruvdan oldin tasdiqlanmagan matnni ko'rsatish
-    bo'lardi.
+    Yakuniy javob **oqim tugashida bir marta** yuboriladi: gate uni to'liq
+    matn ustida tekshiradi, shuning uchun uni bo'lak-bo'lak yuborish
+    tasdiqlanmagan matnni ko'rsatish bo'lardi.
 
     Hodisalar: `step` · `answer` · `error` · `done`
     """
@@ -241,11 +215,16 @@ def consult_stream(req: ConsultRequest) -> StreamingResponse:
     events: queue.Queue[tuple[str, Any] | None] = queue.Queue()
 
     def worker() -> None:
+        from uzlegal.core import consult
+
         try:
-            result = _run_consult(req, observe=lambda e: events.put(("step", e.model_dump())))
+            # Iz to'liq kerak: bosqichlar aynan undan o'qiladi.
+            result = consult(req.model_copy(update={"trace": True}))
+            for step in result.trace.steps if result.trace else []:
+                events.put(("step", step.model_dump()))
             events.put(("answer", result.model_dump()))
-        except HTTPException as exc:
-            events.put(("error", {"detail": exc.detail, "status": exc.status_code}))
+        except ValueError as exc:
+            events.put(("error", {"detail": str(exc), "status": 400}))
         except Exception as exc:
             log.exception("Maslahat oqimida xato")
             events.put(("error", {"detail": str(exc), "status": 500}))
@@ -276,15 +255,14 @@ def consult_stream(req: ConsultRequest) -> StreamingResponse:
 def list_agents() -> dict[str, Any]:
     """Mavjud rollar va har rejimda kimlar ishtirok etishi."""
     from uzlegal.agents.roles import AGENT_CLASSES
-    from uzlegal.orchestrator.router import roles_for
-    from uzlegal.types import ConsultMode
+    from uzlegal.orchestrator.router import ROLES_BY_MODE
 
     return {
         "agents": [
             {"role": role, "display_name": cls.display_name, "schema": cls.output_schema.__name__}
             for role, cls in AGENT_CLASSES.items()
         ],
-        "modes": {mode.value: roles_for(mode) for mode in ConsultMode},
+        "modes": {mode.value: roles for mode, roles in ROLES_BY_MODE.items()},
     }
 
 

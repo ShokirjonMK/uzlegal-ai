@@ -1,319 +1,404 @@
-"""Groundedness gate — javob foydalanuvchiga yetishidan oldingi oxirgi to'siq.
+"""Groundedness gate — javobning oxirgi to'sig'i (docs/01 § 6).
 
-## Tamoyil
+## Nima uchun bu model emas
 
-Gate javobni **yaxshilamaydi** — u faqat **olib tashlaydi** (docs/01 § 6).
-Bu ataylab: gate yangi matn generatsiya qilsa, uning o'zi hallucination
-manbaiga aylanardi va tekshiruvchi tekshiriladigan narsaga aylanardi.
+Gate — **deterministik tekshiruv**. Agar u model bo'lganida, hallucination ni
+tekshirish uchun hallucination qila oladigan narsadan foydalangan bo'lardik.
+Shu sababli bu yerda faqat qoidalar: belgi bormi, belgi haqiqiy chunkka
+bog'lanadimi, iqtibos matni da'vo bilan umumiy leksikaga egami.
 
-Shuning uchun gate deterministik: model emas, qoidalar to'plami.
+## Nima uchun gate faqat olib tashlaydi
 
-## Uch bosqich
+Gate javobni **hech qachon qayta yozmaydi va yangi matn generatsiya
+qilmaydi**. Sabab oddiy: qayta yozgan zahoti u o'zi hallucination manbaiga
+aylanadi va uni tekshiradigan hech kim qolmaydi. Shuning uchun ruxsat etilgan
+yagona harakat — segmentni chiqarib tashlash.
 
-Har bir da'vo (gap) uchun ketma-ket:
+Ikkita istisno bor va ikkalasi ham **doimiy shablon**, generatsiya emas:
 
-1. **Iqtibos bormi?** Yo'q bo'lsa — da'vo turi hal qiladi. Huquqiy da'vo
-   («…moddasiga ko'ra javobgarlik yuzaga keladi») o'chiriladi; umumiy yoki
-   mantiqiy gap («Quyidagi hujjatlar kerak bo'ladi») qoladi.
+* qo'llab-quvvatlanmagan da'voga `⚠ noaniq` belgisi qo'yiladi (docs/01 § 6
+  dagi `FLAG` tugmasi)
+* barcha huquqiy da'vo o'chirilsa — rad javobi va topilgan manbalar ro'yxati
+  (docs/06 § 8 dagi oxirgi qator)
 
-2. **Iqtibos haqiqiymi?** `[C7]` kontekstda yo'q bo'lsa — o'chiriladi.
-   Model belgi o'ylab topishi eng ko'p uchraydigan xato turi.
+## Nima uchun umumiy da'vo qoladi
 
-3. **Iqtibos matni da'voni qo'llab-quvvatlaydimi?** Leksik qoplama
-   hisoblanadi: da'vodagi ma'noli so'zlar iqtibos matnida uchraydimi.
-   Past bo'lsa da'vo o'chirilmaydi, **«noaniq» deb belgilanadi** — chunki
-   bu bosqich xato qilishi mumkin va to'g'ri da'voni o'chirish
-   noto'g'risini qoldirishdan ko'ra qimmatroq.
-
-## Nima uchun NLI modeli emas
-
-docs/01 § 6 uchinchi bosqich uchun NLI yoki qisqa model chaqiruvini
-taklif qiladi. Bu amalga oshirishda leksik qoplama ishlatiladi, sabab:
-
-* Har bir da'vo uchun model chaqiruvi kechikishni ikki baravar oshiradi
-* O'zbek tili uchun tayyor NLI modeli yo'q
-* Gate ning **birinchi ikki bosqichi** xatolarning katta qismini tutadi;
-  uchinchisi faqat belgilaydi, o'chirmaydi
-
-Model asosidagi tekshiruv `verifier=` orqali ulanishi mumkin — shartnoma
-tayyor, amalga oshirish keyingi bosqichda o'lchov bilan qo'shiladi.
+"Bu masalada qo'shimcha hujjat kerak" degan gapga iqtibos talab qilish
+javobni o'qib bo'lmaydigan holga keltiradi. Iqtibos **huquqiy da'vo** uchun
+majburiy: norma mazmuni, huquq, majburiyat, muddat, javobgarlik haqidagi
+bayonlar. Mantiqiy bog'lovchi va protsessual maslahat — qolaveradi.
 """
 
 from __future__ import annotations
 
-import logging
 import re
-from collections.abc import Callable
+from enum import StrEnum
+
+from pydantic import BaseModel, Field
 
 from uzlegal.ingest.normalize import fold
-from uzlegal.retrieval.expansion import simplify
-from uzlegal.types import Citation, GateReport
+from uzlegal.orchestrator.text import content_words
+from uzlegal.types import Citation
 
-log = logging.getLogger(__name__)
+# Iqtibos matni da'voni qo'llab-quvvatlaydimi — leksik qoplama chegarasi.
+# Past qo'yilgan (0.2): bu bosqichning vazifasi mutlaqo boshqa mavzudagi
+# iqtibosni tutish, semantik nozikliklarni emas. Yuqori chegara to'g'ri
+# iqtiboslarni ham "noaniq" deb belgilab, javobni ishonchsiz ko'rsatardi.
+SUPPORT_THRESHOLD = 0.2
+MIN_SUPPORT_WORDS = 3
 
-# Da'vo huquqiy ekanini ko'rsatuvchi belgilar. Bular topilsa iqtibos
-# **majburiy** bo'ladi.
+REFUSAL = "Ishonchli javob shakllantirilmadi."
+REFUSAL_NOTE = (
+    "Javobdagi huquqiy da'volarning hech biri berilgan manbalarga bog'lanmadi, "
+    "shuning uchun ular chiqarib tashlandi."
+)
+UNCERTAIN_MARK = "⚠ noaniq"
+
+_TAG_RE = re.compile(r"\[\s*(C\d{1,3})\s*\]", re.IGNORECASE)
+_BULLET_RE = re.compile(r"^\s*(?:[-*•–—]\s+|\d{1,2}[.)]\s+)")
+_HEADING_RE = re.compile(r"^[A-ZЎҚҒҲ'‘’ʻʼ \-]{3,40}:?$")
+# Gap chegarasi. Raqamdan keyingi nuqta ("0.84", "1.") bo'linmaydi —
+# yuridik matnda raqam va sana ko'p.
+_SENTENCE_SPLIT = re.compile(r"(?<![0-9])(?<=[.!?…])\s+")
+
+# Huquqiy da'vo alomatlari. Ro'yxat ataylab **tor**: noto'g'ri "huquqiy" deb
+# belgilash foydali gapni o'chiradi, noto'g'ri "umumiy" deb belgilash esa
+# iqtibossiz gapni qoldiradi. Ikkinchisi kamroq zarar — chunki bunday gapda
+# norma haqida hech narsa aytilmagan.
 _LEGAL_MARKERS = re.compile(
-    r"\b(modda|kodeks|qonun|norma|band|qism|farmon|qaror|nizom|"
-    r"javobgar|majbur|huquq|muddat|jarima|jazo|sud|shartnoma|"
-    r"taqiqla|ruxsat|belgila|nazarda tutil)",
-    re.IGNORECASE,
+    r"\b("
+    r"modda\w*|kodeks\w*|qonun\w*|farmon\w*|nizom\w*|plenum\w*|band\w*|qism\w*|"
+    r"norma\w*|qaror\w*|hujjat\w*|"
+    r"huquq\w*|majburiyat\w*|javobgar\w*|jarima\w*|sanksiya\w*|sanktsiya\w*|"
+    r"da'vo\w*|sud\w*|shartnoma\w*|mulk\w*|meros\w*|nafaqa\w*|soliq\w*|"
+    r"muddat\w*|ariza\w*|shikoyat\w*|apellyatsiya\w*|kassatsiya\w*|"
+    r"belgilan\w*|nazarda\s+tutil\w*|taqiqlan\w*|ruxsat\s+etil\w*|"
+    r"majbur\w*|haqli\w*|bekor\s+qilin\w*|amal\s+qilad\w*"
+    r")\b"
 )
 
-# Sarlavha satri — da'vo emas, struktura. Gate ularni tegmasdan o'tkazadi.
-_HEADING = re.compile(r"^[A-ZЎҚҒҲ'ʻʼ \-]{3,40}$")
 
-_CITE = re.compile(r"\[\s*(C\d{1,3})\s*\]", re.IGNORECASE)
-
-# Gap chegarasi. Qisqartmalardan keyin bo'linmaslik uchun raqamli nuqta
-# («1. Birinchi») hisobga olinadi.
-_SENTENCE = re.compile(r"(?<=[.!?])\s+(?=[A-ZЎҚҒҲ0-9])")
-
-# Ma'no tashimaydigan so'zlar — qoplama hisobida hisobga olinmaydi.
-# `fold()` qilingan shaklda yoziladi, chunki taqqoslash ham shu shaklda.
-_STOPWORDS = frozenset(
-    [
-        "va",
-        "yoki",
-        "ammo",
-        "lekin",
-        "bilan",
-        "uchun",
-        "ham",
-        "bu",
-        "shu",
-        "ular",
-        "biz",
-        "siz",
-        "men",
-        "bolgan",
-        "bolsa",
-        "boladi",
-        "qilish",
-        "qiladi",
-        "qilingan",
-        "kerak",
-        "mumkin",
-        "agar",
-        "shuning",
-        "yani",
-        "hamda",
-        "hisoblanadi",
-        "deb",
-        "ushbu",
-        "mazkur",
-        "har",
-        "bir",
-        "barcha",
-        "faqat",
-        "keyin",
-        "oldin",
-        "ichida",
-    ]
-)
-
-# Da'vo qo'llab-quvvatlangan deb hisoblanishi uchun kerakli leksik qoplama.
-# 0.25 past ko'rinadi, lekin ataylab: da'vo iqtibosni **qayta ifodalaydi**,
-# nusxa ko'chirmaydi — yuqori chegara to'g'ri da'volarni belgilab tashlardi.
-SUPPORT_THRESHOLD = 0.25
-
-MIN_CLAIM_CHARS = 12
-
-Verifier = Callable[[str, list[Citation]], bool]
+class ClaimKind(StrEnum):
+    LEGAL = "legal"
+    GENERAL = "general"
 
 
-def split_claims(text: str) -> list[str]:
-    """Javobni da'volarga ajratadi.
+class ClaimStatus(StrEnum):
+    KEPT = "kept"
+    FLAGGED = "flagged"
+    DROPPED = "dropped"
 
-    Ajratish satr va gap chegarasi bo'yicha. Sudya javobi strukturali
-    yoziladi (`Verdict.as_answer`), shuning uchun bir satr odatda bitta
-    da'vo bo'ladi — bu tekshiruvni aniqroq qiladi.
+
+class DropReason(StrEnum):
+    NO_CITATION = "iqtibossiz huquqiy da'vo"
+    UNKNOWN_CITATION = "iqtibos indeksda topilmadi"
+    UNSUPPORTED = "iqtibos matni da'voni qo'llab-quvvatlamaydi"
+
+
+class ClaimCheck(BaseModel):
+    """Bitta da'vo va u haqidagi qaror — trace ga to'liq yoziladi."""
+
+    text: str
+    kind: ClaimKind
+    status: ClaimStatus
+    tags: list[str] = Field(default_factory=list)
+    reason: DropReason | None = None
+
+    @property
+    def is_legal(self) -> bool:
+        return self.kind is ClaimKind.LEGAL
+
+
+class GateReport(BaseModel):
+    """Gate natijasi.
+
+    `answer` — foydalanuvchiga ketadigan matn. Boshqa hamma narsa audit
+    uchun: yuridik tizimda "nima uchun bu gap yo'q?" savoliga javob berish
+    kerak bo'ladi.
     """
-    claims: list[str] = []
-    for raw_line in text.splitlines():
+
+    answer: str
+    refused: bool = False
+    checks: list[ClaimCheck] = Field(default_factory=list)
+    citations: list[Citation] = Field(default_factory=list)
+
+    @property
+    def claims(self) -> int:
+        return len(self.checks)
+
+    @property
+    def kept(self) -> int:
+        return sum(1 for c in self.checks if c.status is not ClaimStatus.DROPPED)
+
+    @property
+    def dropped(self) -> int:
+        return sum(1 for c in self.checks if c.status is ClaimStatus.DROPPED)
+
+    @property
+    def flagged(self) -> int:
+        return sum(1 for c in self.checks if c.status is ClaimStatus.FLAGGED)
+
+    @property
+    def kept_legal(self) -> int:
+        return sum(1 for c in self.checks if c.is_legal and c.status is not ClaimStatus.DROPPED)
+
+    @property
+    def drop_reasons(self) -> list[str]:
+        seen: list[str] = []
+        for check in self.checks:
+            if check.reason and check.reason.value not in seen:
+                seen.append(check.reason.value)
+        return seen
+
+    def summary(self) -> dict[str, int]:
+        return {"claims": self.claims, "kept": self.kept, "dropped": self.dropped}
+
+
+# --------------------------------------------------------------------------- #
+# Da'volarga ajratish
+# --------------------------------------------------------------------------- #
+
+
+class Segment(BaseModel):
+    """Javobning bitta bo'lagi.
+
+    Sarlavha va bo'sh satr ham segment: ularsiz javobni asl tuzilishida
+    qayta yig'ib bo'lmaydi, gate esa tuzilishni o'zgartirmasligi kerak.
+    """
+
+    text: str
+    is_claim: bool
+    is_heading: bool = False
+    prefix: str = ""
+
+
+def split_claims(answer: str) -> list[Segment]:
+    """Javobni tekshiriladigan da'volarga ajratadi.
+
+    Ikki darajali: avval satr (ro'yxat elementi = bitta da'vo), keyin gap.
+    Yuridik javobda ro'yxat ustun shakl, shuning uchun satr chegarasi gap
+    chegarasidan ishonchliroq.
+    """
+    segments: list[Segment] = []
+    for raw_line in answer.splitlines():
         line = raw_line.strip()
         if not line:
+            segments.append(Segment(text="", is_claim=False))
             continue
-        if _HEADING.match(line.rstrip(":")):
-            claims.append(line)  # sarlavha — o'zgarishsiz o'tadi
+        if _HEADING_RE.match(line):
+            segments.append(Segment(text=line, is_claim=False, is_heading=True))
             continue
-        line = re.sub(r"^\s*(?:[-*•–—]|\d{1,2}[.)])\s+", "", line).strip()
-        for piece in _SENTENCE.split(line):
-            piece = piece.strip()
-            if piece:
-                claims.append(piece)
-    return claims
+
+        bullet = _BULLET_RE.match(line)
+        if bullet:
+            prefix = bullet.group(0)
+            body = line[bullet.end() :].strip()
+            segments.append(Segment(text=body, is_claim=bool(body), prefix=prefix))
+            continue
+
+        for sentence in _SENTENCE_SPLIT.split(line):
+            sentence = sentence.strip()
+            if sentence:
+                segments.append(Segment(text=sentence, is_claim=True))
+    return segments
 
 
-def is_heading(claim: str) -> bool:
-    return bool(_HEADING.match(claim.rstrip(":")))
+def is_legal_claim(text: str) -> bool:
+    """Da'vo huquqiymi — iqtibos majburiyati shunga bog'liq.
 
-
-def is_legal_claim(claim: str) -> bool:
-    """Da'vo huquqiy normaga tayanadimi.
-
-    Huquqiy bo'lsa iqtibos majburiy. Umumiy gap («Bu holatda ikki yo'l
-    bor») iqtibossiz ham qolishi mumkin — u norma haqida hech narsa
-    da'vo qilmaydi.
+    Iqtibos belgisining o'zi ham alomat: model normaga havola qilgan bo'lsa,
+    u huquqiy da'vo qilmoqda.
     """
-    return bool(_LEGAL_MARKERS.search(claim))
+    if _TAG_RE.search(text):
+        return True
+    return bool(_LEGAL_MARKERS.search(fold(text)))
 
 
-def cited_tags(claim: str) -> list[str]:
-    return [m.group(1).upper() for m in _CITE.finditer(claim)]
+def claim_tags(text: str) -> list[str]:
+    out: list[str] = []
+    for m in _TAG_RE.finditer(text):
+        tag = m.group(1).upper()
+        if tag not in out:
+            out.append(tag)
+    return out
 
 
-def _content_words(text: str) -> set[str]:
-    """Ma'no tashuvchi so'zlarning **o'zaklari**.
+# --------------------------------------------------------------------------- #
+# Iqtibos da'voni qo'llab-quvvatlaydimi
+# --------------------------------------------------------------------------- #
 
-    O'zaklashtirmasdan bo'lmaydi: o'zbek tili agglyutinativ va daʼvo
-    normani qayta ifodalaganda qo'shimchalar o'zgaradi.
 
-        daʼvo:  "…uch yillik muddat ichida qoʻzgʻatilishi kerak"
-        norma:  "Umumiy daʼvo muddati uch yil qilib belgilanadi"
+def support_score(claim: str, citation: Citation) -> float | None:
+    """Da'vo va iqtibos matni o'rtasidagi leksik qoplama (0…1).
 
-    `muddat` va `muddati`, `yil` va `yillik` — bir xil ma'no, lekin
-    harfma-harf boshqa. O'zaklashtirmasdan bu daʼvo «qo'llab-quvvatlanmagan»
-    deb belgilanardi, holbuki u aynan shu normadan kelib chiqadi.
+    Manba matni yo'q bo'lsa `None` — bu "qo'llab-quvvatlamaydi" degani emas,
+    "tekshirib bo'lmaydi" degani. Tekshirib bo'lmaydigan narsani jazolash
+    to'g'ri javoblarni ham o'chirardi.
     """
-    words = re.findall(r"[a-zʻʼ0-9]{4,}", fold(text))
-    return {simplify(w) for w in words if w not in _STOPWORDS}
+    source = " ".join(filter(None, [citation.excerpt, citation.doc_title, citation.article]))
+    if not source.strip():
+        return None
+    claim_words = content_words(claim)
+    if len(claim_words) < MIN_SUPPORT_WORDS:
+        return None
+    return len(claim_words & content_words(source)) / len(claim_words)
 
 
-def support_score(claim: str, citations: list[Citation]) -> float:
-    """Da'vodagi ma'noli so'zlarning iqtibos matnida uchrash ulushi.
+# --------------------------------------------------------------------------- #
+# Gate
+# --------------------------------------------------------------------------- #
 
-    Iqtibos matni bo'lmasa `1.0` qaytadi — bu bosqich matn mavjud
-    bo'lgandagina tekshiradi, aks holda barcha da'volarni sababsiz
-    belgilab tashlardi.
+
+def groundedness_gate(
+    answer: str,
+    citations: list[Citation],
+    *,
+    verify_support: bool = True,
+    support_threshold: float = SUPPORT_THRESHOLD,
+) -> GateReport:
+    """Javobni tekshiradi va **faqat olib tashlash** yo'li bilan tozalaydi.
+
+    Qadamlar docs/01 § 6 diagrammasi bilan bir xil tartibda:
+    da'volarga ajratish → iqtibos bormi → iqtibos haqiqiymi → matn
+    qo'llab-quvvatlaydimi → qayta yig'ish → huquqiy da'vo qoldimi.
     """
-    source = " ".join(c.excerpt or "" for c in citations).strip()
-    if not source:
-        return 1.0
-    claim_words = _content_words(claim)
-    if not claim_words:
-        return 1.0
-    return len(claim_words & _content_words(source)) / len(claim_words)
+    known = {c.tag.upper(): c for c in citations}
+    segments = split_claims(answer)
+    checks: list[ClaimCheck] = []
+    used: list[str] = []
+    kept_texts: list[str | None] = []
+
+    for segment in segments:
+        if not segment.is_claim:
+            kept_texts.append(None if segment.is_heading or not segment.text else segment.text)
+            continue
+
+        check = _check_claim(
+            segment.text,
+            known,
+            verify_support=verify_support,
+            support_threshold=support_threshold,
+        )
+        checks.append(check)
+
+        if check.status is ClaimStatus.DROPPED:
+            kept_texts.append(None)
+            continue
+
+        used.extend(t for t in check.tags if t in known and t not in used)
+        text = segment.text
+        if check.status is ClaimStatus.FLAGGED:
+            text = f"{text} [{UNCERTAIN_MARK}]"
+        kept_texts.append(segment.prefix + text)
+
+    report = GateReport(
+        answer="",
+        checks=checks,
+        citations=[known[t] for t in used],
+    )
+
+    if report.kept_legal == 0:
+        report.refused = True
+        report.answer = _refusal_text(citations)
+        report.citations = list(citations)
+        return report
+
+    report.answer = _reassemble(segments, kept_texts)
+    return report
 
 
-class GroundednessGate:
-    """Iqtibossiz huquqiy da'voni javobdan chiqaradi."""
+def _check_claim(
+    text: str,
+    known: dict[str, Citation],
+    *,
+    verify_support: bool,
+    support_threshold: float,
+) -> ClaimCheck:
+    tags = claim_tags(text)
+    kind = ClaimKind.LEGAL if is_legal_claim(text) else ClaimKind.GENERAL
 
-    def __init__(
-        self,
-        citations: list[Citation],
-        *,
-        threshold: float = SUPPORT_THRESHOLD,
-        verifier: Verifier | None = None,
-    ) -> None:
-        self.citations = citations
-        self.index = {c.tag.upper(): c for c in citations}
-        self.threshold = threshold
-        self.verifier = verifier
+    if not tags:
+        # Umumiy/mantiqiy da'vo iqtibossiz qoladi — docs/01 § 6 dagi KEEP1.
+        if kind is ClaimKind.GENERAL:
+            return ClaimCheck(text=text, kind=kind, status=ClaimStatus.KEPT)
+        return ClaimCheck(
+            text=text, kind=kind, status=ClaimStatus.DROPPED, reason=DropReason.NO_CITATION
+        )
 
-    # ------------------------------------------------------------------ #
+    resolved = [known[t] for t in tags if t in known]
+    if not resolved:
+        # Yolg'on iqtibos: model belgini o'ylab topgan. Bu eng xavfli holat —
+        # javob **ishonchliroq** ko'rinadi, lekin manba yo'q.
+        return ClaimCheck(
+            text=text,
+            kind=kind,
+            status=ClaimStatus.DROPPED,
+            tags=tags,
+            reason=DropReason.UNKNOWN_CITATION,
+        )
 
-    def check(self, answer: str) -> tuple[str, GateReport]:
-        """`(tozalangan_javob, hisobot)`.
+    if verify_support and kind is ClaimKind.LEGAL:
+        scores = [s for s in (support_score(text, c) for c in resolved) if s is not None]
+        if scores and max(scores) < support_threshold:
+            return ClaimCheck(
+                text=text,
+                kind=kind,
+                status=ClaimStatus.FLAGGED,
+                tags=tags,
+                reason=DropReason.UNSUPPORTED,
+            )
 
-        Javob qayta yig'iladi: o'chirilgan da'volar tushib qoladi,
-        «noaniq» belgilanganlar esa ⚠ bilan qoladi. Hech qanday yangi
-        matn qo'shilmaydi.
-        """
-        report = GateReport()
-        kept_lines: list[str] = []
-
-        for claim in split_claims(answer):
-            if is_heading(claim):
-                kept_lines.append(claim)
-                continue
-            if len(claim) < MIN_CLAIM_CHARS:
-                kept_lines.append(claim)
-                continue
-
-            verdict, rendered = self._judge(claim)
-            if verdict == "drop":
-                report.dropped.append(claim)
-                continue
-            if verdict == "flag":
-                report.flagged.append(claim)
-            else:
-                report.kept.append(claim)
-            kept_lines.append(rendered)
-
-        report.citations = self._used(report.kept + report.flagged)
-        return self._reassemble(kept_lines), report
-
-    # ------------------------------------------------------------------ #
-
-    def _judge(self, claim: str) -> tuple[str, str]:
-        tags = cited_tags(claim)
-        resolved = [self.index[t] for t in tags if t in self.index]
-        unknown = [t for t in tags if t not in self.index]
-
-        # 1-bosqich: iqtibos yo'q
-        if not tags:
-            if is_legal_claim(claim):
-                log.debug("Gate o'chirdi (iqtibossiz huquqiy da'vo): %s", claim[:70])
-                return "drop", claim
-            return "keep", claim
-
-        # 2-bosqich: o'ylab topilgan belgi. Belgilarning **hammasi**
-        # noto'g'ri bo'lsa da'voning asosi yo'q — o'chiriladi. Bir qismi
-        # to'g'ri bo'lsa yolg'on belgi olib tashlanadi va da'vo qoladi.
-        if unknown and not resolved:
-            log.debug("Gate o'chirdi (mavjud bo'lmagan iqtibos %s): %s", unknown, claim[:70])
-            return "drop", claim
-        cleaned = claim
-        for tag in unknown:
-            cleaned = re.sub(rf"\[\s*{tag}\s*\]", "", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
-
-        # 3-bosqich: iqtibos da'voni qo'llab-quvvatlaydimi
-        if self.verifier is not None:
-            supported = self.verifier(cleaned, resolved)
-        else:
-            supported = support_score(cleaned, resolved) >= self.threshold
-        if not supported:
-            return "flag", f"⚠ {cleaned}"
-        return "keep", cleaned
-
-    def _used(self, claims: list[str]) -> list[Citation]:
-        """Yakuniy javobda haqiqatan qolgan iqtiboslar.
-
-        Bu muhim: javobdan da'vo o'chirilsa, uning manbasi ham manbalar
-        ro'yxatidan tushishi kerak — aks holda foydalanuvchi javobda
-        ishlatilmagan normani ko'radi.
-        """
-        used: list[Citation] = []
-        seen: set[str] = set()
-        for claim in claims:
-            for tag in cited_tags(claim):
-                citation = self.index.get(tag)
-                if citation is not None and tag not in seen:
-                    seen.add(tag)
-                    used.append(citation)
-        return used
-
-    @staticmethod
-    def _reassemble(lines: list[str]) -> str:
-        """Satrlarni qayta yig'adi, bo'sh sarlavhalarni tashlaydi."""
-        out: list[str] = []
-        for i, line in enumerate(lines):
-            if is_heading(line.rstrip(":")):
-                following = lines[i + 1 :]
-                nxt = next((x for x in following if x.strip()), None)
-                if nxt is None or is_heading(nxt.rstrip(":")):
-                    continue  # sarlavha ostidagi hamma da'vo o'chirilgan
-                if out:
-                    out.append("")
-            out.append(line)
-        return "\n".join(out).strip()
+    return ClaimCheck(text=text, kind=kind, status=ClaimStatus.KEPT, tags=tags)
 
 
-REFUSAL = (
-    "Ishonchli javob shakllantirilmadi.\n\n"
-    "Topilgan manbalar savolga to'g'ridan-to'g'ri javob bermadi yoki "
-    "javobdagi da'volar manbaga bog'lanmadi. Quyidagi normalar ko'rib "
-    "chiqildi — ular bilan tanishib chiqishingiz mumkin."
-)
+def _reassemble(segments: list[Segment], kept: list[str | None]) -> str:
+    """Qolgan segmentlardan javobni asl tartibda yig'adi.
+
+    Bo'shab qolgan sarlavha ham olib tashlanadi: "ASOSLAR" sarlavhasi ostida
+    hech narsa qolmasa, u foydalanuvchini chalg'itadi.
+    """
+    lines: list[str] = []
+    for i, segment in enumerate(segments):
+        if segment.is_heading:
+            if _has_content_after(segments, kept, i):
+                lines.append(segment.text)
+            continue
+        if not segment.is_claim:
+            if segment.text:
+                lines.append(segment.text)
+            elif lines and lines[-1] != "":
+                lines.append("")
+            continue
+        if kept[i] is not None:
+            lines.append(kept[i] or "")
+
+    while lines and not lines[-1]:
+        lines.pop()
+    return "\n".join(lines).strip()
+
+
+def _has_content_after(segments: list[Segment], kept: list[str | None], start: int) -> bool:
+    for i in range(start + 1, len(segments)):
+        if segments[i].is_heading:
+            return False
+        if segments[i].is_claim and kept[i] is not None:
+            return True
+    return False
+
+
+def _refusal_text(citations: list[Citation]) -> str:
+    """Rad javobi — doimiy shablon va topilgan manbalar ro'yxati.
+
+    Bu yerda ham generatsiya yo'q: manba nomlari indeksdan kelgan, matn esa
+    o'zgarmas. Foydalanuvchi javob olmaydi, lekin qayerga qarashni biladi.
+    """
+    lines = [REFUSAL, "", REFUSAL_NOTE]
+    if citations:
+        lines += ["", "Topilgan manbalar:"]
+        lines += [
+            f"- [{c.tag}] {c.doc_title or c.doc_id}"
+            + (f", {c.article}-modda" if c.article else "")
+            + (f" — {c.url}" if c.url else "")
+            for c in citations
+        ]
+    return "\n".join(lines)

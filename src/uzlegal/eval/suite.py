@@ -47,8 +47,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from uzlegal.core import ConsultResult
 from uzlegal.eval.bench import normalize, score_language
-from uzlegal.types import ConsultResult
 
 log = logging.getLogger(__name__)
 
@@ -209,6 +209,23 @@ def is_refusal(answer: str) -> bool:
     return any(normalize(marker) in norm for marker in REFUSAL_MARKERS)
 
 
+def _gate_counts(result: ConsultResult) -> dict[str, int]:
+    """Gate statistikasi izdan olinadi.
+
+    `ConsultResult` da gate tafsiloti yo'q — u ataylab qisqa. Iz
+    so'ralgan bo'lsa (`trace=True`) undan o'qiladi, aks holda nollar.
+    """
+    if result.trace is None:
+        return {"gate_dropped": 0, "gate_kept": 0}
+    for step in result.trace.steps:
+        if step.node == "gate":
+            return {
+                "gate_dropped": int(step.detail.get("dropped", 0) or 0),
+                "gate_kept": int(step.detail.get("kept", 0) or 0),
+            }
+    return {"gate_dropped": 0, "gate_kept": 0}
+
+
 def check(case: SuiteCase, result: ConsultResult, latency: float) -> CaseOutcome:
     answer = result.answer
     norm = normalize(answer)
@@ -218,9 +235,10 @@ def check(case: SuiteCase, result: ConsultResult, latency: float) -> CaseOutcome
         answer=answer,
         latency_s=latency,
         cited_articles=[c.article for c in result.citations if c.article],
-        gate_dropped=len(result.gate.dropped),
-        gate_kept=len(result.gate.kept) + len(result.gate.flagged),
     )
+    counts = _gate_counts(result)
+    outcome.gate_dropped = counts["gate_dropped"]
+    outcome.gate_kept = counts["gate_kept"]
     outcome.lang_score = score_language(answer)[0]
 
     # Rad etish kutilgan holat — bu tuzoq to'plamining asosiy o'lchovi
@@ -291,13 +309,13 @@ def run_suite(
             result = consult(case.question, mode=case.mode or default_mode)
         except Exception as exc:
             log.warning("[%s] bajarilmadi: %s", case.id, exc)
-            result = ConsultResult(question=case.question, answer="")
+            result = ConsultResult(trace_id="", answer="")
             outcome = check(case, result, time.time() - t0)
             outcome.failures.append(f"xato: {exc}")
             outcome.passed_expect = False
         else:
-            model = model or result.model
-            kb_version = kb_version or result.kb_version
+            model = model or result.model_version
+            kb_version = kb_version or (result.kb_version or None)
             outcome = check(case, result, time.time() - t0)
             outcome.retrieved_articles = [c.article for c in result.citations if c.article]
 

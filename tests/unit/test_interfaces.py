@@ -1,7 +1,7 @@
 """Interfeys qatlami testlari — REST, SSE, Telegram, MCP, SDK.
 
-Beshta interfeys bitta `consult()` ni chaqiradi. Bu testlarning maqsadi
-shu qoidani qo'riqlash: agar interfeyslardan biri o'z mantiqini
+Beshta interfeys bitta `core.consult()` ni chaqiradi. Bu testlarning
+maqsadi shu qoidani qo'riqlash: agar interfeyslardan biri o'z mantiqini
 qo'shsa, javoblar bir-biridan farq qila boshlaydi va foydalanuvchi
 qaysi kanal orqali so'raganiga qarab boshqa javob oladi.
 """
@@ -13,7 +13,9 @@ from typing import Any
 
 import pytest
 
-from uzlegal.types import Citation, ConsultMode, ConsultResult, GateReport, TraceEvent
+from uzlegal.core import ConsultRequest, ConsultResult
+from uzlegal.orchestrator.trace import Trace, TraceEvent
+from uzlegal.types import Citation
 
 # --------------------------------------------------------------------------- #
 # Soxta natija
@@ -22,10 +24,12 @@ from uzlegal.types import Citation, ConsultMode, ConsultResult, GateReport, Trac
 
 def fake_result(**kwargs: Any) -> ConsultResult:
     defaults: dict[str, Any] = {
-        "question": "Daʼvo muddati qancha",
-        "mode": ConsultMode.SIMPLE,
+        "trace_id": "cns_test",
         "answer": "Daʼvo muddati uch yil [C1]",
         "confidence": 0.8,
+        "mode_used": "simple",
+        "latency_ms": 4200,
+        "kb_version": "v2026.08.01",
         "citations": [
             Citation(
                 tag="C1",
@@ -35,24 +39,25 @@ def fake_result(**kwargs: Any) -> ConsultResult:
                 url="https://lex.uz/docs/fk#150",
             )
         ],
-        "trace": [TraceEvent(node="retrieve", ms=120, detail={"chunks": 3})],
-        "total_ms": 4200,
+        "trace": Trace(
+            trace_id="cns_test",
+            steps=[
+                TraceEvent(node="retrieve", ms=120, detail={"chunks": 3}),
+                TraceEvent(node="jurist", ms=900),
+            ],
+        ),
     }
     return ConsultResult(**{**defaults, **kwargs})
 
 
 @pytest.fixture
-def patched_consult(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
-    """`core.consult` ni almashtiradi va chaqiruvlarni yozib boradi."""
-    calls: list[dict[str, Any]] = []
+def patched_consult(monkeypatch: pytest.MonkeyPatch) -> list[ConsultRequest]:
+    """`core.consult` ni almashtiradi va so'rovlarni yozib boradi."""
+    calls: list[ConsultRequest] = []
 
-    def fake(question: str, **kwargs: Any) -> ConsultResult:
-        calls.append({"question": question, **kwargs})
-        observe = kwargs.get("observe")
-        if observe is not None:
-            observe(TraceEvent(node="retrieve", ms=1))
-            observe(TraceEvent(node="jurist", ms=2))
-        return fake_result(question=question)
+    def fake(request: ConsultRequest, **kwargs: Any) -> ConsultResult:
+        calls.append(request)
+        return fake_result()
 
     import uzlegal.core
 
@@ -74,44 +79,42 @@ def client() -> Any:
     return TestClient(app)
 
 
-def test_consult_endpoint_natijani_qaytaradi(client: Any, patched_consult: list[Any]) -> None:
+def test_consult_endpoint_natijani_qaytaradi(
+    client: Any, patched_consult: list[ConsultRequest]
+) -> None:
     response = client.post("/v1/consult", json={"question": "Daʼvo muddati qancha"})
     assert response.status_code == 200
     body = response.json()
     assert body["answer"] == "Daʼvo muddati uch yil [C1]"
     assert body["citations"][0]["tag"] == "C1"
-    assert "gate" in body and "trace" in body
+    assert body["disclaimer"], "javobda ogohlantirish har doim bo'lishi kerak"
 
 
-def test_bosh_savol_422(client: Any) -> None:
-    assert client.post("/v1/consult", json={"question": ""}).status_code == 422
+def test_juda_qisqa_savol_422(client: Any) -> None:
+    assert client.post("/v1/consult", json={"question": "a"}).status_code == 422
 
 
-def test_notogri_sana_400(client: Any, patched_consult: list[Any]) -> None:
-    response = client.post("/v1/consult", json={"question": "savol", "as_of": "kecha"})
-    assert response.status_code == 400
-    assert "as_of" in response.json()["detail"]
+def test_notogri_sana_422(client: Any) -> None:
+    """`as_of` — sana turi; noto'g'ri qiymat shartnoma darajasida tutiladi."""
+    response = client.post("/v1/consult", json={"question": "savol berish", "as_of": "kecha"})
+    assert response.status_code == 422
 
 
-def test_parametrlar_uzatiladi(client: Any, patched_consult: list[Any]) -> None:
+def test_parametrlar_uzatiladi(client: Any, patched_consult: list[ConsultRequest]) -> None:
     client.post(
         "/v1/consult",
         json={
-            "question": "savol",
+            "question": "Meni ishdan boʻshatishdi, nima qilay",
             "mode": "complex",
             "as_of": "2021-06-01",
             "client_position": "Meni ishdan boʻshatishdi",
-            "top_k": 5,
+            "agents": ["jurist", "judge"],
         },
     )
-    call = patched_consult[0]
-    assert call["mode"] == "complex"
-    assert call["as_of"].isoformat() == "2021-06-01"
-    assert call["top_k"] == 5
-
-
-def test_top_k_chegarasi(client: Any) -> None:
-    assert client.post("/v1/consult", json={"question": "s", "top_k": 99}).status_code == 422
+    request = patched_consult[0]
+    assert request.mode == "complex"
+    assert request.as_of is not None and request.as_of.isoformat() == "2021-06-01"
+    assert request.agents == ["jurist", "judge"]
 
 
 def test_agents_endpoint(client: Any) -> None:
@@ -145,20 +148,25 @@ def _sse_events(text: str) -> list[tuple[str, Any]]:
     return events
 
 
-def test_sse_bosqichlarni_yuboradi(client: Any, patched_consult: list[Any]) -> None:
-    response = client.post("/v1/consult/stream", json={"question": "savol"})
+def test_sse_bosqichlarni_yuboradi(client: Any, patched_consult: list[ConsultRequest]) -> None:
+    response = client.post("/v1/consult/stream", json={"question": "Daʼvo muddati qancha"})
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
 
-    events = _sse_events(response.text)
-    names = [name for name, _ in events]
-    assert names[:2] == ["step", "step"], "har bosqich alohida hodisa bo'lishi kerak"
+    names = [name for name, _ in _sse_events(response.text)]
+    assert names.count("step") == 2, "har bosqich alohida hodisa bo'lishi kerak"
     assert names[-2:] == ["answer", "done"]
 
 
-def test_sse_javobni_bir_marta_yuboradi(client: Any, patched_consult: list[Any]) -> None:
+def test_sse_izni_soraydi(client: Any, patched_consult: list[ConsultRequest]) -> None:
+    """Bosqichlar izdan o'qiladi — oqim uni majburan yoqishi kerak."""
+    client.post("/v1/consult/stream", json={"question": "Daʼvo muddati qancha"})
+    assert patched_consult[0].trace is True
+
+
+def test_sse_javobni_bir_marta_yuboradi(client: Any, patched_consult: list[ConsultRequest]) -> None:
     """Javob bo'lak-bo'lak ketmaydi — gate uni to'liq matn ustida tekshiradi."""
-    events = _sse_events(client.post("/v1/consult/stream", json={"question": "s"}).text)
+    events = _sse_events(client.post("/v1/consult/stream", json={"question": "savol berish"}).text)
     answers = [payload for name, payload in events if name == "answer"]
     assert len(answers) == 1
     assert answers[0]["answer"] == "Daʼvo muddati uch yil [C1]"
@@ -167,11 +175,11 @@ def test_sse_javobni_bir_marta_yuboradi(client: Any, patched_consult: list[Any])
 def test_sse_xatoni_oqimga_chiqaradi(client: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     import uzlegal.core
 
-    def boom(question: str, **kwargs: Any) -> ConsultResult:
+    def boom(request: ConsultRequest, **kwargs: Any) -> ConsultResult:
         raise RuntimeError("indeks yoʻq")
 
     monkeypatch.setattr(uzlegal.core, "consult", boom)
-    events = _sse_events(client.post("/v1/consult/stream", json={"question": "s"}).text)
+    events = _sse_events(client.post("/v1/consult/stream", json={"question": "savol berish"}).text)
     assert ("error", {"detail": "indeks yoʻq", "status": 500}) in events
 
 
@@ -199,7 +207,7 @@ def make_bot(consult: Any = None) -> tuple[Any, FakeTelegram]:
     fake = FakeTelegram()
     bot = TelegramBot(
         TelegramSettings(bot_token="test-token", chat_id="1"),
-        consult=consult or (lambda q, **kw: fake_result(question=q)),
+        consult=consult or (lambda q, **kw: fake_result()),
         client=fake,  # type: ignore[arg-type]
     )
     return bot, fake
@@ -218,11 +226,25 @@ def test_bot_savolga_javob_beradi() -> None:
     assert "lex.uz" in body, "iqtibos havolasi bo'lishi kerak"
 
 
+def test_bot_disclaimer_qoshadi() -> None:
+    bot, fake = make_bot()
+    bot.handle(message("Daʼvo muddati qancha"))
+    assert "yuridik maslahat" in fake.sent[-1]["text"].lower()
+
+
 def test_bot_tez_buyrugi_simple_rejim() -> None:
     seen: list[Any] = []
-    bot, _ = make_bot(lambda q, **kw: seen.append(kw.get("mode")) or fake_result(question=q))
+    bot, _ = make_bot(lambda q, **kw: seen.append(kw.get("mode")) or fake_result())
     bot.handle(message("/tez Daʼvo muddati"))
     assert seen == ["simple"]
+
+
+def test_bot_oddiy_savol_buyruq_emas() -> None:
+    """`/` siz matn har doim savol — «savol …» deb boshlangan xabar ham."""
+    seen: list[str] = []
+    bot, _ = make_bot(lambda q, **kw: seen.append(q) or fake_result())
+    bot.handle(message("savol berish tartibi qanday"))
+    assert seen == ["savol berish tartibi qanday"]
 
 
 def test_bot_ruxsatsiz_chatga_javob_bermaydi() -> None:
@@ -250,8 +272,14 @@ def test_bot_xatoni_koresatadi() -> None:
         raise RuntimeError("model yoʻq")
 
     bot, fake = make_bot(boom)
-    bot.handle(message("savol"))
+    bot.handle(message("savol berish"))
     assert "model yoʻq" in fake.sent[-1]["text"]
+
+
+def test_eslatmalar_botda_korinadi() -> None:
+    bot, fake = make_bot(lambda q, **kw: fake_result(caveats=["2 ta daʼvo javobdan chiqarildi"]))
+    bot.handle(message("savol berish"))
+    assert "chiqarildi" in fake.sent[-1]["text"]
 
 
 def test_uzun_xabar_bolinadi() -> None:
@@ -268,14 +296,6 @@ def test_token_yoq_bolsa_aniq_xato() -> None:
 
     with pytest.raises(TelegramError, match="UZLEGAL_TELEGRAM_BOT_TOKEN"):
         TelegramBot(TelegramSettings())
-
-
-def test_gate_ochirgani_botda_korinadi() -> None:
-    bot, fake = make_bot(
-        lambda q, **kw: fake_result(gate=GateReport(kept=["a"], dropped=["b", "c"]))
-    )
-    bot.handle(message("savol"))
-    assert "2 daʼvo oʻchirildi" in fake.sent[-1]["text"]
 
 
 # --------------------------------------------------------------------------- #
@@ -325,25 +345,25 @@ def test_mcp_notanish_vosita_natija_sifatida_xato() -> None:
     assert "yoq_vosita" in result["content"][0]["text"]
 
 
-def test_mcp_consult_vositasi(monkeypatch: pytest.MonkeyPatch) -> None:
-    import uzlegal.core
-
-    monkeypatch.setattr(uzlegal.core, "consult", lambda q, **kw: fake_result(question=q))
-    text = rpc("tools/call", name="uzlegal_consult", arguments={"question": "savol"})["result"][
-        "content"
-    ][0]["text"]
+def test_mcp_consult_vositasi(patched_consult: list[ConsultRequest]) -> None:
+    text = rpc("tools/call", name="uzlegal_consult", arguments={"question": "savol berish"})[
+        "result"
+    ]["content"][0]["text"]
     assert "uch yil" in text
     assert "150-modda" in text
+    assert "yuridik maslahat" in text.lower()
 
 
 def test_mcp_vosita_xatosi_tutiladi(monkeypatch: pytest.MonkeyPatch) -> None:
     import uzlegal.core
 
-    def boom(q: str, **kw: Any) -> ConsultResult:
+    def boom(request: ConsultRequest, **kwargs: Any) -> ConsultResult:
         raise RuntimeError("indeks yoʻq")
 
     monkeypatch.setattr(uzlegal.core, "consult", boom)
-    result = rpc("tools/call", name="uzlegal_consult", arguments={"question": "s"})["result"]
+    result = rpc("tools/call", name="uzlegal_consult", arguments={"question": "savol berish"})[
+        "result"
+    ]
     assert result["isError"] is True
     assert "indeks yoʻq" in result["content"][0]["text"]
 
@@ -353,7 +373,7 @@ def test_mcp_vosita_xatosi_tutiladi(monkeypatch: pytest.MonkeyPatch) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_sdk_ichki_rejim(patched_consult: list[Any]) -> None:
+def test_sdk_ichki_rejim(patched_consult: list[ConsultRequest]) -> None:
     from uzlegal.sdk import UzLegal
 
     assert UzLegal().ask("Daʼvo muddati qancha") == "Daʼvo muddati uch yil [C1]"
@@ -374,7 +394,7 @@ def test_sdk_masofaviy_rejim_http_chaqiradi() -> None:
 
     uz = UzLegal(base_url="http://localhost:8080/")
     uz._client = FakeClient()
-    result = uz.consult("savol", mode=ConsultMode.COMPLEX)
+    result = uz.consult("Daʼvo muddati qancha", mode="complex")
 
     assert captured["url"] == "http://localhost:8080/v1/consult"
     assert captured["json"]["mode"] == "complex"
@@ -387,15 +407,13 @@ def test_sdk_http_xatosi_aniq_xabar() -> None:
     class FakeClient:
         def post(self, url: str, json: dict[str, Any]) -> Any:
             return type(
-                "R",
-                (),
-                {"status_code": 409, "json": lambda self: {"detail": "model yoʻq"}},
+                "R", (), {"status_code": 409, "json": lambda self: {"detail": "model yoʻq"}}
             )()
 
     uz = UzLegal(base_url="http://localhost:8080")
     uz._client = FakeClient()
     with pytest.raises(UzLegalError, match="model yoʻq"):
-        uz.consult("savol")
+        uz.consult("Daʼvo muddati qancha")
 
 
 def test_sdk_search_masofaviy_rejimda_yoq() -> None:
@@ -405,8 +423,9 @@ def test_sdk_search_masofaviy_rejimda_yoq() -> None:
         UzLegal(base_url="http://x").search("savol")
 
 
-def test_sdk_sana_satri_qabul_qilinadi(patched_consult: list[Any]) -> None:
+def test_sdk_sana_satri_qabul_qilinadi(patched_consult: list[ConsultRequest]) -> None:
     from uzlegal.sdk import UzLegal
 
-    UzLegal().consult("savol", as_of="2021-06-01")
-    assert patched_consult[0]["as_of"].isoformat() == "2021-06-01"
+    UzLegal().consult("Daʼvo muddati qancha", as_of="2021-06-01")
+    request = patched_consult[0]
+    assert request.as_of is not None and request.as_of.isoformat() == "2021-06-01"

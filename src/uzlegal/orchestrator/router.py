@@ -1,83 +1,148 @@
-"""Murakkablik yo'naltiruvchisi — qancha agent ishlashini hal qiladi.
+"""Murakkablik routeri — docs/01 § 3.
 
-## Nima uchun kerak
+## Nima uchun router kerak
 
-Ko'p-agentli munozara murakkab nizoli savollarda javob sifatini sezilarli
-oshiradi, **oddiy faktik savollarda esa farq bermaydi** (docs/06 § 1).
-Farq bermaydigan joyda beshta agent ishlatish — 60 soniyani 5 soniyalik
-javobga sarflash demakdir.
+To'liq debate ~45 s va ~8k token. "MMT stavkasi qancha?" savoliga bu isrof:
+o'lchovlar bo'yicha oddiy faktik savolda ko'p-agentli javob bitta agent
+javobidan **yaxshi emas** (docs/06 § 1). Router shu isrofni oldini oladi.
 
-Shuning uchun router: savol shakli rejimni tanlaydi.
+| Daraja | Oqim | Kechikish |
+|--------|------|-----------|
+| `simple` | jurist → gate | ~5 s |
+| `standard` | jurist → professor → judge | ~20 s |
+| `complex` | to'liq debate | ~45 s |
 
-| Rejim | Savol turi | Zanjir | Vaqt |
-|-------|-----------|--------|------|
-| `simple` | "MMT stavkasi qancha" | RAG → jurist → gate | ~5 s |
-| `standard` | "Sinov muddati qanday belgilanadi" | + professor | ~20 s |
-| `complex` | "Kim haq: ish beruvchimi yoki xodimmi" | to'liq munozara | ~60 s |
+## Nima uchun qoidalar, model emas
 
-Router **evristik** va u xato qilishi mumkin. Shuning uchun rejimni
-foydalanuvchi ham, API ham ochiq belgilashi mumkin — router faqat
-standart qiymat beradi.
+Klassifikator model bu yerda ikki marta yutqazadi: u ham vaqt oladi (tejash
+kerak bo'lgan narsani sarflaydi), ham tushuntirib bo'lmaydigan bo'ladi.
+Qoidalar esa trace da ko'rinadi — foydalanuvchi nima uchun "complex" rejim
+tanlanganini o'qiy oladi. Noaniq holatda **yuqoriroq** daraja tanlanadi:
+ortiqcha tahlil qilish yetarli tahlil qilmaslikdan arzonroq.
 """
 
 from __future__ import annotations
 
 import re
+from enum import StrEnum
 
-from uzlegal.types import ConsultMode
+from pydantic import BaseModel, Field
 
-# Nizo belgilari: savol ikki tomonli va tortishuvli.
+from uzlegal.ingest.normalize import fold
+
+
+class Mode(StrEnum):
+    SIMPLE = "simple"
+    STANDARD = "standard"
+    COMPLEX = "complex"
+
+
+# Har rejimda ishtirok etuvchi rollar — docs/01 § 3 jadvali
+ROLES_BY_MODE: dict[Mode, list[str]] = {
+    Mode.SIMPLE: ["jurist"],
+    Mode.STANDARD: ["jurist", "professor", "judge"],
+    Mode.COMPLEX: ["jurist", "advocate", "prosecutor", "professor", "judge"],
+}
+
+# Nizo alomatlari — ikki tomon va tortishuv bor
 _DISPUTE = re.compile(
-    r"\b(kim\s+haq|haqlimi|haqmi|nizo|da[ʼ']?vo\s+qil|sudga\s+ber|"
-    r"javobgar\w*mi|aybdor|qarshi|talab\s+qilishi\s+mumkinmi|"
-    r"himoya\s+qil|e[ʼ']tiroz|shikoyat\s+qil|bekor\s+qildir)",
-    re.IGNORECASE,
+    r"\b(kim\s+haq|kimning\s+haqqi|nizo\w*|tortishuv\w*|da'vo\s+qil\w*|"
+    r"sudga\s+beri\w*|qarshi\s+tomon|mijozim|mening\s+mijoz\w*|"
+    r"talab\s+qilmoqda|ayblamoqda|e'tiroz\w*|shikoyat\s+qil\w*|"
+    r"himoya\s+qil\w*|yutish\s+imkoniyat\w*|istiqbol\w*)\b"
 )
 
-# Tahlil belgilari: bitta javob yo'q, shart-sharoit bor.
+# Tahlil alomatlari — bir tomonlama baho so'ralmoqda
 _ANALYTICAL = re.compile(
-    r"\b(mumkinmi|bo[ʻ']?ladimi|haqiqiymi|qanday\s+himoya|oqibat|"
-    r"qaysi\s+holatda|shartlari|asoslari|farqi|qanday\s+hisoblanadi|"
-    r"nima\s+qilish\s+kerak)",
-    re.IGNORECASE,
+    r"\b(mumkinmi|bo'ladimi|haqlimi|haqiqiymi|qonuniymi|javobgar\w*mi|"
+    r"qanday\s+himoya|qanday\s+asoslan\w*|oqibat\w*|xavf\w*|risk\w*|"
+    r"tahlil\s+qil\w*|baholang|qaysi\s+norma|kolliziya\w*|"
+    r"nima\s+qilish\s+kerak|qanday\s+yo'l\s+tut\w*)\b"
 )
 
-# Faktik belgilar: bitta aniq javob bor.
+# Faktik so'rov alomatlari — bitta aniq javob kutilmoqda
 _FACTUAL = re.compile(
-    r"\b(qancha|nechta|necha\s+kun|necha\s+yil|stavka|miqdor|muddati\s+qancha|"
-    r"qachon|kim\s+belgilaydi|nima\s+deb\s+ataladi)",
-    re.IGNORECASE,
+    r"\b(qancha|necha|qachon|kim\s+tasdiqla\w*|qaysi\s+modda|"
+    r"stavka\w*|miqdor\w*|muddati\s+qancha|ta'rif\w*|nima\s+deydi|"
+    r"nima\s+degani|matni?ni\s+ber)\b"
 )
 
-# Mijoz o'z holatini bayon qilgan bo'lsa savol deyarli har doim nizoli.
-CLIENT_POSITION_BUMP = True
+# Uzun bayon — odatda ish holati tasvirlangan, ya'ni nizo
+LONG_QUESTION_WORDS = 60
+MEDIUM_QUESTION_WORDS = 25
 
 
-def route(question: str, *, client_position: str | None = None) -> ConsultMode:
-    """Savol uchun standart rejim.
+class RouteDecision(BaseModel):
+    """Router qarori va uning sababi — trace ga yoziladi.
 
-    Tartib muhim: nizo belgisi eng kuchli signal — u faktik belgi bilan
-    birga kelsa ham («Ishdan bo'shatilganda necha oylik to'lanadi va men
-    sudga bera olamanmi») munozara kerak.
+    Sabab matni majburiy: foydalanuvchi "nima uchun bu savolga 45 soniya
+    sarflandi?" deb so'rashi mumkin va javob bo'lishi kerak.
     """
-    if client_position and CLIENT_POSITION_BUMP:
-        return ConsultMode.COMPLEX
-    if _DISPUTE.search(question):
-        return ConsultMode.COMPLEX
-    if _ANALYTICAL.search(question):
-        return ConsultMode.STANDARD
-    if _FACTUAL.search(question):
-        return ConsultMode.SIMPLE
-    # Noaniq savol — o'rtacha yo'l. `simple` tanlash arzon, lekin savol
-    # aslida murakkab bo'lsa javob yuzaki chiqadi; `complex` esa oddiy
-    # savolga bir daqiqa sarflaydi. `standard` ikkalasidan xavfsizroq.
-    return ConsultMode.STANDARD
+
+    mode: Mode
+    reason: str
+    forced: bool = False
+    signals: list[str] = Field(default_factory=list)
+
+    @property
+    def roles(self) -> list[str]:
+        return ROLES_BY_MODE[self.mode]
 
 
-def roles_for(mode: ConsultMode) -> list[str]:
-    """Rejimda ishtirok etadigan rollar — trace va UI uchun."""
-    if mode is ConsultMode.SIMPLE:
-        return ["jurist"]
-    if mode is ConsultMode.STANDARD:
-        return ["jurist", "professor", "judge"]
-    return ["jurist", "advocate", "prosecutor", "professor", "judge"]
+def route(
+    question: str, *, forced: str | None = None, has_client_position: bool = False
+) -> RouteDecision:
+    """Savolni uch darajadan biriga joylaydi.
+
+    `forced` — foydalanuvchi `--mode` bilan majburlagan qiymat; `auto` yoki
+    `None` bo'lsa qoidalar ishlaydi. Foydalanuvchi tanlovi har doim ustun:
+    u o'z savolini bizdan yaxshiroq biladi.
+    """
+    if forced and forced != "auto":
+        mode = Mode(forced)
+        return RouteDecision(mode=mode, reason="foydalanuvchi majburladi", forced=True)
+
+    text = fold(question)
+    words = len(text.split())
+    signals: list[str] = []
+
+    if _DISPUTE.search(text):
+        signals.append("nizo alomati")
+    if has_client_position:
+        signals.append("mijoz pozitsiyasi berilgan")
+    if words >= LONG_QUESTION_WORDS:
+        signals.append(f"uzun bayon ({words} so'z)")
+    if _ANALYTICAL.search(text):
+        signals.append("tahliliy savol")
+    if _FACTUAL.search(text):
+        signals.append("faktik so'rov")
+
+    # Nizo — eng kuchli signal: ikki tomon bo'lsa, ularni tortishtirish kerak.
+    if _DISPUTE.search(text) or has_client_position or words >= LONG_QUESTION_WORDS:
+        return RouteDecision(
+            mode=Mode.COMPLEX,
+            reason="savolda qarama-qarshi manfaatlar ko'rinadi — to'liq debate",
+            signals=signals,
+        )
+
+    if _ANALYTICAL.search(text) or words >= MEDIUM_QUESTION_WORDS:
+        return RouteDecision(
+            mode=Mode.STANDARD,
+            reason="bir tomonlama huquqiy tahlil talab qilinadi",
+            signals=signals,
+        )
+
+    if _FACTUAL.search(text):
+        return RouteDecision(
+            mode=Mode.SIMPLE,
+            reason="faktik so'rov — bitta agent yetarli",
+            signals=signals,
+        )
+
+    # Noaniq holat: yuqoriroq daraja. Ortiqcha tahlil qilish yetarli tahlil
+    # qilmaslikdan arzonroq — ikkinchisi noto'g'ri javob demakdir.
+    return RouteDecision(
+        mode=Mode.STANDARD,
+        reason="savol turi aniq emas — ehtiyot yuzasidan tahliliy oqim",
+        signals=signals,
+    )

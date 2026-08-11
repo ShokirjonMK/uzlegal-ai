@@ -1,9 +1,13 @@
-"""`consult()` zanjiri testlari.
+"""`consult()` shartnomasi testlari — `uzlegal.core`.
 
 Haqiqiy model ham, indeks ham kerak emas: `retriever=` va `backend=`
 almashtiriladi. Bu shunchaki test qulayligi emas — agar zanjirni soxta
 qismlar bilan yig'ib bo'lmasa, demak bog'liqliklar noto'g'ri
 chegaralangan.
+
+Bu yerda tekshiriladigan narsa **shartnoma**, oqim emas: oqim
+`test_orchestrator.py` da. Shartnoma buzilsa REST, bot, MCP va SDK
+mijozlari bir vaqtda buziladi, shuning uchun u alohida qo'riqlanadi.
 """
 
 from __future__ import annotations
@@ -12,10 +16,10 @@ from typing import Any
 
 import pytest
 
-from uzlegal.core import NO_MODEL, NO_SOURCES, consult
+from uzlegal.core import DISCLAIMER, ConsultRequest, ConsultResult, consult
 from uzlegal.index.chunker import Chunk
 from uzlegal.index.store import ScoredChunk
-from uzlegal.types import ConsultMode, GenerationParams, ModelSpec
+from uzlegal.types import GenerationParams, ModelSpec
 
 # --------------------------------------------------------------------------- #
 # Soxta qismlar
@@ -56,7 +60,10 @@ class FakeRetriever:
                 "query_kind": type("K", (), {"value": "analytical"})(),
                 "routed_domains": ["fuqarolik"],
                 "graph_hits": 0,
+                "exact_hits": 0,
+                "dropped_by_version": 0,
                 "top_score": 0.9,
+                "latency_ms": 12,
             },
         )()
 
@@ -80,10 +87,40 @@ class ScriptedBackend:
         return None
 
 
+class FakeRegistry:
+    active_id = "fake"
+
+    def restore_state(self) -> str:
+        return "fake"
+
+
 FRAME_JSON = (
     '{"facts": ["Mulk oʻgʻirlangan"], "legal_questions": ["Talab qilib olish mumkinmi"], '
     '"applicable_norms": ["C1"], "unknowns": []}'
 )
+
+VERDICT_JSON = (
+    '{"conclusion": "Mulkdor talab qilib olishga haqli [C1]", '
+    '"reasoning": ["Norma shuni belgilaydi [C1]"], "confidence": 0.8, '
+    '"citation_tags": ["C1"], "caveats": []}'
+)
+
+
+def run(
+    question: str = "Oʻgʻirlangan mulkni qaytarib olsam boʻladimi",
+    *,
+    mode: str = "simple",
+    chunks: list[Chunk] | None = None,
+    replies: tuple[str, ...] = (FRAME_JSON,),
+    **kwargs: Any,
+) -> ConsultResult:
+    return consult(
+        ConsultRequest(question=question, mode=mode, trace=True),  # type: ignore[arg-type]
+        retriever=FakeRetriever(chunks),
+        backend=ScriptedBackend(*replies),
+        registry=FakeRegistry(),
+        **kwargs,
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -91,24 +128,63 @@ FRAME_JSON = (
 # --------------------------------------------------------------------------- #
 
 
-def test_bosh_savol_rad_etiladi() -> None:
-    with pytest.raises(ValueError, match="bo'sh"):
-        consult("   ")
+def test_juda_qisqa_savol_rad_etiladi() -> None:
+    with pytest.raises(ValueError):
+        ConsultRequest(question="a")
 
 
-def test_notogri_rejim_aniq_xato_beradi() -> None:
-    with pytest.raises(ValueError, match="Noma'lum rejim"):
-        consult("savol", mode="turbo", retriever=FakeRetriever())
+def test_notogri_rejim_rad_etiladi() -> None:
+    with pytest.raises(ValueError):
+        ConsultRequest(question="Daʼvo muddati qancha", mode="turbo")  # type: ignore[arg-type]
 
 
-def test_rejim_ochiq_berilsa_router_ishlamaydi() -> None:
-    result = consult("MMT stavkasi qancha", mode="complex", retriever=FakeRetriever([]))
-    assert result.mode is ConsultMode.COMPLEX
+def test_rejim_ochiq_berilsa_ishlatiladi() -> None:
+    assert run(mode="simple").mode_used == "simple"
 
 
-def test_rejim_berilmasa_router_aniqlaydi() -> None:
-    result = consult("MMT stavkasi qancha", retriever=FakeRetriever([]))
-    assert result.mode is ConsultMode.SIMPLE
+def test_auto_rejimda_router_hal_qiladi() -> None:
+    result = run("MMT stavkasi qancha", mode="auto")
+    assert result.mode_used in ("simple", "standard", "complex")
+
+
+# --------------------------------------------------------------------------- #
+# Shartnoma — mijozlar tayanadigan maydonlar
+# --------------------------------------------------------------------------- #
+
+
+def test_disclaimer_har_doim_boladi() -> None:
+    """Uni ixtiyoriy qilish integratsiya qiluvchiga tashlab ketish imkonini berardi."""
+    assert run().disclaimer == DISCLAIMER
+
+
+def test_trace_id_har_doim_boladi() -> None:
+    result = run()
+    assert result.trace_id.startswith("cns_")
+
+
+def test_iz_faqat_soralganda_qaytadi() -> None:
+    with_trace = run()
+    assert with_trace.trace is not None
+
+    without = consult(
+        ConsultRequest(question="Daʼvo muddati qancha", mode="simple"),
+        retriever=FakeRetriever(),
+        backend=ScriptedBackend(FRAME_JSON),
+        registry=FakeRegistry(),
+    )
+    assert without.trace is None
+
+
+def test_iqtiboslar_belgilanadi_va_manbaga_boglanadi() -> None:
+    result = run(chunks=[chunk("228"), chunk("229")])
+    assert result.citations
+    assert result.citations[0].tag == "C1"
+    assert all(c.doc_title == "Fuqarolik kodeksi" for c in result.citations)
+
+
+def test_kb_va_model_versiyasi_qaytadi() -> None:
+    result = run()
+    assert result.model_version == "fake"
 
 
 # --------------------------------------------------------------------------- #
@@ -119,152 +195,72 @@ def test_rejim_berilmasa_router_aniqlaydi() -> None:
 def test_manba_topilmasa_model_chaqirilmaydi() -> None:
     """Bo'sh kontekst modelni xotiradan javob yozishga undaydi."""
     backend = ScriptedBackend(FRAME_JSON)
-    result = consult("savol", retriever=FakeRetriever([]), backend=backend)
-
-    assert result.answer == NO_SOURCES
+    result = consult(
+        ConsultRequest(question="Daʼvo muddati qancha", mode="simple"),
+        retriever=FakeRetriever([]),
+        backend=backend,
+        registry=FakeRegistry(),
+    )
     assert backend.calls == [], "manba yo'q — model umuman chaqirilmasligi kerak"
-
-
-def test_retrieval_yiqilsa_javob_qaytadi() -> None:
-    result = consult("savol", retriever=FakeRetriever(error=RuntimeError("indeks yoʻq")))
-    assert result.answer == NO_SOURCES
-    assert any("indeks" in w for w in result.warnings)
-    assert result.trace[0].error is not None
-
-
-def test_model_yoq_bolsa_manbalar_baribir_qaytadi() -> None:
-    class NoModel:
-        backend = property(lambda self: (_ for _ in ()).throw(RuntimeError("model yoʻq")))
-
-        def restore_state(self) -> None:
-            return None
-
-    result = consult("savol", retriever=FakeRetriever(), registry=NoModel())
-    assert result.answer == NO_MODEL
-    assert len(result.citations) == 1, "model yo'q bo'lsa ham topilgan normalar ko'rsatiladi"
+    assert result.refused
+    assert result.confidence == 0.0
 
 
 def test_agent_yiqilsa_quvur_toxtamaydi() -> None:
     """Jurist sxemani buzsa ham javob qaytishi kerak (docs/06 § 8)."""
-    result = consult(
-        "savol", mode="simple", retriever=FakeRetriever(), backend=ScriptedBackend("bemaʼni javob")
-    )
-    assert result.trace[-1].node == "gate"
-    assert result.is_answered
+    result = run(replies=("bemaʼni javob",))
+    assert result.trace is not None
+    assert [s.node for s in result.trace.steps][-1] == "gate"
 
 
-# --------------------------------------------------------------------------- #
-# Muvaffaqiyatli zanjir
-# --------------------------------------------------------------------------- #
+def test_retrieval_yiqilsa_rad_etiladi_lekin_yiqilmaydi() -> None:
+    """Indeks o'qilmasa tizim «manba topilmadi» deydi, 500 bermaydi.
 
-
-def test_simple_rejimda_faqat_jurist_ishlaydi() -> None:
+    Muhimi — u **javob to'qimaydi**: `refused` va iqtiboslar bo'sh.
+    """
     backend = ScriptedBackend(FRAME_JSON)
-    result = consult("savol", mode="simple", retriever=FakeRetriever(), backend=backend)
-
-    nodes = [e.node for e in result.trace]
-    assert nodes == ["retrieve", "jurist", "gate"]
-    assert "debate_r1" not in nodes
-
-
-def test_iqtiboslar_belgilanadi_va_manbaga_boglanadi() -> None:
     result = consult(
-        "savol",
-        mode="simple",
-        retriever=FakeRetriever([chunk("228"), chunk("229")]),
-        backend=ScriptedBackend(FRAME_JSON),
+        ConsultRequest(question="Daʼvo muddati qancha", mode="simple"),
+        retriever=FakeRetriever(error=RuntimeError("indeks yoʻq")),
+        backend=backend,
+        registry=FakeRegistry(),
     )
-    tags = [c.tag for c in result.citations]
-    assert tags[0] == "C1"
-    assert all(c.doc_title == "Fuqarolik kodeksi" for c in result.citations)
+    assert result.refused
+    assert result.citations == []
+    assert backend.calls == []
 
 
-def test_iz_har_qadamni_yozadi() -> None:
-    result = consult(
-        "savol", mode="simple", retriever=FakeRetriever(), backend=ScriptedBackend(FRAME_JSON)
-    )
-    retrieve = result.step("retrieve")
-    assert retrieve is not None
-    assert retrieve.detail["chunks"] == 1
-    assert result.total_ms >= 0
-
-
-def test_kb_versiyasi_natijaga_tushadi() -> None:
-    result = consult(
-        "savol", mode="simple", retriever=FakeRetriever(), backend=ScriptedBackend(FRAME_JSON)
-    )
-    assert result.kb_version == "v2026.08.01"
-    assert result.model == "fake"
-
-
-def test_kuzatuvchi_hodisalarni_oladi() -> None:
-    """SSE oqimi shu mexanizm ustida quriladi."""
-    seen: list[str] = []
-    consult(
-        "savol",
-        mode="simple",
-        retriever=FakeRetriever(),
-        backend=ScriptedBackend(FRAME_JSON),
-        observe=lambda e: seen.append(e.node),
-    )
-    assert seen == ["retrieve", "jurist", "gate"]
+# --------------------------------------------------------------------------- #
+# Gate ta'siri natijaga
+# --------------------------------------------------------------------------- #
 
 
 def test_gate_iqtibossiz_davoni_javobdan_chiqaradi() -> None:
     """Uchidan-uchiga: model iqtibossiz huquqiy daʼvo yozsa u yo'qoladi."""
     verdict = (
         '{"conclusion": "Mulkdor 228-moddaga koʻra talab qilishga haqli", '
-        '"reasoning": ["Qonun shuni belgilaydi"], "confidence": 0.8, "citation_tags": []}'
+        '"reasoning": ["Qonun shuni belgilaydi"], "confidence": 0.9, "citation_tags": []}'
     )
-    result = consult(
-        "savol", mode="standard", retriever=FakeRetriever(), backend=ScriptedBackend(verdict)
-    )
-    assert result.gate.dropped, "iqtibossiz huquqiy daʼvo o'chirilishi kerak"
+    result = run(mode="standard", replies=(FRAME_JSON, verdict))
     assert "228-moddaga koʻra talab qilishga haqli" not in result.answer
 
 
-# --------------------------------------------------------------------------- #
-# Mavjud bo'lmagan modda — taxmin qilinmaydi
-# --------------------------------------------------------------------------- #
-
-
-class ArticleLookupRetriever(FakeRetriever):
-    """Modda raqami bo'yicha so'rov, lekin aniq moslik topilmagan."""
-
-    def __init__(self, exact_hits: int = 0) -> None:
-        super().__init__()
-        self.exact_hits = exact_hits
-
-    def search(self, query: str, **kwargs: Any) -> Any:
-        from uzlegal.retrieval.hybrid import QueryKind
-
-        result = super().search(query, **kwargs)
-        result.query_kind = QueryKind.ARTICLE_LOOKUP
-        result.exact_hits = self.exact_hits
-        return result
-
-
-def test_mavjud_bolmagan_modda_ochiq_aytiladi() -> None:
-    """«FK 9999-modda» — o'xshash moddani ko'rsatish xato javob bo'lardi."""
-    backend = ScriptedBackend(FRAME_JSON)
-    result = consult(
-        "Fuqarolik kodeksining 9999-moddasi nima haqida",
-        retriever=ArticleLookupRetriever(exact_hits=0),
-        backend=backend,
+def test_gate_ochirgani_caveats_da_korinadi() -> None:
+    verdict = (
+        '{"conclusion": "Jarima 10 barobar oshiriladi", '
+        '"reasoning": ["Sud xarajatlari yutqazganga yuklanadi"], '
+        '"confidence": 0.9, "citation_tags": []}'
     )
-
-    assert "9999-modda" in result.answer
-    assert "topilmadi" in result.answer
-    assert backend.calls == [], "modda yo'q — model chaqirilmasligi kerak"
-    assert result.citations, "yaqin normalar baribir ko'rsatiladi"
+    result = run(mode="standard", replies=(FRAME_JSON, verdict))
+    assert any("chiqarildi" in c or "topilmadi" in c for c in result.caveats)
 
 
-def test_mavjud_modda_odatdagidek_ishlanadi() -> None:
-    result = consult(
-        "FK 228-modda",
-        mode="simple",
-        retriever=ArticleLookupRetriever(exact_hits=2),
-        backend=ScriptedBackend(FRAME_JSON),
+def test_ishonch_gate_qisqartirganda_pasayadi() -> None:
+    """Sudya o'zi ko'rmagan (qisqartirilgan) javobga baho bergan."""
+    partial = (
+        '{"conclusion": "Mulkdor talab qilib olishga haqli [C1]", '
+        '"reasoning": ["Jarima 10 barobar oshiriladi"], '
+        '"confidence": 1.0, "citation_tags": ["C1"]}'
     )
-    assert "topilmadi" not in result.answer
-    assert result.step("jurist") is not None
+    result = run(mode="standard", replies=(FRAME_JSON, partial))
+    assert 0.0 < result.confidence < 1.0

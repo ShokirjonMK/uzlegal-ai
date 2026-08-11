@@ -1,21 +1,52 @@
-"""Orkestratsiya qatlami — maslahat oqimi, munozara, gate.
+"""Orkestratsiya qatlami — router, debate, judge, gate (docs/01 § 2, 4-qatlam).
 
-Tashqi dunyo bu paketni to'g'ridan-to'g'ri ishlatmaydi: yagona kirish
-nuqtasi `uzlegal.core.consult()`. Bu yerdagi modullar shu funksiyaning
-qismlari.
+Bu paket agentlarni **bog'laydi**, lekin ularning ichini bilmaydi: rol
+prompti, chiqish sxemasi va model chaqiruvi `uzlegal.agents` da qoladi.
+Shu ajratish tufayli yangi rol qo'shish oqim kodiga tegmaydi.
 """
 
-from uzlegal.orchestrator.debate import disagreement, needs_second_round
-from uzlegal.orchestrator.gate import GroundednessGate
-from uzlegal.orchestrator.graph import build_context, run
-from uzlegal.orchestrator.router import roles_for, route
+from uzlegal.orchestrator.debate import (
+    DISAGREEMENT_THRESHOLD,
+    citation_overlap,
+    conclusion_distance,
+    disagreement,
+    needs_round_two,
+)
+from uzlegal.orchestrator.gate import (
+    ClaimCheck,
+    ClaimKind,
+    ClaimStatus,
+    GateReport,
+    groundedness_gate,
+    is_legal_claim,
+    split_claims,
+)
+from uzlegal.orchestrator.graph import ConsultState, Deps, build_langgraph, run_consult
+from uzlegal.orchestrator.router import ROLES_BY_MODE, Mode, RouteDecision, route
+from uzlegal.orchestrator.trace import Trace, TraceEvent, new_trace_id
 
 __all__ = [
-    "GroundednessGate",
-    "build_context",
+    "DISAGREEMENT_THRESHOLD",
+    "ROLES_BY_MODE",
+    "ClaimCheck",
+    "ClaimKind",
+    "ClaimStatus",
+    "ConsultState",
+    "Deps",
+    "GateReport",
+    "Mode",
+    "RouteDecision",
+    "Trace",
+    "TraceEvent",
+    "build_langgraph",
+    "citation_overlap",
+    "conclusion_distance",
     "disagreement",
-    "needs_second_round",
-    "roles_for",
+    "groundedness_gate",
+    "is_legal_claim",
+    "needs_round_two",
+    "new_trace_id",
     "route",
-    "run",
+    "run_consult",
+    "split_claims",
 ]

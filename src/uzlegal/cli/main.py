@@ -331,7 +331,7 @@ def eval_citations(
     iqtibos indeksda mavjudmi · bekor qilingan normaga ishora qilmaydimi ·
     javobdagi har bir `[C…]` belgisi iqtiboslar ro'yxatida bormi.
     """
-    from uzlegal.core import consult
+    from uzlegal.core import ConsultRequest, consult
     from uzlegal.eval.suite import check_citations, load_suite
     from uzlegal.index.store import KnowledgeIndex
 
@@ -350,7 +350,9 @@ def eval_citations(
         for i, case in enumerate(cases, 1):
             status.update(f"{i}/{len(cases)} · {case.id}")
             try:
-                result = consult(case.question, mode=case.mode or mode)
+                result = consult(
+                    ConsultRequest(question=case.question, mode=case.mode or mode)  # type: ignore[arg-type]
+                )
             except Exception as exc:
                 console.print(f"  [yellow]⚠ {case.id}: {exc}[/yellow]")
                 continue
@@ -765,12 +767,10 @@ def search(
 @app.command()
 def ask(
     question: str,
-    mode: str = typer.Option(
-        None, "--mode", "-m", help="simple · standard · complex. Berilmasa savoldan aniqlanadi."
-    ),
+    mode: str = typer.Option("auto", "--mode", "-m", help="auto · simple · standard · complex"),
     as_of: str = typer.Option(None, "--as-of", help="Tarixiy holat, YYYY-MM-DD"),
     position: str = typer.Option(None, "--position", "-p", help="Mijoz bayoni (nizoli savolda)"),
-    top_k: int = typer.Option(8, "--top-k", "-k"),
+    agents: str = typer.Option(None, "--agents", help="Aniq rollar, vergul bilan"),
     trace: bool = typer.Option(False, "--trace", help="Bosqichlar va vaqtlarni ko'rsatish"),
     json_out: bool = typer.Option(False, "--json", help="To'liq natijani JSON sifatida chiqarish"),
 ) -> None:
@@ -782,28 +782,27 @@ def ask(
     """
     from datetime import date as _date
 
-    from uzlegal.core import consult
-
-    steps: list[str] = []
-
-    def on_event(event: object) -> None:
-        node = getattr(event, "node", "")
-        steps.append(node)
-        status.update(f"[dim]{' → '.join(steps)}[/dim]")
+    from uzlegal.core import ConsultRequest, consult
 
     try:
-        with console.status("boshlanmoqda…") as status:
-            result = consult(
-                question,
-                mode=mode,
-                as_of=_date.fromisoformat(as_of) if as_of else None,
-                client_position=position,
-                top_k=top_k,
-                observe=on_event,
-            )
-    except ValueError as exc:
+        request = ConsultRequest(
+            question=question,
+            mode=mode,  # type: ignore[arg-type]
+            as_of=_date.fromisoformat(as_of) if as_of else None,
+            client_position=position,
+            agents=[a.strip() for a in agents.split(",")] if agents else None,
+            trace=True,
+        )
+    except Exception as exc:
         console.print(f"[red]✕[/red] {exc}")
         raise typer.Exit(2) from exc
+
+    with console.status("maslahat tayyorlanmoqda…"):
+        try:
+            result = consult(request)
+        except Exception as exc:
+            console.print(f"[red]✕[/red] {exc}")
+            raise typer.Exit(3) from exc
 
     if json_out:
         console.print_json(result.model_dump_json())
@@ -816,7 +815,7 @@ def ask(
 
 def _render_answer(result: object, *, trace: bool) -> None:
     """Maslahat natijasini terminalga chiqaradi."""
-    from uzlegal.types import ConsultResult
+    from uzlegal.core import ConsultResult
 
     assert isinstance(result, ConsultResult)
 
@@ -830,33 +829,28 @@ def _render_answer(result: object, *, trace: bool) -> None:
             if c.url:
                 console.print(f"       [dim]{c.url}[/dim]")
 
-    for warning in result.warnings:
-        console.print(f"\n[yellow]⚠ {warning}[/yellow]")
+    for caveat in result.caveats:
+        console.print(f"\n[yellow]⚠ {caveat}[/yellow]")
 
     meta = [
-        f"rejim {result.mode.value}",
-        f"{result.total_ms / 1000:.1f} s",
+        f"rejim {result.mode_used}",
+        f"{result.latency_ms / 1000:.1f} s",
         f"ishonch {result.confidence:.0%}",
     ]
-    if result.model:
-        meta.append(f"model {result.model}")
+    if result.model_version:
+        meta.append(f"model {result.model_version}")
     if result.kb_version:
         meta.append(f"kb {result.kb_version}")
     console.print(f"\n[dim]{' · '.join(meta)}[/dim]")
 
-    if trace:
+    if trace and result.trace is not None:
         console.print("\n[bold]Bosqichlar[/bold]")
-        for event in result.trace:
-            detail = event.error or ", ".join(f"{k}={v}" for k, v in event.detail.items())
-            mark = "[red]✕[/red]" if event.error else " "
-            console.print(f"  {mark} {event.node:12} {event.ms:6d} ms  [dim]{detail}[/dim]")
-        gate = result.gate
-        console.print(
-            f"\n  [bold]Gate:[/bold] {len(gate.kept)} qoldirildi · "
-            f"{len(gate.dropped)} o'chirildi · {len(gate.flagged)} noaniq"
-        )
-        for claim in gate.dropped:
-            console.print(f"    [red]−[/red] [dim]{claim[:88]}[/dim]")
+        for step in result.trace.steps:
+            detail = ", ".join(f"{k}={v}" for k, v in step.detail.items())
+            console.print(f"  {step.node:12} {step.ms:6d} ms  [dim]{detail[:80]}[/dim]")
+        console.print(f"\n  [dim]trace_id: {result.trace.trace_id}[/dim]")
+
+    console.print(f"\n[dim]{result.disclaimer}[/dim]")
 
 
 @app.command()

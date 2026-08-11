@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from uzlegal.core import ConsultResult
 from uzlegal.eval.suite import (
     CaseOutcome,
     SuiteCase,
@@ -19,7 +20,8 @@ from uzlegal.eval.suite import (
     render_report,
     run_suite,
 )
-from uzlegal.types import Citation, ConsultResult, GateReport
+from uzlegal.orchestrator.trace import Trace, TraceEvent
+from uzlegal.types import Citation
 
 # --------------------------------------------------------------------------- #
 # Yordamchilar
@@ -30,13 +32,16 @@ def result(
     answer: str = "", articles: list[str] | None = None, dropped: int = 0, kept: int = 1
 ) -> ConsultResult:
     return ConsultResult(
-        question="savol",
+        trace_id="cns_test",
         answer=answer,
         citations=[
             Citation(tag=f"C{i}", doc_id="fk", doc_title="Fuqarolik kodeksi", article=a)
             for i, a in enumerate(articles or [], start=1)
         ],
-        gate=GateReport(kept=["k"] * kept, dropped=["d"] * dropped),
+        trace=Trace(
+            trace_id="cns_test",
+            steps=[TraceEvent(node="gate", detail={"kept": kept, "dropped": dropped})],
+        ),
     )
 
 

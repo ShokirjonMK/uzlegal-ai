@@ -37,6 +37,14 @@ class LegalFrame(BaseModel):
         default_factory=list,
         description="Yetishmayotgan ma'lumot — javobning ishonchini cheklaydi",
     )
+    answer: str = Field(
+        default="",
+        description=(
+            "Faqat `simple` rejimda to'ldiriladi: bu oqimda jurist yagona agent "
+            "va javobni o'zi beradi (docs/01 § 3). Debate oqimida bo'sh qoladi — "
+            "u yerda javobni sudya shakllantiradi."
+        ),
+    )
 
     @property
     def norm_tags(self) -> list[str]:

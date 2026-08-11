@@ -32,7 +32,7 @@ import logging
 from datetime import date
 from typing import Any
 
-from uzlegal.types import ConsultMode, ConsultResult
+from uzlegal.core import ConsultRequest, ConsultResult
 
 log = logging.getLogger(__name__)
 
@@ -66,15 +66,25 @@ class UzLegal:
         self,
         question: str,
         *,
-        mode: ConsultMode | str | None = None,
+        mode: str = "auto",
         as_of: date | str | None = None,
         client_position: str | None = None,
-        top_k: int = 8,
+        trace: bool = False,
     ) -> ConsultResult:
-        """To'liq natija — javob, iqtiboslar, gate hisoboti, iz."""
+        """To'liq natija — javob, iqtiboslar, eslatmalar, ixtiyoriy iz."""
+        request = ConsultRequest(
+            question=question,
+            mode=mode,  # type: ignore[arg-type]
+            as_of=_to_date(as_of),
+            client_position=client_position,
+            trace=trace,
+        )
         if self.base_url is None:
-            return self._local(question, mode, as_of, client_position, top_k)
-        return self._remote(question, mode, as_of, client_position, top_k)
+            from uzlegal.core import consult
+
+            return consult(request)
+        data = self._post("/v1/consult", request.model_dump(mode="json"))
+        return ConsultResult(**data)
 
     def ask(self, question: str, **kwargs: Any) -> str:
         """Faqat javob matni — tez foydalanish uchun."""
@@ -115,43 +125,6 @@ class UzLegal:
     # ------------------------------------------------------------------ #
     # Amalga oshirish
     # ------------------------------------------------------------------ #
-
-    def _local(
-        self,
-        question: str,
-        mode: ConsultMode | str | None,
-        as_of: date | str | None,
-        client_position: str | None,
-        top_k: int,
-    ) -> ConsultResult:
-        from uzlegal.core import consult
-
-        return consult(
-            question,
-            mode=mode,
-            as_of=_to_date(as_of),
-            client_position=client_position,
-            top_k=top_k,
-        )
-
-    def _remote(
-        self,
-        question: str,
-        mode: ConsultMode | str | None,
-        as_of: date | str | None,
-        client_position: str | None,
-        top_k: int,
-    ) -> ConsultResult:
-        parsed = _to_date(as_of)
-        payload = {
-            "question": question,
-            "mode": mode.value if isinstance(mode, ConsultMode) else mode,
-            "as_of": parsed.isoformat() if parsed else None,
-            "client_position": client_position,
-            "top_k": top_k,
-        }
-        data = self._post("/v1/consult", payload)
-        return ConsultResult(**data)
 
     @property
     def client(self) -> Any:
@@ -209,4 +182,4 @@ def _to_date(value: date | str | None) -> date | None:
     return date.fromisoformat(value)
 
 
-__all__ = ["ConsultMode", "ConsultResult", "UzLegal", "UzLegalError"]
+__all__ = ["ConsultRequest", "ConsultResult", "UzLegal", "UzLegalError"]

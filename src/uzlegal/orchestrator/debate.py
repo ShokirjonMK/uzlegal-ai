@@ -1,88 +1,92 @@
-"""Munozara protokoli — raundlar va kelishmovchilik balli (docs/06 § 3).
+"""Debate protokoli — kelishmovchilikni o'lchash va raund 2 sharti (docs/06 § 3).
 
-## Nima uchun erkin suhbat emas
+## Nima uchun ball kerak
 
-Agentlar bir-biri bilan erkin gaplashsa konvergensiya kafolatlanmaydi va
-xarajat oldindan bilinmaydi. Qat'iy raundli protokol ikkalasini ham
-yechadi: raund soni cheklangan, har raundning kirishi aniq.
+Agentlar erkin suhbatlashmaydi. Ular qat'iy raundlarda ishlaydi va ikkinchi
+raund **faqat kerak bo'lganda** o'tkaziladi. Kerakligini o'lchash uchun
+kelishmovchilik balli bor:
 
-## Nima uchun maksimum 2 raund
+    0.4 · |Δishonch| + 0.4 · (1 − iqtibos qoplamasi) + 0.2 · xulosa masofasi
 
-Uchinchi raundda agentlar bir xil dalilni qayta ifodalay boshlaydi,
-kontekst o'sadi va sifat tushadi (lost-in-the-middle). Empirik:
-raund 1→2 sifat +12%, 2→3 +2%, 3→4 −1%.
+Chegara `0.4`. Undan past bo'lsa agentlar aslida rozi va munozara yangi
+ma'lumot bermaydi — o'rtacha 30% vaqt tejaladi.
 
-## Kelishmovchilik balli
+## Nima uchun aynan shu uch signal
 
-Ikkinchi raund **har doim** o'tkazilmaydi — agentlar aslida rozi bo'lsa
-munozaraning ma'nosi yo'q va u vaqtni behuda sarflaydi (o'rtacha 30%).
+* **Ishonch farqi** — eng arzon signal, lekin yolg'iz yetarli emas: ikkala
+  agent 0.8 ishonch bilan **qarama-qarshi** xulosaga kelishi mumkin.
+* **Iqtibos qoplamasi** — eng informativ. Agentlar turli normalarga tayansa,
+  ular turli huquqiy asosda turibdi va tortishuv haqiqiy.
+* **Xulosa masofasi** — leksik yaqinlik. Eng shovqinli signal, shuning uchun
+  vazni eng past.
+
+Semantik masofa uchun embedding ishlatilmaydi: bu qadam har so'rovda
+bajariladi va 1.2 GB modelni faqat ikkita jumlani solishtirish uchun yuklash
+narxga arzimaydi.
 """
 
 from __future__ import annotations
 
-import logging
-
-from uzlegal.ingest.normalize import fold
+from uzlegal.orchestrator.text import content_words, jaccard
 from uzlegal.types import Position
 
-log = logging.getLogger(__name__)
-
-# Undan yuqori bo'lsa ikkinchi raund o'tkaziladi (docs/06 § 3).
 DISAGREEMENT_THRESHOLD = 0.4
 
-MAX_ROUNDS = 2
+W_CONFIDENCE = 0.4
+W_CITATION = 0.4
+W_CONCLUSION = 0.2
+
+
+def citation_tags(position: Position) -> set[str]:
+    return {t.upper() for a in position.arguments for t in a.citations}
 
 
 def citation_overlap(a: Position, b: Position) -> float:
-    """Ikki pozitsiya bir xil normalarga tayanadimi — Jaccard o'xshashligi.
+    """Ikki pozitsiya bir xil normalarga tayanadimi (Jaccard).
 
-    Turli normalarga tayanish kuchli kelishmovchilik belgisi: tomonlar
-    bir xil huquqiy asosni turlicha talqin qilayotgani emas, balki
-    umuman boshqa asosdan kelib chiqayotgani.
+    Ikkalasi ham iqtibossiz bo'lsa `1.0` — ular «bir xil (bo'sh) asosda»
+    turibdi va bu signal hech narsa aytmaydi. Bunday holda kelishmovchilik
+    boshqa ikki signaldan kelishi kerak, iqtibosdan emas.
     """
-    tags_a = {t.upper() for arg in a.arguments for t in arg.citations}
-    tags_b = {t.upper() for arg in b.arguments for t in arg.citations}
-    if not tags_a and not tags_b:
-        return 1.0  # ikkalasi ham iqtibossiz — bu farq emas
-    union = tags_a | tags_b
-    return len(tags_a & tags_b) / len(union) if union else 1.0
+    return jaccard(citation_tags(a), citation_tags(b))
 
 
 def conclusion_distance(a: Position, b: Position) -> float:
-    """Pozitsiya matnlari qanchalik uzoq — 0 (bir xil) … 1 (umuman boshqa).
+    """Xulosalar o'rtasidagi leksik masofa (0 — bir xil, 1 — umumiyligi yo'q).
 
-    Semantik masofa o'rniga leksik: embedding chaqiruvi bu yerda
-    kechikishga arzimaydi, chunki ball faqat **chegara** uchun kerak,
-    aniq qiymat uchun emas.
+    Bittasi bo'sh bo'lsa masofa maksimal: bo'sh pozitsiya bilan kelishib
+    bo'lmaydi, u shunchaki mavjud emas.
     """
-    words_a = set(fold(a.stance).split())
-    words_b = set(fold(b.stance).split())
+    words_a, words_b = content_words(a.stance), content_words(b.stance)
     if not words_a or not words_b:
-        return 1.0
-    return 1.0 - len(words_a & words_b) / len(words_a | words_b)
+        return 0.0 if words_a == words_b else 1.0
+    return 1.0 - jaccard(words_a, words_b)
 
 
 def disagreement(a: Position, b: Position) -> float:
-    """Ikki pozitsiya orasidagi kelishmovchilik — 0…1 (docs/06 § 3)."""
-    return round(
-        0.4 * abs(a.confidence - b.confidence)
-        + 0.4 * (1.0 - citation_overlap(a, b))
-        + 0.2 * conclusion_distance(a, b),
-        3,
+    """Kelishmovchilik balli, 0…1 — docs/06 § 3 dagi formula."""
+    return (
+        W_CONFIDENCE * abs(a.confidence - b.confidence)
+        + W_CITATION * (1.0 - citation_overlap(a, b))
+        + W_CONCLUSION * conclusion_distance(a, b)
     )
 
 
-def needs_second_round(
-    positions: dict[str, Position], threshold: float = DISAGREEMENT_THRESHOLD
-) -> tuple[bool, float]:
-    """`(kerakmi, ball)`.
+def needs_round_two(
+    positions: dict[str, Position], *, threshold: float = DISAGREEMENT_THRESHOLD
+) -> bool:
+    """Raund 2 kerakmi.
 
-    Pozitsiyalardan biri olinmagan bo'lsa ikkinchi raund o'tkazilmaydi:
-    rad etadigan tomon yo'q, munozara bir tomonlama bo'lardi.
+    Ikkitadan kam pozitsiya bo'lsa tortishadigan hech kim yo'q — raund 2
+    o'tkazib yuboriladi (masalan prokuror sxema xatosi tufayli tushib qolgan).
     """
+    return score(positions) > threshold
+
+
+def score(positions: dict[str, Position]) -> float:
+    """Pozitsiyalar to'plami uchun kelishmovchilik. Juftlik yo'q bo'lsa 0."""
     advocate = positions.get("advocate")
     prosecutor = positions.get("prosecutor")
     if advocate is None or prosecutor is None:
-        return False, 0.0
-    score = disagreement(advocate, prosecutor)
-    return score > threshold, score
+        return 0.0
+    return disagreement(advocate, prosecutor)

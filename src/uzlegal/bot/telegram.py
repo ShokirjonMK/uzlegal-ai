@@ -26,14 +26,17 @@ from __future__ import annotations
 import html
 import logging
 import time
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 
 from uzlegal.config import TelegramSettings, get_settings
-from uzlegal.types import ConsultResult
+from uzlegal.core import ConsultRequest, ConsultResult
 
 log = logging.getLogger(__name__)
+
+# `ConsultRequest.mode` bilan bir xil qiymatlar to'plami
+Mode = Literal["auto", "simple", "standard", "complex"]
 
 API_BASE = "https://api.telegram.org"
 
@@ -52,8 +55,6 @@ GREETING = (
     "/tez &lt;savol&gt; — tez rejim (bitta agent)\n\n"
     "<i>Bu maʼlumot xarakteridagi javob, yuridik maslahat emas.</i>"
 )
-
-DISCLAIMER = "<i>Maʼlumot xarakterida. Yuridik maslahat emas.</i>"
 
 
 class TelegramError(RuntimeError):
@@ -178,7 +179,7 @@ class TelegramBot:
             return True
 
         question = argument.strip()
-        mode = "simple" if command == "tez" else None
+        mode: Mode = "simple" if command == "tez" else "auto"
         if not question:
             self.send(chat_id, "Savolni yozing: <code>/tez Daʼvo muddati qancha</code>")
             return True
@@ -194,12 +195,12 @@ class TelegramBot:
         self.send(chat_id, render(result), reply_to=message.get("message_id"))
         return True
 
-    def _run_consult(self, question: str, mode: str | None) -> ConsultResult:
+    def _run_consult(self, question: str, mode: Mode) -> ConsultResult:
         if self._consult is not None:
             return self._consult(question, mode=mode)  # type: ignore[no-any-return]
         from uzlegal.core import consult
 
-        return consult(question, mode=mode)
+        return consult(ConsultRequest(question=question, mode=mode))
 
     def _status(self) -> str:
         from uzlegal.config import get_registry
@@ -245,13 +246,16 @@ def render(result: ConsultResult) -> str:
             )
         blocks.append("\n".join(lines))
 
-    meta = [f"rejim: {result.mode.value}", f"{result.total_ms / 1000:.0f} s"]
+    if result.caveats:
+        blocks.append(
+            "\n<b>Eslatmalar</b>\n" + "\n".join(f"• {html.escape(c)}" for c in result.caveats[:5])
+        )
+
+    meta = [f"rejim: {result.mode_used}", f"{result.latency_ms / 1000:.0f} s"]
     if result.confidence:
         meta.append(f"ishonch: {result.confidence:.0%}")
-    if result.gate.dropped:
-        meta.append(f"{len(result.gate.dropped)} daʼvo oʻchirildi")
     blocks.append(f"\n<i>{' · '.join(meta)}</i>")
-    blocks.append(DISCLAIMER)
+    blocks.append(f"<i>{html.escape(result.disclaimer)}</i>")
 
     return "\n".join(blocks)
 

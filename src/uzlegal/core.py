@@ -1,246 +1,270 @@
-"""`consult()` — tizimning yagona kirish nuqtasi.
+"""`consult()` — tizimning yagona kirish nuqtasi (docs/07 § 1).
 
-CLI, REST API, Telegram bot, MCP server va SDK — hammasi shu funksiyani
-chaqiradi. Bu ataylab: maslahat mantiqi bitta joyda bo'lsa, interfeyslar
-o'rtasida xatti-harakat farqi paydo bo'lmaydi va yangi interfeys qo'shish
-o'ttiz satrlik ish bo'lib qoladi.
+CLI, REST API, MCP server, Telegram bot va SDK — hammasi shu funksiyani
+chaqiradi. Ularning ishi ikkitagina: kirishni `ConsultRequest` ga aylantirish
+va `ConsultResult` ni o'z formatiga chiqarish. Biznes mantiq qobiqda
+**umuman yo'q**, aks holda har bir kanal uni o'zicha buzardi.
 
-## Zanjir
+## Nima uchun `disclaimer` majburiy maydon
 
-    savol → retrieval → kontekst → agentlar → sudya → gate → javob
+Uni ixtiyoriy qilish integratsiya qiluvchiga uni tashlab ketish imkonini
+beradi. Shartnomada majburiy bo'lgani uchun `ConsultResult` disclaimer siz
+umuman qurilmaydi (docs/10 § 1).
 
-Har bir bo'g'in mustaqil almashtiriladi (`retriever=`, `backend=`), shuning
-uchun testda haqiqiy model ham, indeks ham kerak emas.
+## Sinxron va asinxron
 
-## Nima kafolatlanadi
-
-* **Iqtibossiz huquqiy da'vo javobda qolmaydi** — gate uni o'chiradi
-* **Bekor qilingan norma kontekstga tushmaydi** — versiya filtri
-* **Har qadam yoziladi** — `result.trace`
-* **Zanjir uzilsa ham javob qaytadi** — eng to'liq mavjud shaklda
+`consult()` sinxron: model chaqiruvi baribir bloklovchi va MLX da GIL dan
+foyda yo'q. `aconsult()` — FastAPI va boshqa async kanallar uchun o'ram; u
+ishni ipga chiqaradi, shunda hodisa halqasi bloklanmaydi.
 """
 
 from __future__ import annotations
 
 import logging
-import time
-from collections.abc import Callable
 from datetime import date
-from typing import Any
+from typing import Any, Literal
 
-from uzlegal.orchestrator.graph import build_context, run
-from uzlegal.orchestrator.router import route
-from uzlegal.types import Citation, ConsultMode, ConsultResult, TraceEvent
+from pydantic import BaseModel, Field
+
+from uzlegal.agents.schemas import Verdict
+from uzlegal.orchestrator.graph import ConsultState, Deps, run_consult
+from uzlegal.orchestrator.router import Mode
+from uzlegal.orchestrator.trace import Trace, new_trace_id
+from uzlegal.types import Citation, Position
 
 log = logging.getLogger(__name__)
 
-Observer = Callable[[TraceEvent], None]
+DISCLAIMER = (
+    "⚠️ Bu javob avtomatik tizim tomonidan tayyorlangan va yuridik maslahat "
+    "hisoblanmaydi. Keltirilgan normalar javob tayyorlangan sanada amalda "
+    "bo'lgan. Har qanday huquqiy qaror qabul qilishdan oldin malakali yurist "
+    "bilan maslahatlashing va manbalarni mustaqil tekshiring."
+)
 
-# Agentlarga beriladigan manbalar soni. Sakkiztadan ko'p berish kontekstni
-# uzaytiradi va «lost-in-the-middle» ta'sirini kuchaytiradi (docs/04 § 6).
-DEFAULT_TOP_K = 8
+LOW_CONFIDENCE = 0.4
+LOW_CONFIDENCE_CAVEAT = (
+    "Ishonch darajasi past — javobni mustaqil tekshirmasdan qaror qabul qilmang."
+)
+
+
+# --------------------------------------------------------------------------- #
+# Shartnoma — schemas/openapi.yaml dagi ConsultRequest / ConsultResult
+# --------------------------------------------------------------------------- #
+
+
+class ConsultRequest(BaseModel):
+    question: str = Field(min_length=3, max_length=8000)
+    mode: Literal["auto", "simple", "standard", "complex"] = "auto"
+    agents: list[str] | None = Field(
+        default=None, description="Aniq rollar. Ko'rsatilmasa — router tanlaydi."
+    )
+    as_of: date | None = Field(default=None, description="Qonunchilikning shu sanadagi holati")
+    lang: Literal["uz", "ru", "en"] = "uz"
+    client_position: str | None = None
+    max_tokens: int = Field(default=2000, le=8000)
+    stream: bool = False
+    trace: bool = False
+
+
+class ConsultResult(BaseModel):
+    trace_id: str
+    answer: str
+    verdict: Verdict | None = None
+    positions: dict[str, Position] = Field(default_factory=dict)
+    citations: list[Citation] = Field(default_factory=list)
+    confidence: float = 0.0
+    caveats: list[str] = Field(default_factory=list)
+    mode_used: str = ""
+    latency_ms: int = 0
+    model_version: str | None = None
+    kb_version: str = ""
+    disclaimer: str = DISCLAIMER
+    trace: Trace | None = None
+
+    @property
+    def refused(self) -> bool:
+        """Tizim ishonchli javob bera olmadimi.
+
+        Bu holat xato emas: "bilmayman" to'liq huquqli javob va u
+        `citations` bilan birga keladi — foydalanuvchi o'zi qarashi mumkin.
+        """
+        return self.confidence == 0.0
+
+
+# --------------------------------------------------------------------------- #
+# Kirish nuqtasi
+# --------------------------------------------------------------------------- #
 
 
 def consult(
-    question: str,
+    request: ConsultRequest,
     *,
-    mode: ConsultMode | str | None = None,
-    as_of: date | None = None,
-    client_position: str | None = None,
-    top_k: int = DEFAULT_TOP_K,
-    retriever: Any = None,
     backend: Any = None,
+    retriever: Any = None,
     registry: Any = None,
-    observe: Observer | None = None,
+    use_prefix_cache: bool = True,
 ) -> ConsultResult:
-    """Savolga iqtibosga asoslangan javob beradi.
+    """Savolga to'liq maslahat beradi: router → RAG → agentlar → gate.
 
-    `mode` berilmasa router uni savol shaklidan aniqlaydi. `as_of` —
-    tarixiy holat: «2021-yilda qanday edi?» degan savol uchun.
+    Bog'liqliklar nomlangan argument sifatida beriladi va standart holatda
+    global reestrdan olinadi. Bu testlarni model va indekssiz o'tkazish
+    imkonini beradi — `echo` backend va kichik stub retriever yetarli.
     """
-    started = time.time()
-    if not question.strip():
-        raise ValueError("Savol bo'sh")
+    import time
 
-    resolved_mode = _resolve_mode(mode, question, client_position)
-    result = ConsultResult(
-        question=question,
-        mode=resolved_mode,
-        as_of=as_of.isoformat() if as_of else None,
-    )
-
-    # --- 1. Retrieval --------------------------------------------------- #
-
+    started = time.perf_counter()
+    registry = registry if registry is not None else _default_registry()
+    backend = backend if backend is not None else _default_backend(registry)
     retriever = retriever if retriever is not None else _default_retriever()
-    t0 = time.time()
-    try:
-        found = retriever.search(question, top_k=top_k, as_of=as_of)
-    except Exception as exc:
-        log.warning("Retrieval bajarilmadi: %s", exc)
-        result.trace.append(TraceEvent(node="retrieve", ms=_ms(t0), error=str(exc)))
-        result.answer = NO_SOURCES
-        result.warnings.append(f"Bilim bazasi o'qilmadi: {exc}")
-        result.total_ms = _ms(started)
-        return result
 
-    citations, context_text = _to_context(found.results)
-    event = TraceEvent(
-        node="retrieve",
-        ms=_ms(t0),
-        detail={
-            "chunks": len(citations),
-            "kind": found.query_kind.value,
-            "routed": found.routed_domains,
-            "graph": found.graph_hits,
-            "top_score": round(found.top_score, 4),
-        },
+    state = ConsultState(
+        question=request.question,
+        as_of=request.as_of,
+        client_position=request.client_position,
+        lang=request.lang,
+        max_tokens=request.max_tokens,
+        forced_mode=request.mode,
+        only_roles=list(request.agents) if request.agents else None,
+        trace=Trace(trace_id=new_trace_id()),
     )
-    result.trace.append(event)
-    if observe is not None:
-        observe(event)
-
-    # Manba yo'q — agentlar chaqirilmaydi. Modelga bo'sh kontekst berish
-    # uni xotiradan javob yozishga undaydi; aynan shuni oldini olamiz.
-    if not citations:
-        result.answer = NO_SOURCES
-        result.warnings.append("Savolga mos ishonchli manba topilmadi")
-        result.total_ms = _ms(started)
-        return result
-
-    # Foydalanuvchi aniq modda raqamini aytgan, lekin u indeksda yo'q.
-    # Bu holatda semantik jihatdan yaqin moddalarni ko'rsatish **xato**:
-    # savol «9999-moddada nima yozilgan» edi, javob esa boshqa modda
-    # haqida bo'lardi va foydalanuvchi buni sezmasligi mumkin.
-    missing = _missing_article(question, found)
-    if missing is not None:
-        result.answer = NO_SUCH_ARTICLE.format(article=missing)
-        result.citations = citations
-        result.warnings.append(f"So'ralgan {missing}-modda bilim bazasida topilmadi")
-        result.total_ms = _ms(started)
-        return result
-
-    # --- 2. Model ------------------------------------------------------- #
-
-    if backend is None:
-        registry = registry if registry is not None else _default_registry()
-        backend = _backend_from(registry, result)
-        if backend is None:
-            result.citations = citations
-            result.answer = NO_MODEL
-            result.total_ms = _ms(started)
-            return result
-
-    result.model = getattr(getattr(backend, "spec", None), "id", None)
-    result.kb_version = _kb_version(retriever)
-
-    # --- 3. Agentlar va gate -------------------------------------------- #
-
-    ctx = build_context(
-        question,
-        citations,
-        context_text,
-        backend,
-        as_of=as_of,
-        client_position=client_position,
+    deps = Deps(
+        backend=backend,
+        retriever=retriever,
         registry=registry,
+        use_prefix_cache=use_prefix_cache,
     )
-    run(ctx, mode=resolved_mode, result=result, observe=observe)
 
-    result.total_ms = _ms(started)
-    log.info(
-        "Maslahat tugadi: rejim=%s, %d ms, %d iqtibos, gate %d/%d",
-        result.mode.value,
-        result.total_ms,
-        len(result.citations),
-        len(result.gate.kept),
-        result.gate.total,
-    )
-    return result
+    state = run_consult(state, deps)
+    latency_ms = int((time.perf_counter() - started) * 1000)
+    return _to_result(state, request, latency_ms, registry)
+
+
+async def aconsult(request: ConsultRequest, **kwargs: Any) -> ConsultResult:
+    """`consult()` ning asinxron o'rami — hodisa halqasini bloklamaydi."""
+    import asyncio
+    import functools
+
+    return await asyncio.to_thread(functools.partial(consult, request, **kwargs))
 
 
 # --------------------------------------------------------------------------- #
-# Yordamchi qismlar
+# Natijani yig'ish
 # --------------------------------------------------------------------------- #
 
 
-NO_SOURCES = (
-    "Berilgan savol bo'yicha bilim bazasidan ishonchli manba topilmadi.\n\n"
-    "Savolni boshqacha ifodalab ko'ring yoki tegishli kodeks nomini "
-    "qo'shing (masalan «Mehnat kodeksi bo'yicha…»)."
-)
+def _to_result(
+    state: ConsultState, request: ConsultRequest, latency_ms: int, registry: Any
+) -> ConsultResult:
+    gate = state.gate
+    answer = gate.answer if gate else ""
+    confidence = _confidence(state)
 
-NO_MODEL = (
-    "Model tanlanmagan — javob generatsiya qilinmadi.\n\n"
-    "Modelni tanlang: `uzlegal models use <model-id>`.\n"
-    "Quyida savolga tegishli topilgan normalar keltirilgan."
-)
+    caveats = list(state.verdict.caveats) if state.verdict else []
+    caveats += _gate_caveats(state)
+    if state.missing:
+        caveats.append("Pozitsiya olinmadi: " + ", ".join(state.missing))
+    if state.frame and state.frame.unknowns:
+        caveats += [f"Yetishmayotgan ma'lumot: {u}" for u in state.frame.unknowns[:3]]
+    if 0.0 < confidence < LOW_CONFIDENCE:
+        caveats.append(LOW_CONFIDENCE_CAVEAT)
 
-NO_SUCH_ARTICLE = (
-    "So'ralgan {article}-modda bilim bazasida topilmadi.\n\n"
-    "Modda raqami noto'g'ri bo'lishi yoki hujjat bilim bazasiga hali "
-    "qo'shilmagan bo'lishi mumkin. Quyida mavzuga yaqin normalar "
-    "keltirilgan — lekin ular so'ralgan modda **emas**."
-)
+    model_version = getattr(registry, "active_id", None)
+    state.trace.model_version = model_version
+    state.trace.kb_version = _kb_version()
+
+    return ConsultResult(
+        trace_id=state.trace.trace_id,
+        answer=answer,
+        verdict=state.verdict,
+        positions=state.final_positions,
+        citations=gate.citations if gate else state.citations,
+        confidence=confidence,
+        caveats=_dedupe(caveats),
+        mode_used=state.mode.value,
+        latency_ms=latency_ms,
+        model_version=model_version,
+        kb_version=_kb_version(),
+        disclaimer=DISCLAIMER,
+        trace=state.trace if request.trace else None,
+    )
 
 
-def _missing_article(question: str, found: Any) -> str | None:
-    """So'ralgan modda raqami indeksda yo'qmi.
+def _confidence(state: ConsultState) -> float:
+    """Yakuniy ishonch.
 
-    Faqat foydalanuvchi modda raqamini ochiq aytgan holatda ishlaydi
-    (`FK 9999-modda`). Aniq moslik kanali bo'sh qaytgan bo'lsa — bunday
-    modda yo'q, va bu deterministik javob: taxmin qilinmaydi.
+    Gate rad etgan bo'lsa — 0.0 va boshqa hisob-kitob yo'q: tasdiqlanmagan
+    javobga ishonch bermaslik tizimning asosiy va'dasi. Gate da'volarni
+    o'chirgan bo'lsa, sudyaning ishonchi shunga mutanosib pasayadi — u
+    hozir o'zi ko'rmagan (qisqartirilgan) javobga baho bergan.
     """
-    from uzlegal.retrieval.hybrid import QueryKind, extract_article_ref
+    gate = state.gate
+    if gate is None or gate.refused:
+        return 0.0
 
-    if found.query_kind is not QueryKind.ARTICLE_LOOKUP or found.exact_hits:
-        return None
-    article, _ = extract_article_ref(question)
-    return article
-
-
-def _resolve_mode(
-    mode: ConsultMode | str | None, question: str, client_position: str | None
-) -> ConsultMode:
-    if mode is None:
-        return route(question, client_position=client_position)
-    if isinstance(mode, ConsultMode):
-        return mode
-    try:
-        return ConsultMode(mode)
-    except ValueError as exc:
-        allowed = ", ".join(m.value for m in ConsultMode)
-        raise ValueError(f"Noma'lum rejim: '{mode}'. Mavjud: {allowed}") from exc
+    base = state.verdict.confidence if state.verdict else _positions_confidence(state)
+    if gate.claims:
+        base *= gate.kept / gate.claims
+    if state.missing:
+        base *= 0.8
+    return round(max(0.0, min(1.0, base)), 2)
 
 
-def _to_context(results: list[Any]) -> tuple[list[Citation], str]:
-    """Qidiruv natijalarini iqtibos va kontekst matniga aylantiradi.
+def _positions_confidence(state: ConsultState) -> float:
+    """Sudya yo'q bo'lsa — pozitsiyalarning eng pastini olamiz.
 
-    Belgilar (`C1`, `C2`) shu yerda beriladi va boshqa hech qayerda —
-    ular gate uchun yagona bog'lovchi, shuning uchun manbasi bitta
-    bo'lishi shart.
+    O'rtacha emas, minimum: bitta agent ishonchsiz bo'lsa, javob ham
+    ishonchsiz. Optimistik agregatsiya bu yerda foydalanuvchini chalg'itadi.
     """
-    from uzlegal.retrieval.hybrid import build_context as render
+    positions = state.final_positions
+    if not positions:
+        return 0.3 if state.frame else 0.0
+    return min(p.confidence for p in positions.values())
 
-    context_text, used = render(results)
-    citations: list[Citation] = []
-    for i, item in enumerate(used, start=1):
-        chunk = item.chunk
-        citations.append(
-            Citation(
-                tag=f"C{i}",
-                doc_id=chunk.doc_id,
-                doc_title=chunk.doc_title,
-                doc_type=chunk.doc_type,
-                article=chunk.article or "—",
-                part=chunk.part,
-                valid_from=chunk.valid_from,
-                valid_to=chunk.valid_to,
-                status=chunk.status,  # type: ignore[arg-type]
-                url=chunk.source_url,
-                excerpt=chunk.content,
-            )
+
+def _gate_caveats(state: ConsultState) -> list[str]:
+    gate = state.gate
+    if gate is None:
+        return []
+    out: list[str] = []
+    if gate.dropped:
+        out.append(
+            f"{gate.dropped} ta da'vo manbaga bog'lanmagani uchun javobdan chiqarildi "
+            f"({'; '.join(gate.drop_reasons)})."
         )
-    return citations, context_text
+    if gate.flagged:
+        out.append(f"{gate.flagged} ta da'vo «noaniq» deb belgilandi — manba to'liq mos kelmadi.")
+    if not state.citations:
+        out.append("Bilim bazasida tegishli manba topilmadi.")
+    return out
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    seen: list[str] = []
+    for item in items:
+        if item and item not in seen:
+            seen.append(item)
+    return seen
+
+
+# --------------------------------------------------------------------------- #
+# Standart bog'liqliklar
+# --------------------------------------------------------------------------- #
+
+
+def _default_registry() -> Any:
+    from uzlegal.config import get_registry
+
+    return get_registry()
+
+
+def _default_backend(registry: Any) -> Any:
+    """Faol model backendi; model tanlanmagan bo'lsa oxirgi tanlov tiklanadi."""
+    try:
+        return registry.backend
+    except Exception:
+        if registry.restore_state():
+            return registry.backend
+        raise
 
 
 def _default_retriever() -> Any:
@@ -250,37 +274,25 @@ def _default_retriever() -> Any:
     return HybridRetriever(KnowledgeIndex())
 
 
-def _default_registry() -> Any:
-    from uzlegal.config import get_registry
+def _kb_version() -> str:
+    """Bilim bazasi versiyasi — javob qaysi holatga asoslanganini bildiradi.
 
-    return get_registry()
-
-
-def _backend_from(registry: Any, result: ConsultResult) -> Any:
-    """Faol backend. Model yuklanmagan bo'lsa oxirgi tanlov tiklanadi."""
+    Topilmasa bo'sh satr, `unknown` emas: shartnomada maydon majburiy, lekin
+    soxta qiymat auditda chalg'itadi.
+    """
     try:
-        return registry.backend
+        from uzlegal.index.store import KnowledgeIndex
+
+        return str(KnowledgeIndex().meta.get("kb_version") or "")
     except Exception:
-        pass
-    try:
-        if registry.restore_state():
-            return registry.backend
-    except Exception as exc:
-        log.warning("Model tiklanmadi: %s", exc)
-    result.warnings.append("Faol model yo'q — javob generatsiya qilinmadi")
-    return None
+        return ""
 
 
-def _kb_version(retriever: Any) -> str | None:
-    try:
-        version = retriever.index.meta.get("kb_version")
-    except Exception:
-        return None
-    return str(version) if version else None
-
-
-def _ms(since: float) -> int:
-    return int((time.time() - since) * 1000)
-
-
-__all__ = ["ConsultMode", "ConsultResult", "consult"]
+__all__ = [
+    "DISCLAIMER",
+    "ConsultRequest",
+    "ConsultResult",
+    "Mode",
+    "aconsult",
+    "consult",
+]

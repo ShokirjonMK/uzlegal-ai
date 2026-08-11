@@ -167,12 +167,20 @@ class JuristAgent(BaseAgent):
             "shakllantir va kontekstdagi qaysi normalar tegishli ekanini ko'rsat. "
             "Hech qanday tomonni tutmaysan — bu neytral ramka."
         )
+        if inputs.get("direct"):
+            # `simple` oqimda jurist yagona agent — ramka bilan birga qisqa
+            # javobni ham u beradi, aks holda foydalanuvchi javobsiz qoladi.
+            parts.append(
+                "Bundan tashqari `answer` maydonida savolga to'g'ridan-to'g'ri, "
+                "qisqa (2–4 jumla) javob ber. Har bir huquqiy gapni `[C1]` "
+                "belgisiga bog'la. Kontekstda javob bo'lmasa — bo'sh qoldir."
+            )
         return "\n\n".join(parts)
 
     def output_hint(self) -> str:
         return (
             '{"facts": ["..."], "legal_questions": ["..."], '
-            '"applicable_norms": ["C1", "C2"], "unknowns": ["..."]}\n'
+            '"applicable_norms": ["C1", "C2"], "unknowns": ["..."], "answer": "..."}\n'
             "`applicable_norms` faqat kontekstda mavjud belgilar."
         )
 
@@ -182,6 +190,7 @@ class JuristAgent(BaseAgent):
             legal_questions=as_list(data.get("legal_questions")),
             applicable_norms=ctx.resolve(_tags_from(data.get("applicable_norms"))),
             unknowns=as_list(data.get("unknowns")),
+            answer=str(data.get("answer") or "").strip(),
         )
 
     def validate(self, result: LegalFrame) -> str | None:  # type: ignore[override]
@@ -199,6 +208,7 @@ class JuristAgent(BaseAgent):
             legal_questions=questions or [ctx.question],
             applicable_norms=ctx.resolve(extract_tags(raw)),
             unknowns=s.get("NOMA'LUM", []) or s.get("NOMALUM", []),
+            answer=" ".join(s.get("JAVOB", []) or s.get("XULOSA", [])).strip(),
         )
 
 

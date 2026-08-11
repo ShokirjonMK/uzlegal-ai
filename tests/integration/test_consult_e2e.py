@@ -25,10 +25,10 @@ from pathlib import Path
 
 import pytest
 
-from uzlegal.core import consult
+from uzlegal.core import ConsultRequest, consult
 from uzlegal.index.store import KnowledgeIndex
 from uzlegal.inference.echo_backend import EchoBackend
-from uzlegal.types import ConsultMode, ModelSpec
+from uzlegal.types import ModelSpec
 
 KB = Path("kb/current")
 
@@ -108,16 +108,23 @@ def test_modda_raqami_bilan_qidiruv(index: KnowledgeIndex) -> None:
 
 
 def test_simple_rejim_uchidan_uchiga(backend: EchoBackend) -> None:
-    result = consult("Oʻgʻirlangan mulkni qaytarib olish mumkinmi", mode="simple", backend=backend)
+    result = consult(
+        ConsultRequest(
+            question="Oʻgʻirlangan mulkni qaytarib olish mumkinmi", mode="simple", trace=True
+        ),
+        backend=backend,
+    )
 
-    assert result.mode is ConsultMode.SIMPLE
+    assert result.mode_used == "simple"
     assert result.citations, "haqiqiy indeksdan iqtibos kelishi kerak"
     assert result.is_answered
     assert [e.node for e in result.trace] == ["retrieve", "jurist", "gate"]
 
 
 def test_iqtiboslar_haqiqiy_moddaga_boglanadi(backend: EchoBackend) -> None:
-    result = consult("Daʼvo muddati qancha", mode="simple", backend=backend)
+    result = consult(
+        ConsultRequest(question="Daʼvo muddati qancha", mode="simple", trace=True), backend=backend
+    )
 
     for citation in result.citations:
         assert citation.tag.startswith("C")
@@ -128,7 +135,12 @@ def test_iqtiboslar_haqiqiy_moddaga_boglanadi(backend: EchoBackend) -> None:
 
 def test_gate_har_doim_ishlaydi(backend: EchoBackend) -> None:
     """Gate bosqichi izda bo'lishi shart — u o'tkazib yuborilmaydi."""
-    result = consult("Mehnat shartnomasi qanday bekor qilinadi", mode="simple", backend=backend)
+    result = consult(
+        ConsultRequest(
+            question="Mehnat shartnomasi qanday bekor qilinadi", mode="simple", trace=True
+        ),
+        backend=backend,
+    )
     gate_step = result.step("gate")
     assert gate_step is not None
     assert gate_step.detail["claims"] >= 0
@@ -136,7 +148,12 @@ def test_gate_har_doim_ishlaydi(backend: EchoBackend) -> None:
 
 def test_manba_topilmasa_model_chaqirilmaydi(backend: EchoBackend) -> None:
     """Mavzuga aloqasi yo'q savol — tizim taxmin qilmasligi kerak."""
-    result = consult("zzz qqq xxx yyy vvv bunday soʻz umuman yoʻq", mode="simple", backend=backend)
+    result = consult(
+        ConsultRequest(
+            question="zzz qqq xxx yyy vvv bunday soʻz umuman yoʻq", mode="simple", trace=True
+        ),
+        backend=backend,
+    )
     # Manba topilsa ham, topilmasa ham javob qaytadi va u yolg'on bo'lmaydi
     assert result.is_answered
 
@@ -144,14 +161,23 @@ def test_manba_topilmasa_model_chaqirilmaydi(backend: EchoBackend) -> None:
 def test_tarixiy_holat_soralganda_filtr_ishlaydi(backend: EchoBackend) -> None:
     from datetime import date
 
-    result = consult("Daʼvo muddati qancha", mode="simple", backend=backend, as_of=date(2021, 6, 1))
+    result = consult(
+        ConsultRequest(
+            question="Daʼvo muddati qancha",
+            mode="simple",
+            as_of=date(2021, 6, 1, trace=True),
+            backend=backend,
+        )
+    )
     assert result.as_of == "2021-06-01"
     assert result.is_answered
 
 
 def test_kb_versiyasi_javobda_boladi(backend: EchoBackend) -> None:
     """Yuridik javobda qaysi bilim bazasi ishlatilgani ko'rinishi kerak."""
-    result = consult("Daʼvo muddati qancha", mode="simple", backend=backend)
+    result = consult(
+        ConsultRequest(question="Daʼvo muddati qancha", mode="simple", trace=True), backend=backend
+    )
     assert result.model == "echo"
     assert result.total_ms > 0
 

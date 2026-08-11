@@ -120,9 +120,15 @@ def tool_search(args: dict[str, Any]) -> str:
 
 
 def tool_consult(args: dict[str, Any]) -> str:
-    from uzlegal.core import consult
+    from uzlegal.core import ConsultRequest, consult
 
-    result = consult(args["question"], mode=args.get("mode"), as_of=_as_of(args.get("as_of")))
+    result = consult(
+        ConsultRequest(
+            question=args["question"],
+            mode=args.get("mode") or "auto",
+            as_of=_as_of(args.get("as_of")),
+        )
+    )
     lines = [result.answer]
     if result.citations:
         lines.append("\n## Manbalar")
@@ -130,14 +136,13 @@ def tool_consult(args: dict[str, Any]) -> str:
             f"- [{c.tag}] {c.doc_title}, {c.article}-modda — {c.url or '—'}"
             for c in result.citations
         ]
-    if result.gate.dropped:
+    if result.caveats:
         # Mijoz modeli buni ko'rishi kerak: tizim nimanidir rad etgan
         # bo'lsa, javob to'liq emas va uni shunday taqdim etish kerak.
-        lines.append(
-            f"\n_{len(result.gate.dropped)} ta daʼvo manbaga bogʻlanmagani "
-            f"uchun javobdan chiqarildi._"
-        )
-    lines.append(f"\n_Rejim: {result.mode.value} · {result.total_ms / 1000:.0f} s_")
+        lines.append("\n## Eslatmalar")
+        lines += [f"- {c}" for c in result.caveats]
+    lines.append(f"\n_{result.disclaimer}_")
+    lines.append(f"_Rejim: {result.mode_used} · {result.latency_ms / 1000:.0f} s_")
     return "\n".join(lines)
 
 
