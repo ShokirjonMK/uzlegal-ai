@@ -410,7 +410,7 @@ def test_graf_yoq_bolsa_qidiruv_ishlayveradi(tmp_path) -> None:  # type: ignore[
 
 
 def test_yonaltirish_mos_hujjatni_kotaradi(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    from uzlegal.retrieval.routing import Domain, DocumentRouter, RoutingConfig
+    from uzlegal.retrieval.routing import DocumentRouter, Domain, RoutingConfig
 
     mehnat = make_chunk("mk:333", "Ish haqi toʻlash", article="333")
     mehnat.doc_title = "Oʻzbekiston Respublikasining Mehnat kodeksi"

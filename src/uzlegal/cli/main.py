@@ -13,7 +13,6 @@ from rich.table import Table
 
 from uzlegal.config import get_registry, get_settings
 from uzlegal.inference.backend import available_backends
-from uzlegal.types import GenerationParams
 
 app = typer.Typer(help="UzLegal-AI — O'zbekiston huquqiy AI platformasi", no_args_is_help=True)
 models_app = typer.Typer(help="Model boshqaruvi", no_args_is_help=True)
@@ -24,6 +23,15 @@ app.add_typer(models_app, name="models")
 app.add_typer(eval_app, name="eval")
 app.add_typer(kb_app, name="kb")
 app.add_typer(index_app, name="index")
+
+# Modul sub-applari. Har bir modul o'z faylida Typer ilovasini yaratadi va
+# faqat shu yerda ulanadi — shunda parallel ishlashda to'qnashuv bo'lmaydi.
+try:
+    from uzlegal.cli.pipeline import pipeline_app
+
+    app.add_typer(pipeline_app, name="pipeline")
+except ImportError as _exc:  # pragma: no cover — modul hali qo'shilmagan
+    logging.getLogger(__name__).debug("pipeline sub-app ulanmadi: %s", _exc)
 
 console = Console()
 
@@ -394,7 +402,7 @@ def kb_discover(
 
     console.print(f"Topildi: [bold]{len(refs)}[/bold] ta {form} (o'zbek lotin, amaldagi)\n")
     for ref in refs:
-        console.print(f"  {ref.doc_id:>10}  {ref.title[:72]}")
+        console.print(f"  {ref.doc_id:>10}  {(ref.title or '')[:72]}")
 
     if save:
         out = Path("configs/discovered.yaml")
@@ -457,6 +465,7 @@ def index_build(
     from uzlegal.ingest.connectors.lex_uz import LexUzConnector
     from uzlegal.ingest.parsers.lex_uz import LexUzParser
     from uzlegal.ingest.sync import SyncManager
+    from uzlegal.ingest.versioning import apply_versions
 
     connector = LexUzConnector()
     ids = ([d.strip() for d in docs.split(",")] if docs
@@ -477,6 +486,12 @@ def index_build(
         if lang and doc.lang != lang:
             console.print(f"  [dim]{doc_id}  o'tkazib yuborildi (til: {doc.lang})[/dim]")
             continue
+
+        # Versiya maydonlarini to'ldirish — busiz `version_filter` bo'sh
+        # ishlaydi va bekor qilingan norma qidiruvga chiqib ketadi
+        # (docs/00 dagi «0% deprecated» talabi).
+        doc = apply_versions(doc)
+
         produced = chunker.chunk_document(doc)
         chunks.extend(produced)
         console.print(f"  {doc_id}  {len(doc.articles)} modda → {len(produced)} chunk")
@@ -555,30 +570,125 @@ def search(
 @app.command()
 def ask(
     question: str,
-    role: str = typer.Option(
-        None, "--role", "-r", help="jurist · advocate · prosecutor · professor · judge"
+    mode: str = typer.Option(
+        None, "--mode", "-m", help="simple · standard · complex. Berilmasa savoldan aniqlanadi."
     ),
-    max_tokens: int = typer.Option(512, "--max-tokens"),
-    temperature: float = typer.Option(0.3, "--temperature"),
+    as_of: str = typer.Option(None, "--as-of", help="Tarixiy holat, YYYY-MM-DD"),
+    position: str = typer.Option(None, "--position", "-p", help="Mijoz bayoni (nizoli savolda)"),
+    top_k: int = typer.Option(8, "--top-k", "-k"),
+    trace: bool = typer.Option(False, "--trace", help="Bosqichlar va vaqtlarni ko'rsatish"),
+    json_out: bool = typer.Option(False, "--json", help="To'liq natijani JSON sifatida chiqarish"),
 ) -> None:
-    """Savol berish (Faza 0 — xom generatsiya, RAG va agentlar hali yo'q)."""
-    reg = get_registry()
-    if reg.active_id is None and not reg.restore_state():
-        console.print("[red]✕[/red] Faol model yo'q. `uzlegal models use <id>` bilan tanlang.")
-        raise typer.Exit(3)
+    """Savol berish — qidiruv, agentlar muhokamasi, sudya xulosasi, iqtibos nazorati.
+
+    Javobdagi har bir huquqiy da'vo qonun moddasiga bog'lanadi.
+    Bog'lanmagani groundedness gate tomonidan o'chiriladi va bu
+    `--trace` da ko'rinadi.
+    """
+    from datetime import date as _date
+
+    from uzlegal.core import consult
+
+    steps: list[str] = []
+
+    def on_event(event: object) -> None:
+        node = getattr(event, "node", "")
+        steps.append(node)
+        status.update(f"[dim]{' → '.join(steps)}[/dim]")
 
     try:
-        if role:
-            reg.set_adapter(role)
-        backend = reg.backend
-    except Exception as exc:
+        with console.status("boshlanmoqda…") as status:
+            result = consult(
+                question,
+                mode=mode,
+                as_of=_date.fromisoformat(as_of) if as_of else None,
+                client_position=position,
+                top_k=top_k,
+                observe=on_event,
+            )
+    except ValueError as exc:
         console.print(f"[red]✕[/red] {exc}")
-        raise typer.Exit(3) from exc
+        raise typer.Exit(2) from exc
 
-    params = GenerationParams(max_tokens=max_tokens, temperature=temperature)
-    for token in backend.stream(question, params):
-        console.print(token, end="")
-    console.print()
+    if json_out:
+        console.print_json(result.model_dump_json())
+        return
+
+    _render_answer(result, trace=trace)
+    if not result.citations:
+        raise typer.Exit(5)
+
+
+def _render_answer(result: object, *, trace: bool) -> None:
+    """Maslahat natijasini terminalga chiqaradi."""
+    from uzlegal.types import ConsultResult
+
+    assert isinstance(result, ConsultResult)
+
+    console.print(f"\n{result.answer}\n")
+
+    if result.citations:
+        console.print("[bold]Manbalar[/bold]")
+        for c in result.citations:
+            label = f"{c.doc_title or c.doc_id}, {c.article}-modda"
+            console.print(f"  [cyan][{c.tag}][/cyan] {label}")
+            if c.url:
+                console.print(f"       [dim]{c.url}[/dim]")
+
+    for warning in result.warnings:
+        console.print(f"\n[yellow]⚠ {warning}[/yellow]")
+
+    meta = [
+        f"rejim {result.mode.value}",
+        f"{result.total_ms / 1000:.1f} s",
+        f"ishonch {result.confidence:.0%}",
+    ]
+    if result.model:
+        meta.append(f"model {result.model}")
+    if result.kb_version:
+        meta.append(f"kb {result.kb_version}")
+    console.print(f"\n[dim]{' · '.join(meta)}[/dim]")
+
+    if trace:
+        console.print("\n[bold]Bosqichlar[/bold]")
+        for event in result.trace:
+            detail = event.error or ", ".join(f"{k}={v}" for k, v in event.detail.items())
+            mark = "[red]✕[/red]" if event.error else " "
+            console.print(f"  {mark} {event.node:12} {event.ms:6d} ms  [dim]{detail}[/dim]")
+        gate = result.gate
+        console.print(
+            f"\n  [bold]Gate:[/bold] {len(gate.kept)} qoldirildi · "
+            f"{len(gate.dropped)} o'chirildi · {len(gate.flagged)} noaniq"
+        )
+        for claim in gate.dropped:
+            console.print(f"    [red]−[/red] [dim]{claim[:88]}[/dim]")
+
+
+@app.command()
+def bot() -> None:
+    """Telegram botni ishga tushirish (long-polling)."""
+    from uzlegal.bot.telegram import TelegramBot, TelegramError
+
+    try:
+        telegram = TelegramBot()
+    except TelegramError as exc:
+        console.print(f"[red]✕[/red] {exc}")
+        raise typer.Exit(2) from exc
+
+    console.print("[bold]Telegram bot[/bold] ishga tushdi. To'xtatish: Ctrl+C")
+    telegram.run()
+
+
+@app.command()
+def mcp() -> None:
+    """MCP serverini stdio ustida ishga tushirish.
+
+    Claude Desktop sozlamasiga:
+    {"mcpServers": {"uzlegal": {"command": "uzlegal", "args": ["mcp"]}}}
+    """
+    from uzlegal.mcp.server import serve as _serve
+
+    _serve()
 
 
 @app.command()

@@ -71,12 +71,7 @@ _SENTENCE = re.compile(r"(?<=[.!?])\s+(?=[A-ZЎҚҒҲ0-9])")
 # Ma'no tashimaydigan so'zlar — qoplama hisobida hisobga olinmaydi.
 # `fold()` qilingan shaklda yoziladi, chunki taqqoslash ham shu shaklda.
 _STOPWORDS = frozenset(
-    """
-    va yoki ammo lekin bilan uchun ham bu shu ular biz siz men
-    bolgan bolsa boladi qilish qiladi qilingan kerak mumkin agar
-    shuning yani hamda hisoblanadi deb ushbu mazkur har bir barcha
-    faqat keyin oldin ichida
-    """.split()
+    ["va", "yoki", "ammo", "lekin", "bilan", "uchun", "ham", "bu", "shu", "ular", "biz", "siz", "men", "bolgan", "bolsa", "boladi", "qilish", "qiladi", "qilingan", "kerak", "mumkin", "agar", "shuning", "yani", "hamda", "hisoblanadi", "deb", "ushbu", "mazkur", "har", "bir", "barcha", "faqat", "keyin", "oldin", "ichida"]
 )
 
 # Da'vo qo'llab-quvvatlangan deb hisoblanishi uchun kerakli leksik qoplama.

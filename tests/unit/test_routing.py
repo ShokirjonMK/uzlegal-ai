@@ -7,7 +7,7 @@ mos kelmagan hujjat ro'yxatda qoldimi.
 
 from __future__ import annotations
 
-from uzlegal.retrieval.routing import Domain, DocumentRouter, Route, RoutingConfig
+from uzlegal.retrieval.routing import DocumentRouter, Domain, Route, RoutingConfig
 
 # --------------------------------------------------------------------------- #
 # Sinov sozlamasi — haqiqiy YAML dan mustaqil

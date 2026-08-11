@@ -121,7 +121,7 @@ def test_qisman_notogri_iqtibosda_yolgon_belgi_olib_tashlanadi() -> None:
 
 def test_haqiqiy_iqtibos_bilan_davo_qoladi() -> None:
     claim = "Mulkdor mol-mulkini qonunsiz egalikdan talab qilib olishga haqli [C1]"
-    cleaned, report = gate("C1").check(claim)
+    _, report = gate("C1").check(claim)
 
     assert report.kept == [claim]
     assert report.dropped == []
@@ -152,7 +152,7 @@ def test_qoplama_hisoblanadi() -> None:
 def test_iqtibos_matni_yoq_bolsa_belgilanmaydi() -> None:
     """Manba matni saqlanmagan bo'lsa bu bosqich o'tkazib yuboriladi."""
     empty = Citation(tag="C1", doc_id="fk", article="228", excerpt=None)
-    cleaned, report = GroundednessGate([empty]).check("Har qanday daʼvo mumkin [C1]")
+    _, report = GroundednessGate([empty]).check("Har qanday daʼvo mumkin [C1]")
     assert report.flagged == []
 
 
