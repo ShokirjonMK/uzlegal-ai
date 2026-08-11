@@ -95,51 +95,53 @@ oxirida PM tomonidan ulanadi — aks holda to'qnashuv bo'ladi.
 
 ## 4. Har faza uchun «tayyor» mezoni
 
+> **Holat 2026-08-11 yakunida.** Batafsil: [14 — Yakuniy hisobot](14-yakuniy-hisobot.md)
+
 ### F0 — Muhit va model tanlovi
 - [x] Muhit, MLX, uch model
-- [ ] `bench-uz-legal-v0` yurgizilgan, **ADR-001 yozilgan**
-- [ ] CPT kerakmi degan qaror (o'zbek tili balli < 3.5?)
+- [x] `bench-uz-legal-v0` yurgizilgan, **ADR-001 yozilgan** — Gemma-3-12B (3.77/5)
+- [x] CPT kerakmi degan qaror — **kerak emas**, o'zbek tili 4.82 ≥ 3.5
 
 ### F1 — Ma'lumot quvuri
 - [x] Konnektor, parser, sync, kashfiyot
-- [ ] **Versiyalash** — o'zgartirish eslatmalaridan `valid_from`/`valid_to`
-- [ ] **Havola grafi** — «ushbu Kodeksning 45-moddasi» → bog'lanish
-- [ ] **PII anonimizatsiya** — sud qarorlari uchun
-- [ ] **Validatsiya** — karantin mexanizmi
+- [x] **Versiyalash** — `ingest/versioning.py`
+- [x] **Havola grafi** — `ingest/linking.py`, 29 365 havola · 14 947 qirra
+- [x] **PII anonimizatsiya** — `ingest/redact.py`
+- [x] **Validatsiya** — `ingest/validate.py`, `uzlegal pipeline validate`
 - [ ] ⛔ To'liq 40k korpus — 17 kun, bu sessiyada emas
 
 ### F2 — RAG
 - [x] Chunking, embedding, gibrid, kengaytma
-- [ ] **Graf kengaytmasi** — havola qilingan normalarni qo'shish
-- [ ] **Hujjat yo'naltirish** — protsessual savol protsessual kodeksga
-- [ ] Recall@10 ≥ 85% (hozir 69%)
+- [x] **Graf kengaytmasi** — havola qilingan normalar kontekstga qo'shiladi
+- [x] **Hujjat yo'naltirish** — `retrieval/routing.py`, 20 kodeks profili
+- [x] Recall@10 ≥ 85% — **89%** (69% dan)
 - [ ] ⛔ Embedding fine-tuning — trening juftliklari kerak
 
 ### F3 — Trening ma'lumoti
-- [ ] Generatsiya quvuri (urug' → sintetik → filtr)
-- [ ] Avtomatik filtrlar (iqtibos, format, uzunlik)
-- [ ] Tekshirish interfeysi
+- [x] Generatsiya quvuri (urug' → sintetik → filtr) — `training/dataset.py`
+- [x] Avtomatik filtrlar (iqtibos, format, uzunlik) — `check_sample`
+- [x] Tekshirish interfeysi — `uzlegal train verify` (CLI qismi)
 - [ ] ⛔ Yurist tekshiruvi — 1 500 soat
 
 ### F4 — Fine-tuning
-- [ ] LoRA trening quvuri (MLX)
-- [ ] Adapter reestri, merge, eksport
+- [x] LoRA trening quvuri (MLX) — `training/lora.py`, `uzlegal train lora`
+- [x] Adapter chiqishi va xotira hisobi; reestr `configs/models.yaml` da
 - [ ] ⛔ Haqiqiy adapterlar — tekshirilgan data kerak
 
 ### F5 — Agentlar
-- [ ] 5 rol promptlari va sxemalari
-- [ ] Munozara protokoli, kelishmovchilik balli
-- [ ] Sudya sintezi
-- [ ] **Groundedness gate** — iqtibossiz da'vo o'chiriladi
-- [ ] `consult()` — RAG + model + agentlar bir zanjirda
-- [ ] Prefix KV-cache
+- [x] 5 rol promptlari va sxemalari — `agents/roles.py`, `agents/schemas.py`
+- [x] Munozara protokoli, kelishmovchilik balli — `orchestrator/debate.py`
+- [x] Sudya sintezi — `JudgeAgent`
+- [x] **Groundedness gate** — `orchestrator/gate.py`, iqtibossiz da'vo o'chiriladi
+- [x] `consult()` — `core.py`, RAG + model + agentlar bir zanjirda
+- [x] Prefix KV-cache — `orchestrator/graph.build_context()`
 
 ### F6 — Interfeyslar
 - [x] CLI, model boshqaruvi, Web panel
-- [ ] `/v1/consult` va SSE oqim
-- [ ] Telegram bot
-- [ ] MCP server
-- [ ] Python SDK
+- [x] `/v1/consult` va SSE oqim (bosqich hodisalari)
+- [x] Telegram bot — `bot/telegram.py`, `uzlegal bot`
+- [x] MCP server — `mcp/server.py`, `uzlegal mcp`
+- [x] Python SDK — `sdk.py`, ichki va masofaviy rejim
 
 ---
 
