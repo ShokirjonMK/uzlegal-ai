@@ -432,18 +432,28 @@ def draft_answer(state: ConsultState) -> str:
 
 
 def _frame_answer(frame: LegalFrame) -> str:
+    """Ramkadan javob yig'adi — `simple` oqimda yagona chiqish.
+
+    Tegishli normalar ro'yxati **har doim** qo'shiladi, javob bo'lsa ham.
+    Sabab o'lchangan: jurist qisqa javobda `[C1]` belgisini tushirib
+    qoldirsa, gate uni o'chiradi va boshqa hech narsa qolmagani uchun
+    butun javob rad etilardi. Normalar ro'yxatidagi har bir satr o'z
+    belgisini olib yuradi, shuning uchun u gate dan o'tadi va
+    foydalanuvchi kamida qaysi moddalar tegishli ekanini ko'radi.
+    """
+    blocks: list[str] = []
     if frame.answer:
-        blocks = ["XULOSA\n" + frame.answer]
-    elif frame.applicable_norms:
-        blocks = [
+        blocks.append("XULOSA\n" + frame.answer)
+    if frame.applicable_norms:
+        blocks.append(
             "TEGISHLI NORMALAR\n"
             + "\n".join(
                 f"- [{c.tag}] {c.doc_title or c.doc_id}"
                 + (f", {c.article}-modda" if c.article else "")
                 for c in frame.applicable_norms
             )
-        ]
-    else:
+        )
+    if not blocks:
         return ""
     if frame.unknowns:
         blocks.append("YETISHMAYOTGAN MA'LUMOT\n" + "\n".join(f"- {u}" for u in frame.unknowns))

@@ -143,6 +143,26 @@ _TAGS_ONLY = re.compile(r"(?:Asos\s*:\s*)?\[\s*C\d{1,3}\s*\]", re.IGNORECASE)
 # --------------------------------------------------------------------------- #
 
 
+def _grounded_answer(answer: str, ctx: AgentContext) -> str:
+    """Iqtibosga bog'lanmagan javobni tashlaydi.
+
+    Nima uchun manbada, gate da emas: gate baribir belgisiz huquqiy gapni
+    o'chiradi. Lekin u **butun javobni** o'chirsa, `simple` oqim
+    «ishonchli javob shakllantirilmadi» deb tugaydi — foydalanuvchi
+    topilgan normalarni ham ko'rmaydi.
+
+    Bu yerda tashlansa esa `draft_answer()` tegishli normalar ro'yxatiga
+    tushadi va foydalanuvchi kamida qaysi moddalar tegishli ekanini
+    ko'radi. Ya'ni bu **yumshoq degradatsiya**, yashirish emas: hech
+    qanday tasdiqlanmagan gap javobga chiqmaydi.
+    """
+    if not answer:
+        return ""
+    if ctx.resolve(extract_tags(answer)):
+        return answer
+    return ""
+
+
 class JuristAgent(BaseAgent):
     """Faktlarni ajratadi va neytral huquqiy ramka quradi.
 
@@ -170,10 +190,21 @@ class JuristAgent(BaseAgent):
         if inputs.get("direct"):
             # `simple` oqimda jurist yagona agent — ramka bilan birga qisqa
             # javobni ham u beradi, aks holda foydalanuvchi javobsiz qoladi.
+            #
+            # Iqtibos talabi bu yerda **takrorlanadi va kuchaytiriladi**:
+            # o'lchovda (ADR-001, `cite-01`) baza model to'g'ri javob berib,
+            # belgini qo'yishni unutishi eng ko'p uchraydigan xato bo'ldi.
+            # Belgisiz gap groundedness gate tomonidan o'chiriladi, ya'ni
+            # unutilgan `[C1]` javobning o'zini yo'q qiladi.
             parts.append(
                 "Bundan tashqari `answer` maydonida savolga to'g'ridan-to'g'ri, "
-                "qisqa (2–4 jumla) javob ber. Har bir huquqiy gapni `[C1]` "
-                "belgisiga bog'la. Kontekstda javob bo'lmasa — bo'sh qoldir."
+                "qisqa (2–4 jumla) javob ber.\n"
+                "MAJBURIY: `answer` ichidagi HAR BIR huquqiy gap oxirida "
+                "`[C1]` ko'rinishidagi belgi turishi shart — belgisiz gap "
+                "javobdan avtomatik o'chiriladi.\n"
+                "Namuna: «Mulkdor mol-mulkini qonunsiz egalikdan talab qilib "
+                "olishga haqli [C1].»\n"
+                "Kontekstda javob bo'lmasa — `answer` ni bo'sh qoldir."
             )
         return "\n\n".join(parts)
 
@@ -190,12 +221,19 @@ class JuristAgent(BaseAgent):
             legal_questions=as_list(data.get("legal_questions")),
             applicable_norms=ctx.resolve(_tags_from(data.get("applicable_norms"))),
             unknowns=as_list(data.get("unknowns")),
-            answer=str(data.get("answer") or "").strip(),
+            answer=_grounded_answer(str(data.get("answer") or "").strip(), ctx),
         )
 
     def validate(self, result: LegalFrame) -> str | None:  # type: ignore[override]
         if not result.legal_questions:
             return "`legal_questions` bo'sh — kamida bitta huquqiy savol kerak"
+        if not result.applicable_norms:
+            # `simple` oqimda ramka yagona grounding manbai: normasiz ramka
+            # gate uchun tekshiriladigan hech narsa qoldirmaydi va javob
+            # butunlay rad etiladi. Kontekst bo'sh bo'lsa jurist bu yerga
+            # umuman kelmaydi (docs/06 § 8), demak norma tanlanmagani —
+            # shartnoma buzilishi, retry ga arziydi.
+            return "`applicable_norms` bo'sh — kontekstdagi qaysi normalar tegishli?"
         return None
 
     def build_from_text(self, raw: str, ctx: AgentContext) -> LegalFrame | None:
@@ -208,7 +246,9 @@ class JuristAgent(BaseAgent):
             legal_questions=questions or [ctx.question],
             applicable_norms=ctx.resolve(extract_tags(raw)),
             unknowns=s.get("NOMA'LUM", []) or s.get("NOMALUM", []),
-            answer=" ".join(s.get("JAVOB", []) or s.get("XULOSA", [])).strip(),
+            answer=_grounded_answer(
+                " ".join(s.get("JAVOB", []) or s.get("XULOSA", [])).strip(), ctx
+            ),
         )
 
 
