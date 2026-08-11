@@ -482,6 +482,110 @@ def integrity_profile(req: IntegrityBatchRequest) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# Qidiruv (RAG) — TS web app va tashqi mijozlar uchun yagona nuqta
+# --------------------------------------------------------------------------- #
+
+
+class SearchRequest(BaseModel):
+    query: str
+    top_k: int = 8
+    min_score: float | None = None
+    documents: list[str] | None = None
+
+
+class SearchResult(BaseModel):
+    chunk_id: str
+    document: str
+    article: str | None = None
+    heading: str | None = None
+    text: str
+    score: float
+    source: str = "hybrid"
+    url: str | None = None
+
+
+class SearchResponse(BaseModel):
+    results: list[SearchResult]
+    query_kind: str
+    total_hits: int
+    latency_ms: int
+    confident: bool
+
+
+@app.post("/v1/search", tags=["search"])
+def search(req: SearchRequest) -> SearchResponse:
+    """Qonun bazasidan gibrid qidiruv — vektor + leksik + aniq moslik.
+
+    Bu endpoint TS web app va tashqi mijozlar uchun yagona RAG kirish
+    nuqtasi. Python va TS da alohida RAG yozish oʻrniga, barcha
+    mijozlar shu endpointni ishlatadi.
+    """
+    if not req.query.strip():
+        raise HTTPException(400, "`query` boʻsh")
+
+    try:
+        from uzlegal.index.store import KnowledgeIndex
+        from uzlegal.retrieval.hybrid import HybridRetriever
+
+        index = KnowledgeIndex()
+        retriever = HybridRetriever(index)
+        result = retriever.search(req.query, top_k=req.top_k)
+
+        items = [
+            SearchResult(
+                chunk_id=item.chunk.chunk_id,
+                document=item.chunk.doc_title or item.chunk.doc_id,
+                article=item.chunk.article,
+                heading=item.chunk.heading,
+                text=item.chunk.content,
+                score=round(item.score, 4),
+                source=item.source,
+                url=item.chunk.source_url,
+            )
+            for item in result.results
+        ]
+
+        if req.min_score is not None:
+            items = [i for i in items if i.score >= req.min_score]
+
+        return SearchResponse(
+            results=items,
+            query_kind=result.query_kind.value,
+            total_hits=len(result.results),
+            latency_ms=result.latency_ms,
+            confident=result.is_confident,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            503, f"Bilim bazasi topilmadi: {exc}. Avval `uzlegal ingest` bajaring."
+        ) from exc
+    except Exception as exc:
+        log.exception("Qidiruv xatosi")
+        raise HTTPException(500, f"Qidiruv xatosi: {exc}") from exc
+
+
+@app.get("/v1/search/stats", tags=["search"])
+def search_stats() -> dict[str, Any]:
+    """Bilim bazasi statistikasi — hujjat soni, boʻlak soni, embedder."""
+    try:
+        from uzlegal.index.store import KnowledgeIndex
+
+        index = KnowledgeIndex()
+        meta = index.meta
+        return {
+            "chunks": meta.get("chunks", 0),
+            "documents": meta.get("documents", 0),
+            "embedder": meta.get("embedder"),
+            "kb_version": meta.get("kb_version"),
+            "status": "tayyor" if meta else "qurilmagan",
+        }
+    except FileNotFoundError:
+        return {"chunks": 0, "documents": 0, "embedder": None, "status": "qurilmagan"}
+    except Exception as exc:
+        raise HTTPException(500, f"Statistika xatosi: {exc}") from exc
+
+
+# --------------------------------------------------------------------------- #
 # Foydalanuvchi tizimi
 # --------------------------------------------------------------------------- #
 
