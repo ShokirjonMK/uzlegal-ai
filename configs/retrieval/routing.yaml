@@ -1,0 +1,308 @@
+# Hujjat yo'naltirish — savolni to'g'ri kodeksga bog'lash
+#
+# ## Nima uchun kerak
+#
+# Indeksda 20 ta kodeks bor va ularning modda raqamlari **takrorlanadi**.
+# Baholashda o'lchangan tipik nosozlik:
+#
+#   savol:   "Maoshni to'lash tartibi va muddatlari"
+#   kerak:   Mehnat kodeksi, 333-modda
+#   olindi:  Bojxona kodeksi 327 · Bojxona kodeksi 333
+#
+# Ikkala kodeksda ham "333-modda" bor va ikkalasida ham "to'lash",
+# "muddat" so'zlari uchraydi. BM25 ular orasidagi farqni ko'rmaydi,
+# chunki farq **so'zda emas, sohada**.
+#
+# ## Qanday ishlaydi
+#
+# Savoldagi soha belgilari sanaladi, eng ko'p ball olgan soha(lar)ning
+# hujjatlari **ko'tariladi** (boost). Bu qat'iy filtr emas — noto'g'ri
+# yo'naltirish recall ni buzmasligi uchun boshqa hujjatlar ro'yxatda
+# qoladi, faqat pastroq o'rinda.
+#
+# ## Format
+#
+#   triggers  — savolda uchrasa shu sohaga ball qo'shadigan so'zlar.
+#               `fold()` qilingan shaklda taqqoslanadi (apostrof, kirill).
+#   documents — hujjat sarlavhasida qidiriladigan bo'lak (folded).
+#   weight    — sohaning boost kuchi (standart 1.0).
+#
+# Yangi kodeks qo'shilsa — shu yerga yozuv qo'shiladi, kod o'zgarmaydi.
+
+# Bir soha belgisining bazaviy og'irligi. Ko'p so'zli iboralar aniqroq,
+# shuning uchun ular avtomatik ko'proq ball oladi (so'zlar soniga qarab).
+term_weight: 1.0
+phrase_bonus: 0.5
+
+# Fusiondan keyingi ballga qo'llaniladigan ko'paytma:
+#   yakuniy_ball = ball × (1 + boost × soha_ishonchi)
+boost: 0.8
+
+# Eng yuqori soha bali shu qiymatdan past bo'lsa — yo'naltirish
+# qo'llanilmaydi (savol umumiy, taxmin qilishning ma'nosi yo'q).
+min_score: 1.0
+
+domains:
+
+  # ── Moddiy huquq ────────────────────────────────────────────────────
+
+  fuqarolik:
+    documents: [fuqarolik kodeksi]
+    triggers:
+      - shartnoma
+      - bitim
+      - majburiyat
+      - mulk
+      - mulkdor
+      - mol-mulk
+      - ashyo
+      - egalik
+      - egallab olgan
+      - qaytarib olish
+      - talab qilib olish
+      - vindikatsiya
+      - meros
+      - vasiyat
+      - zarar
+      - neustoyka
+      - garov
+      - oldi-sotdi
+      - ijara
+      - qarz
+      - yuridik shaxs
+      - jismoniy shaxs
+      - muomala layoqati
+      - vakolat
+      - ishonchnoma
+      - dav'o muddati
+      - dagvo muddati
+      - daʼvo muddati
+      - obligatsiya
+      - ulush
+
+  mehnat:
+    documents: [mehnat kodeksi]
+    triggers:
+      - xodim
+      - ish beruvchi
+      - mehnat shartnomasi
+      - mehnat shartnoma
+      - ish haqi
+      - maosh
+      - oylik
+      - taʼtil
+      - tatil
+      - ishdan boʻshatish
+      - ishdan bosatish
+      - dastlabki sinov
+      - sinov muddati
+      - ish vaqti
+      - mehnat intizomi
+      - mehnat nizosi
+      - ish joyi
+      - shtat
+      - lavozim
+      - mehnat daftarchasi
+
+  jinoyat:
+    documents: [jinoyat kodeksi]
+    triggers:
+      - jinoyat
+      - jazo
+      - ayblanuvchi
+      - sudlanganlik
+      - qasddan
+      - ehtiyotsizlik
+      - oʻgʻrilik
+      - ogrilik
+      - talonchilik
+      - firibgarlik
+      - poraxoʻrlik
+      - poraxorlik
+      - qotillik
+      - tan jarohati
+      - ozodlikdan mahrum
+      - jamoat ishlari
+      - jinoiy javobgarlik
+
+  soliq:
+    documents: [soliq kodeksi]
+    triggers:
+      - soliq
+      - mmt
+      - qoʻshilgan qiymat soligʻi
+      - qoshilgan qiymat soligi
+      - aksiz
+      - soliq toʻlovchi
+      - soliq tolovchi
+      - deklaratsiya
+      - soliq bazasi
+      - soliq stavkasi
+      - soliq imtiyozi
+      - foyda soligʻi
+
+  oila:
+    documents: [oila kodeksi]
+    triggers:
+      - nikoh
+      - ajrashish
+      - er-xotin
+      - turmush oʻrtoq
+      - turmush ortoq
+      - aliment
+      - farzand
+      - ota-ona
+      - vasiylik
+      - homiylik
+      - farzandlikka olish
+      - bola manfaati
+
+  yer:
+    documents: [yer kodeksi]
+    triggers:
+      - yer uchastkasi
+      - yer maydoni
+      - dehqon xoʻjaligi
+      - qishloq xoʻjaligi yerlari
+      - yerdan foydalanish
+      - yer egasi
+
+  uy-joy:
+    documents: [uy-joy kodeksi]
+    triggers:
+      - turar joy
+      - kvartira
+      - uy-joy fondi
+      - koʻchmas mulkka boʻlgan
+      - yashash joyi
+      - kommunal
+
+  bojxona:
+    documents: [bojxona kodeksi]
+    triggers:
+      - bojxona
+      - import
+      - eksport
+      - deklarant
+      - boj toʻlovi
+      - boj tolovi
+      - tovarni olib kirish
+      - tranzit
+
+  budjet:
+    documents: [budjet kodeksi]
+    triggers:
+      - budjet
+      - byudjet
+      - davlat maqsadli jamgʻarma
+      - budjet mablagʻlari
+
+  saylov:
+    documents: [saylov kodeksi]
+    triggers:
+      - saylov
+      - saylovchi
+      - nomzod
+      - ovoz berish
+      - saylov komissiyasi
+      - referendum
+
+  suv:
+    documents: [suv kodeksi]
+    triggers: [suvdan foydalanish, suv obyekti, suv resurslari, sugʻorish]
+
+  havo:
+    documents: [havo kodeksi]
+    triggers: [havo kemasi, aviatsiya, uchish, aerodrom, havo makoni]
+
+  shaharsozlik:
+    documents: [shaharsozlik kodeksi]
+    triggers: [shaharsozlik, qurilish loyihasi, bosh reja, obyektni qurish]
+
+  jinoyat-ijroiya:
+    documents: [jinoyat-ijroiya kodeksi]
+    triggers:
+      - jazoni ijro
+      - koloniya
+      - mahkum
+      - jazoni oʻtash
+      - jazoni otash
+      - shartli ravishda muddatidan ilgari
+
+  # ── Ma'muriy ────────────────────────────────────────────────────────
+
+  maʼmuriy-javobgarlik:
+    documents: [maʼmuriy javobgarlik]
+    triggers:
+      - maʼmuriy huquqbuzarlik
+      - mamuriy huquqbuzarlik
+      - maʼmuriy jarima
+      - mamuriy jarima
+      - maʼmuriy javobgarlik
+      - mamuriy javobgarlik
+      - bazaviy hisoblash miqdori
+
+  # ── Protsessual ─────────────────────────────────────────────────────
+  #
+  # Protsessual savol qaysi kodeksga tegishli ekani nizo turiga bog'liq:
+  # jinoiy → JPK, fuqarolik → FPK, iqtisodiy → IPK, ma'muriy → MSIYK.
+  # Shuning uchun protsessual triggerlar soha triggerlari bilan
+  # **birga** ishlaydi: "sudga shikoyat" + "xodim" → mehnat + FPK.
+  #
+  # Har bir protsessual sohaning `documents` ro'yxatida **moddiy kodeks
+  # ham** bor. Sabab baholashda o'lchangan: "Sudga murojaat qilish uchun
+  # necha yil vaqt bor" savoli protsessual ko'rinadi, lekin javob
+  # Fuqarolik kodeksidagi da'vo muddatida. Faqat FPK ni ko'tarish bu
+  # savolni buzardi — ikkalasi ko'tarilsa, ikkala ehtimol ham saqlanadi.
+
+  fuqarolik-protsessual:
+    documents: [fuqarolik protsessual kodeksi, fuqarolik kodeksi]
+    weight: 0.9
+    triggers:
+      - daʼvo arizasi
+      - dagvo arizasi
+      - sudga murojaat
+      - fuqarolik ishi
+      - apellyatsiya shikoyati
+      - kassatsiya shikoyati
+      - sud qarori ustidan
+      - sud xarajatlari
+      - guvoh
+      - dalil
+      - sud majlisi
+      - ijro varaqasi
+
+  iqtisodiy-protsessual:
+    documents: [iqtisodiy protsessual kodeksi, fuqarolik kodeksi]
+    weight: 0.9
+    triggers:
+      - iqtisodiy sud
+      - xoʻjalik nizosi
+      - xojalik nizosi
+      - tadbirkorlik nizosi
+      - bankrotlik
+      - korxonalar oʻrtasidagi nizo
+
+  jinoyat-protsessual:
+    documents: [jinoyat-protsessual kodeksi, jinoyat kodeksi]
+    weight: 0.9
+    triggers:
+      - surishtiruv
+      - dastlabki tergov
+      - tergovchi
+      - gumon qilinuvchi
+      - qamoqqa olish
+      - ehtiyot chorasi
+      - jinoyat ishi
+      - ayblov xulosasi
+      - himoyachi
+      - jabrlanuvchi
+
+  maʼmuriy-sud:
+    documents: [maʼmuriy sud ishlarini yuritish, maʼmuriy javobgarlik]
+    weight: 0.9
+    triggers:
+      - maʼmuriy sud
+      - mamuriy sud
+      - davlat organi qarori ustidan
+      - maʼmuriy ish yuritish

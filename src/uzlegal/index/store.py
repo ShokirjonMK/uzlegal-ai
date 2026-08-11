@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel
 
 from uzlegal.index.chunker import Chunk
+from uzlegal.ingest.linking import ReferenceGraph
 from uzlegal.ingest.normalize import fold
 
 if TYPE_CHECKING:
@@ -168,6 +169,7 @@ class KnowledgeIndex:
         self._table: Any = None
         self._bm25: BM25Index | None = None
         self._chunks: dict[str, Chunk] = {}
+        self._graph: ReferenceGraph | None = None
 
     # ------------------------------------------------------------------ #
 
@@ -186,6 +188,10 @@ class KnowledgeIndex:
     @property
     def meta_path(self) -> Path:
         return self.path / "index-meta.json"
+
+    @property
+    def graph_path(self) -> Path:
+        return self.path / "refs.jsonl"
 
     def exists(self) -> bool:
         return self.chunks_path.exists() and self.bm25_path.exists()
@@ -284,6 +290,75 @@ class KnowledgeIndex:
     def get(self, chunk_id: str) -> Chunk | None:
         self.load()
         return self._chunks.get(chunk_id)
+
+    def chunks_for_article(self, doc_id: str, article: str, *, limit: int = 4) -> list[Chunk]:
+        """Berilgan hujjatning berilgan moddasiga tegishli bo'laklar.
+
+        Uzun modda bir nechta chunkka bo'lingan bo'lishi mumkin, shuning
+        uchun ro'yxat qaytadi. Tartib — qism/band raqami bo'yicha, ya'ni
+        birinchi chunk moddaning boshi bo'ladi.
+        """
+        self.load()
+        found = [
+            chunk
+            for chunk in self._chunks.values()
+            if chunk.doc_id == doc_id and chunk.article == article
+        ]
+        found.sort(key=lambda c: (c.part or "", c.item or "", c.chunk_id))
+        return found[:limit]
+
+    def reference_graph(self, *, rebuild: bool = False) -> ReferenceGraph | None:
+        """Havola grafi — keshdan o'qiladi yoki arxivdan quriladi.
+
+        Grafni `ingest.linking` quradi (u HTML havolalarini ham ko'radi,
+        shuning uchun matn shablonlaridan aniqroq). Bu yerda faqat
+        **keshlash** bor: graf embedding talab qilmaydi, lekin arxivni
+        qayta ajratish ~10 s oladi va uni har qidiruvda takrorlash
+        ma'nosiz.
+
+        Xato yuz bersa `None` qaytadi — graf ixtiyoriy qatlam, usiz
+        qidiruv to'liq ishlaydi, faqat havola qilingan normalar
+        kontekstga qo'shilmaydi.
+        """
+        if self._graph is not None and not rebuild:
+            return self._graph
+        try:
+            if self.graph_path.exists() and not rebuild:
+                self._graph = ReferenceGraph.load(self.graph_path)
+                return self._graph
+            self._graph = self._build_graph()
+            self._graph.save(self.graph_path)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            log.warning("Havola grafi tayyorlanmadi: %s", exc)
+            return None
+        return self._graph
+
+    def _build_graph(self) -> ReferenceGraph:
+        """Arxivdagi hujjatlardan grafni quradi.
+
+        Faqat indeksdagi hujjatlar olinadi — arxivda indekslanmagan
+        (masalan boshqa tildagi) nashrlar bo'lishi mumkin va ular grafga
+        indeksda mavjud bo'lmagan tugunlarni qo'shardi.
+        """
+        from uzlegal.ingest.connectors.lex_uz import LexUzConnector
+        from uzlegal.ingest.linking import build_graph
+        from uzlegal.ingest.parsers.lex_uz import LexUzParser
+
+        self.load()
+        connector, parser = LexUzConnector(), LexUzParser()
+        docs, pages = [], {}
+
+        for doc_id in sorted({c.doc_id for c in self._chunks.values()}):
+            raw = connector.load_cached(doc_id)
+            if raw is None:
+                continue
+            docs.append(parser.parse(raw))
+            pages[doc_id] = raw.content
+
+        log.info("Havola grafi qurilmoqda (%d hujjat)…", len(docs))
+        graph = build_graph(docs, pages)
+        log.info("Havola grafi: %s", graph.stats())
+        return graph
 
     def __len__(self) -> int:
         self.load()

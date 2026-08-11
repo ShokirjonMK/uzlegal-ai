@@ -302,3 +302,139 @@ def test_aniq_moslik_rrf_da_ustun() -> None:
     exact = [ScoredChunk(chunk=a, score=1.2, source="exact")]
     fused = HybridRetriever._rrf(vector, [], 0.7, 0.3, exact)
     assert fused[0].chunk_id == "A"
+
+
+# --------------------------------------------------------------------------- #
+# Graf kengaytmasi — havola qilingan normalarni qo'shish (F2)
+# --------------------------------------------------------------------------- #
+
+
+def _index_with(tmp_path, chunks: dict[str, object]):  # type: ignore[no-untyped-def]
+    from uzlegal.index.store import KnowledgeIndex
+
+    index = KnowledgeIndex(tmp_path / "kb")
+    index._chunks = chunks  # type: ignore[assignment]
+    index.load = lambda: None  # type: ignore[method-assign]
+    return index
+
+
+def _graph(edges: list[tuple[str, str]]):  # type: ignore[no-untyped-def]
+    from uzlegal.ingest.linking import Reference, ReferenceGraph
+
+    graph = ReferenceGraph()
+    for source, target in edges:
+        from_doc, _, from_article = source.rpartition(":")
+        to_doc, _, to_article = target.rpartition(":")
+        graph.add(
+            Reference(
+                from_doc=from_doc,
+                from_article=from_article,
+                to_doc=to_doc,
+                to_article=to_article,
+                kind="internal",
+            )
+        )
+    return graph
+
+
+def test_graf_havola_qilingan_norma_qoshiladi(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """228-modda 229-moddaga havola qilsa, 229 ham kontekstga tushishi kerak."""
+    found = make_chunk("fk:228", "Vindikatsiya", article="228")
+    linked = make_chunk("fk:229", "Vijdonli oluvchi", article="229")
+    index = _index_with(tmp_path, {"fk:228": found, "fk:229": linked})
+
+    retriever = HybridRetriever(index)
+    retriever._graph, retriever._graph_loaded = _graph([("fk:228", "fk:229")]), True
+
+    added = retriever._graph_neighbours(
+        [ScoredChunk(chunk=found, score=1.0)], limit=3, as_of=None
+    )
+
+    assert [a.chunk_id for a in added] == ["fk:229"]
+    assert added[0].source == "graph"
+    assert added[0].score < 1.0, "qo'shimcha kontekst asosiy natijadan past turishi kerak"
+
+
+def test_graf_allaqachon_topilgan_normani_takrorlamaydi(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    a = make_chunk("fk:228", "Vindikatsiya", article="228")
+    b = make_chunk("fk:229", "Vijdonli oluvchi", article="229")
+    index = _index_with(tmp_path, {"fk:228": a, "fk:229": b})
+
+    retriever = HybridRetriever(index)
+    retriever._graph, retriever._graph_loaded = _graph([("fk:228", "fk:229")]), True
+
+    results = [ScoredChunk(chunk=a, score=1.0), ScoredChunk(chunk=b, score=0.9)]
+    assert retriever._graph_neighbours(results, limit=3, as_of=None) == []
+
+
+def test_graf_bekor_qilingan_normani_qoshmaydi(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Versiya filtri graf orqali kelgan normaga ham qo'llaniladi."""
+    found = make_chunk("fk:228", "Vindikatsiya", article="228")
+    dead = make_chunk("fk:229", "Eski norma", article="229", status="repealed")
+    index = _index_with(tmp_path, {"fk:228": found, "fk:229": dead})
+
+    retriever = HybridRetriever(index)
+    retriever._graph, retriever._graph_loaded = _graph([("fk:228", "fk:229")]), True
+
+    assert retriever._graph_neighbours(
+        [ScoredChunk(chunk=found, score=1.0)], limit=3, as_of=None
+    ) == []
+
+
+def test_graf_ochirilganda_hech_narsa_qoshilmaydi(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    found = make_chunk("fk:228", "Vindikatsiya", article="228")
+    index = _index_with(tmp_path, {"fk:228": found})
+    retriever = HybridRetriever(index)
+    retriever._graph, retriever._graph_loaded = _graph([("fk:228", "fk:229")]), True
+
+    assert retriever._graph_neighbours(
+        [ScoredChunk(chunk=found, score=1.0)], limit=0, as_of=None
+    ) == []
+
+
+def test_graf_yoq_bolsa_qidiruv_ishlayveradi(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Graf ixtiyoriy qatlam — u yo'q bo'lsa xato bermasligi kerak."""
+    found = make_chunk("fk:228", "Vindikatsiya", article="228")
+    index = _index_with(tmp_path, {"fk:228": found})
+    retriever = HybridRetriever(index)
+    retriever._graph, retriever._graph_loaded = None, True
+
+    assert retriever._graph_neighbours(
+        [ScoredChunk(chunk=found, score=1.0)], limit=3, as_of=None
+    ) == []
+
+
+# --------------------------------------------------------------------------- #
+# Yo'naltirish fusion ballariga ta'siri (F2)
+# --------------------------------------------------------------------------- #
+
+
+def test_yonaltirish_mos_hujjatni_kotaradi(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from uzlegal.retrieval.routing import Domain, DocumentRouter, RoutingConfig
+
+    mehnat = make_chunk("mk:333", "Ish haqi toʻlash", article="333")
+    mehnat.doc_title = "Oʻzbekiston Respublikasining Mehnat kodeksi"
+    bojxona = make_chunk("bk:333", "Boj toʻlash", article="333")
+    bojxona.doc_title = "Oʻzbekiston Respublikasining Bojxona kodeksi"
+
+    retriever = HybridRetriever(_index_with(tmp_path, {}))
+    retriever._router = DocumentRouter(
+        RoutingConfig(
+            domains=(
+                Domain(name="mehnat", documents=("mehnat kodeksi",), triggers=("maosh",)),
+            ),
+            boost=0.8,
+            min_score=1.0,
+        )
+    )
+    route = retriever.router.route("Maoshni toʻlash tartibi")
+
+    # Bojxona fusionda oldinda turibdi — yo'naltirish uni almashtirishi kerak
+    fused = [
+        ScoredChunk(chunk=bojxona, score=0.10),
+        ScoredChunk(chunk=mehnat, score=0.08),
+    ]
+    boosted = retriever._apply_routing(fused, route)
+
+    assert boosted[0].chunk_id == "mk:333"
+    assert boosted[1].score == 0.10, "mos kelmagan hujjat jazolanmasligi kerak"
