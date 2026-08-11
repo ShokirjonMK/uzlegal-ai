@@ -1,0 +1,72 @@
+# OpenTelemetry kollektori — server profili (docs/09 § kuzatiluvchanlik)
+#
+# Nima yig'iladi va nima uchun: yuridik tizimda «javob qanday chiqdi»
+# savoliga javob berish majburiy. `ConsultResult.trace` uni ilova
+# darajasida beradi; bu yerda esa **operatsion** o'lchovlar yig'iladi —
+# kechikish, xato ulushi, gate o'chirish darajasi.
+#
+# Maxfiylik: savol matni va javob **eksport qilinmaydi**. Ular shaxsiy
+# ma'lumot bo'lishi mumkin (docs/10 § 3). Faqat metrik va trace_id
+# chiqadi; matn audit uchun PostgreSQL da, server ichida qoladi.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Xotira chegarasi — kollektor yuk ostida OOM bo'lib xizmatni
+  # yiqitmasligi kerak. U yordamchi komponent, kritik yo'lda emas.
+  memory_limiter:
+    check_interval: 5s
+    limit_percentage: 75
+    spike_limit_percentage: 15
+
+  batch:
+    timeout: 10s
+    send_batch_size: 512
+
+  # Savol/javob matnini o'chirish — maxfiylik talabi.
+  attributes/redact:
+    actions:
+      - key: uzlegal.question
+        action: delete
+      - key: uzlegal.answer
+        action: delete
+      - key: uzlegal.client_position
+        action: delete
+
+  resource:
+    attributes:
+      - key: service.namespace
+        value: uzlegal
+        action: upsert
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:9090
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # Standart holatda trace lar faqat logga chiqadi. Tashqi APM ga
+  # yuborish **ataylab yoqilmagan**: yuridik ma'lumot uchinchi tomon
+  # xizmatiga chiqmasligi kerak (ADR-007, docs/10 § 4).
+  debug:
+    verbosity: normal
+
+service:
+  telemetry:
+    logs:
+      level: warn
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [prometheus]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, attributes/redact, resource, batch]
+      exporters: [debug]
