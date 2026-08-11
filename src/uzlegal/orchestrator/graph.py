@@ -387,13 +387,21 @@ def _run_agent(state: ConsultState, role: str, **inputs: Any) -> Any:
 
     Xato quvurni to'xtatmaydi: rol `missing` ro'yxatiga tushadi va sudya
     "pozitsiya olinmadi" deb ko'radi (docs/06 § 8).
+
+    `Exception` keng tutiladi ataylab: backend timeout, xotira yetishmasligi
+    yoki kutilmagan sxema xatosi — foydalanuvchi uchun natija bir xil, ya'ni
+    shu rolning fikri yo'q. To'liq quvurni yiqitish o'rniga kamroq ma'lumot
+    bilan davom etiladi.
     """
     assert state.ctx is not None
     with state.trace.step(role) as step:
         try:
             result = get_agent(role).run(state.ctx, **inputs)
-        except AgentError as exc:
-            log.warning("[%s] o'tkazib yuborildi: %s", role, exc)
+        except Exception as exc:
+            # Sxema xatosi kutilgan nosozlik, qolgani esa emas — log darajasi
+            # shuni ajratadi, xatti-harakat ikkalasida bir xil.
+            level = logging.WARNING if isinstance(exc, AgentError) else logging.ERROR
+            log.log(level, "[%s] o'tkazib yuborildi: %s", role, exc)
             if role not in state.missing:
                 state.missing.append(role)
             step.set(skipped=True, error=str(exc))
