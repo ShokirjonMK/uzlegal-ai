@@ -24,6 +24,20 @@ reports/*.html
 data/users.db
 data/*.db
 
+# Mashinaga xos ishlash holati.
+#
+# Bular ilgari kuzatilardi va bu chalg'itardi: `sync-state.json` toza
+# klonda ham «kb_version: v2026.08.10, oxirgi sync bo'lgan» deb turardi,
+# holbuki o'sha mashinada indeks umuman yo'q edi. `/v1/health` aynan shu
+# fayldan o'qigani uchun bo'sh tizimni «tayyor» deb ko'rsatardi.
+#
+# `runtime-state.json` esa qaysi model FAQAT SHU mashinada faol ekanini
+# saqlaydi — uni ulashish ma'nosiz.
+#
+# Ikkalasi ham yo'q bo'lsa kod standart qiymatlardan boshlaydi.
+data/runtime-state.json
+data/sync-state.json
+
 # Shaxsiy konfiguratsiya
 configs/local.yaml
 .env
