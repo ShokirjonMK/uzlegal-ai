@@ -93,6 +93,7 @@ class DropReason(StrEnum):
     NO_CITATION = "iqtibossiz huquqiy da'vo"
     UNKNOWN_CITATION = "iqtibos indeksda topilmadi"
     UNSUPPORTED = "iqtibos matni da'voni qo'llab-quvvatlamaydi"
+    WRONG_ARTICLE = "da'vodagi modda raqami iqtibosga mos kelmaydi"
 
 
 class ClaimCheck(BaseModel):
@@ -228,6 +229,85 @@ def claim_tags(text: str) -> list[str]:
 # --------------------------------------------------------------------------- #
 
 
+# --------------------------------------------------------------------------- #
+# Modda raqami mosligi
+# --------------------------------------------------------------------------- #
+
+# "106-modda", "106-moddasiga", "130-131-modda", "Статья 106", "st. 106"
+_ARTICLE_RE = re.compile(
+    r"(\d+(?:\s*[-–]\s*\d+)?)\s*[-–]\s*modda\w*"
+    r"|(\d+(?:\s*[-–]\s*\d+)?)\s*[-–]\s*модда\w*"
+    r"|(?:статья|ст\.)\s*(\d+)",
+    re.IGNORECASE,
+)
+
+
+def article_numbers(text: str) -> set[str]:
+    """Matnda tilga olingan modda raqamlari.
+
+    Diapazon («130-131-modda») ikkala chekka raqam sifatida qaytadi —
+    iqtibosda diapazon, da'voda esa bitta raqam bo'lishi normal holat.
+    """
+    out: set[str] = set()
+    for match in _ARTICLE_RE.finditer(text):
+        raw = next((g for g in match.groups() if g), None)
+        if raw:
+            out.update(part.strip() for part in re.split(r"[-–]", raw) if part.strip())
+    return out
+
+
+def cited_article_numbers(citation: Citation) -> set[str]:
+    """Iqtibos qamrab oladigan modda raqamlari.
+
+    `article` maydonidan tashqari **parcha matni** ham qaraladi: yuridik
+    normalar bir-biriga havola qiladi («228-moddada nazarda tutilgan
+    tartibda…»), va bunday havolani da'voda takrorlash to'g'ri. Faqat
+    manbada umuman uchramaydigan raqam o'ylab topilgan hisoblanadi.
+    """
+    # `article` maydonida «modda» so'zi bo'lmaydi — u sof raqam yoki
+    # diapazon («130-131»). Shuning uchun undagi barcha raqamlar
+    # to'g'ridan-to'g'ri olinadi, `article_numbers()` orqali emas.
+    numbers = set(re.findall(r"\d+", citation.article or ""))
+    if citation.excerpt:
+        numbers |= article_numbers(citation.excerpt)
+    return {n.strip() for n in numbers if n.strip().isdigit()}
+
+
+def has_invented_article(claim: str, citations: list[Citation]) -> bool:
+    """Da'voda manbada umuman yo'q modda raqami bormi.
+
+    ## Nima uchun bu tekshiruv alohida kerak
+
+    `support_score()` leksik qoplama bo'yicha ishlaydi va u modda
+    RAQAMIGA sezgir emas: «Mehnat kodeksining 106-moddasiga ko'ra sinov
+    muddati uch oydan ortiq bo'lmasligi kerak [C1]» degan javobda
+    so'zlarning katta qismi manbaga mos keladi, shuning uchun qoplama
+    yuqori chiqadi — holbuki C1 aslida **130-131-modda** va 106 raqami
+    o'ylab topilgan.
+
+    Amalda kuzatildi (gemma3-12b, 2026-08-12): javob to'g'ri normani
+    keltirdi, lekin uni NOTO'G'RI modda raqamiga bog'ladi. Foydalanuvchi
+    uchun bu eng yomon xato turi — javob ishonchli ko'rinadi, havola bor,
+    lekin havola boshqa moddaga olib boradi.
+
+    Leksik qoplamadan farqli o'laroq bu tekshiruv **aniq**: raqam yo bor,
+    yo yo'q. Shuning uchun natija «belgilash» emas, **o'chirish** —
+    xuddi iqtibossiz da'vo kabi.
+    """
+    claimed = article_numbers(claim)
+    if not claimed:
+        return False
+    available: set[str] = set()
+    for citation in citations:
+        available |= cited_article_numbers(citation)
+    if not available:
+        # Iqtibosda modda raqami umuman yo'q — tekshirib bo'lmaydi.
+        # Tekshirib bo'lmaydigan narsani jazolash to'g'ri javoblarni
+        # ham o'chirardi (`support_score()` dagi bilan bir xil mantiq).
+        return False
+    return not (claimed & available)
+
+
 def support_score(claim: str, citation: Citation) -> float | None:
     """Da'vo va iqtibos matni o'rtasidagi leksik qoplama (0…1).
 
@@ -335,6 +415,18 @@ def _check_claim(
             status=ClaimStatus.DROPPED,
             tags=tags,
             reason=DropReason.UNKNOWN_CITATION,
+        )
+
+    if kind is ClaimKind.LEGAL and has_invented_article(text, resolved):
+        # Leksik qoplamadan OLDIN: bu tekshiruv aniq, u esa taxminiy.
+        # Modda raqami o'ylab topilgan bo'lsa qoplama yuqori bo'lishining
+        # ahamiyati yo'q — havola baribir boshqa normaga olib boradi.
+        return ClaimCheck(
+            text=text,
+            kind=kind,
+            status=ClaimStatus.DROPPED,
+            tags=tags,
+            reason=DropReason.WRONG_ARTICLE,
         )
 
     if verify_support and kind is ClaimKind.LEGAL:

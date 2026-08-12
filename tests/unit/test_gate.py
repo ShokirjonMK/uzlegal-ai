@@ -14,6 +14,7 @@ from uzlegal.orchestrator.gate import (
     ClaimKind,
     ClaimStatus,
     DropReason,
+    article_numbers,
     groundedness_gate,
     is_legal_claim,
     split_claims,
@@ -268,3 +269,78 @@ def test_support_score_manba_matnisiz_none_qaytaradi() -> None:
     """Tekshirib bo'lmaydigan narsa «qo'llab-quvvatlanmagan» degani emas."""
     bare = Citation(tag="C3", doc_id="x", article="")
     assert support_score("Uzun va mazmunli huquqiy da'vo matni", bare) is None
+
+
+# --------------------------------------------------------------------------- #
+# Modda raqami mosligi
+#
+# Amalda kuzatilgan xato (gemma3-12b, 2026-08-12): javob to'g'ri normani
+# keltirdi, lekin uni NOTO'G'RI modda raqamiga bog'ladi —
+# «Mehnat kodeksining 106-moddasiga ko'ra…[C1]», holbuki C1 aslida
+# 130-131-modda. Leksik qoplama buni tutmaydi: so'zlar mos keladi.
+# --------------------------------------------------------------------------- #
+
+
+def _mk_citation(article: str, excerpt: str = "", tag: str = "C1") -> Citation:
+    return Citation(
+        tag=tag,
+        doc_id="mk",
+        doc_title="Mehnat kodeksi",
+        article=article,
+        excerpt=excerpt,
+    )
+
+
+def test_modda_raqamlari_ajratiladi() -> None:
+    assert article_numbers("106-moddasiga ko'ra") == {"106"}
+    assert article_numbers("130-131-modda") == {"130", "131"}
+    assert article_numbers("Статья 228 нормасига") == {"228"}
+    assert article_numbers("hech qanday raqam yo'q") == set()
+
+
+def test_oylab_topilgan_modda_ochiriladi() -> None:
+    """Da'vodagi 106 manbada yo'q — havola boshqa normaga olib boradi."""
+    citation = _mk_citation("130-131", "Dastlabki sinov muddati uch oydan oshmasligi kerak.")
+    report = groundedness_gate(
+        "Mehnat kodeksining 106-moddasiga ko'ra sinov muddati uch oydan oshmasligi kerak [C1].",
+        [citation],
+    )
+    assert report.dropped == 1
+    assert DropReason.WRONG_ARTICLE.value in report.drop_reasons
+
+
+def test_togri_modda_qoladi() -> None:
+    citation = _mk_citation("130-131", "Dastlabki sinov muddati uch oydan oshmasligi kerak.")
+    report = groundedness_gate(
+        "Mehnat kodeksining 130-moddasiga ko'ra sinov muddati uch oydan oshmasligi kerak [C1].",
+        [citation],
+    )
+    assert report.dropped == 0
+
+
+def test_diapazonning_ikkinchi_chekkasi_ham_togri() -> None:
+    citation = _mk_citation("130-131", "Sinov muddati haqida.")
+    report = groundedness_gate("131-moddaga ko'ra sinov muddati belgilanadi [C1].", [citation])
+    assert report.dropped == 0
+
+
+def test_parcha_ichidagi_krossreferens_qabul_qilinadi() -> None:
+    """Normalar bir-biriga havola qiladi — bu o'ylab topish emas."""
+    citation = _mk_citation(
+        "130", "Sinov muddati 228-moddada nazarda tutilgan tartibda hisoblanadi."
+    )
+    report = groundedness_gate("228-moddadagi tartib qo'llaniladi [C1].", [citation])
+    assert report.dropped == 0
+
+
+def test_iqtibosda_modda_raqami_yoq_bolsa_jazolanmaydi() -> None:
+    """Tekshirib bo'lmaydigan narsa «noto'g'ri» degani emas."""
+    citation = Citation(tag="C1", doc_id="x", doc_title="Qaror", article="", excerpt="Umumiy matn.")
+    report = groundedness_gate("55-moddaga ko'ra tartib belgilanadi [C1].", [citation])
+    assert DropReason.WRONG_ARTICLE.value not in report.drop_reasons
+
+
+def test_davoda_modda_raqami_yoq_bolsa_tekshirilmaydi() -> None:
+    citation = _mk_citation("130", "Dastlabki sinov muddati uch oydan oshmasligi kerak.")
+    report = groundedness_gate("Sinov muddati uch oydan oshmasligi kerak [C1].", [citation])
+    assert DropReason.WRONG_ARTICLE.value not in report.drop_reasons
