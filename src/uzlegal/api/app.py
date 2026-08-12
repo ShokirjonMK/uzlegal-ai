@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from uzlegal import signature
 from uzlegal.api.auth import access_control, auth_status
 from uzlegal.config import DATA_DIR, PROJECT_ROOT, get_registry, get_settings
 from uzlegal.core import ConsultRequest, ConsultResult
@@ -48,6 +49,25 @@ app = FastAPI(
 # --------------------------------------------------------------------------- #
 
 app.middleware("http")(access_control)
+
+
+@app.middleware("http")
+async def attribution_headers(request: Any, call_next: Any) -> Any:
+    """Har bir javobga mualliflik sarlavhalarini qo'shadi.
+
+    `X-Author`, `X-Developer`, `X-Contact`, `X-Key-Fingerprint` —
+    javob qayerdan kelganini va kim yozganini ko'rsatadi. Bu
+    integratsiya qiluvchi uchun ham foydali (qaysi tizim javob berdi),
+    mualliflik uchun ham.
+
+    Sarlavhalar **javobdan keyin** qo'shiladi, ya'ni xato javoblarida
+    ham bo'ladi — 401 va 500 ham shu tizimdan kelgani ko'rinsin.
+    """
+    response = await call_next(request)
+    for name, value in signature.response_headers().items():
+        response.headers[name] = value
+    return response
+
 
 _cors = get_settings().cors_origins
 if _cors:
@@ -427,6 +447,8 @@ def meta() -> dict[str, Any]:
         ),
         "kb_age_days": _sync.state.age_days(),
         "available_agents": ["jurist", "advocate", "prosecutor", "professor", "judge"],
+        "attribution": signature.attribution(),
+        "license": signature.license_status(),
     }
 
 

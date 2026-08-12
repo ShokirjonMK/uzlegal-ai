@@ -11,6 +11,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from uzlegal import signature as sig
+from uzlegal.cli.license import license_app
 from uzlegal.config import get_registry, get_settings
 from uzlegal.core import ConsultResult
 from uzlegal.inference.backend import available_backends
@@ -24,6 +26,7 @@ app.add_typer(models_app, name="models")
 app.add_typer(eval_app, name="eval")
 app.add_typer(kb_app, name="kb")
 app.add_typer(index_app, name="index")
+app.add_typer(license_app, name="license")
 
 # Modul sub-applari. Har bir modul o'z faylida Typer ilovasini yaratadi va
 # faqat shu yerda ulanadi — shunda parallel ishlashda to'qnashuv bo'lmaydi.
@@ -894,9 +897,36 @@ def _render_answer(result: object, *, trace: bool) -> None:
     console.print(f"\n[dim]{result.disclaimer}[/dim]")
 
 
+def _gate(capability: str) -> None:
+    """Xizmatni ishga tushirishdan oldin litsenziyani talab qiladi.
+
+    NEGA `serve`, `bot`, `mcp` — lekin `search` yoki `doctor` EMAS.
+    Cheklov XIZMAT KO'RSATISHGA qo'yiladi: shu uchta buyruq tizimni
+    boshqalarga ochadi. Lokal tekshiruv, diagnostika va indeks qurish
+    ochiq qoladi — aks holda muallifning o'zi ham ishlay olmasdi va
+    litsenziya rivojlanishga to'siq bo'lardi.
+    """
+    try:
+        license_ = sig.require_license(capability)
+    except sig.LicenseError as exc:
+        console.print(f"[red]✕ Ishga tushirilmadi[/red]\n\n{exc}")
+        raise typer.Exit(77) from exc
+
+    console.print(f"[dim]{sig.banner()}[/dim]")
+    console.print(f"[dim]Litsenziya: {license_.summary()}[/dim]\n")
+
+    left = license_.days_left
+    if left is not None and left < 14:
+        console.print(
+            f"[yellow]⚠ Litsenziya {left} kundan keyin tugaydi — {sig.CONTACT}[/yellow]\n"
+        )
+
+
 @app.command()
 def bot() -> None:
     """Telegram botni ishga tushirish (long-polling)."""
+    _gate("bot")
+
     from uzlegal.bot.telegram import TelegramBot, TelegramError
 
     try:
@@ -916,6 +946,8 @@ def mcp() -> None:
     Claude Desktop sozlamasiga:
     {"mcpServers": {"uzlegal": {"command": "uzlegal", "args": ["mcp"]}}}
     """
+    _gate("mcp")
+
     from uzlegal.mcp.server import serve as _serve
 
     _serve()
@@ -928,6 +960,8 @@ def serve(
     profile: str = typer.Option(None, "--profile"),
 ) -> None:
     """API va Web UI ni ishga tushirish."""
+    _gate("serve")
+
     import os
 
     if profile:
@@ -949,6 +983,7 @@ def doctor() -> None:
     settings = get_settings()
     ok = True
 
+    console.print(f"[dim]{sig.banner()}[/dim]\n")
     console.print("[bold]Muhit[/bold]")
     console.print(f"  Python        {sys.version.split()[0]}")
     console.print(f"  Profil        {settings.profile}")
