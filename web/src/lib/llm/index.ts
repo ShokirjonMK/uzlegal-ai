@@ -8,6 +8,7 @@
 import { config } from "../config";
 import { anthropicProvider, humanError as anthropicHumanError } from "./anthropic";
 import { ollamaProvider, OllamaError } from "./ollama";
+import { uzlegalProvider, UzlegalLlmError } from "./uzlegal";
 import type {
   CallOptions,
   CompleteResult,
@@ -28,10 +29,13 @@ export type {
 
 export { MissingApiKeyError, RefusalError } from "./anthropic";
 export { OllamaError, pingOllama } from "./ollama";
+export { UzlegalLlmError } from "./uzlegal";
 
 /** Joriy provayder. */
 export function provider(): LlmProvider {
-  return config.provider === "ollama" ? ollamaProvider : anthropicProvider;
+  if (config.provider === "ollama") return ollamaProvider;
+  if (config.provider === "anthropic") return anthropicProvider;
+  return uzlegalProvider;
 }
 
 /** Faol provayder nomi va modeli — hisobot va panel uchun. */

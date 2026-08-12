@@ -75,16 +75,32 @@ export const config = {
   /**
    * Qaysi model xizmati ishlatiladi.
    *
-   * Aniq ko'rsatilmagan bo'lsa: Anthropic kaliti bor bo'lsa — `anthropic`,
-   * aks holda `ollama`. Ya'ni kalitsiz muhitda tizim o'zi lokal modelga
-   * o'tadi va "kalit sozlanmagan" xatosi o'rniga javob beradi.
+   * STANDART — `uzlegal`, ya'ni model yadro orqali (`POST /v1/generate`)
+   * chaqiriladi.
+   *
+   * NEGA STANDART SHU. Ilgari standart Anthropic kaliti bor-yo'qligiga
+   * qarab tanlanardi. Bu ikki muammo tug'dirardi:
+   *
+   *   1. Kalit bo'lsa — mijoz hujjati BULUTGA chiqardi va pul ketardi
+   *      (bitta savol ≈ $0.22), holbuki mahalliy model allaqachon bor.
+   *   2. Kalit bo'lmasa — `ollama` ga tushardi, lekin u yadrodan
+   *      MUSTAQIL. `uzlegal models use` bilan modelni almashtirsangiz
+   *      web eski modelda qolaverardi va bir savolga ikki xil javob
+   *      chiqardi.
+   *
+   * Yadro orqali borilsa model tanlovi BITTA joyda: `configs/models.yaml`.
+   *
+   * Boshqa provayderlar ataylab saqlangan, lekin ular endi FAQAT aniq
+   * ko'rsatilganda tanlanadi:
+   *   AI_LOWYER_PROVIDER=ollama     — yadrosiz lokal ishlash
+   *   AI_LOWYER_PROVIDER=anthropic  — bulut (kalit talab qiladi)
    */
-  get provider(): "anthropic" | "ollama" {
+  get provider(): "uzlegal" | "anthropic" | "ollama" {
     const explicit = env("AI_LOWYER_PROVIDER");
-    if (explicit === "anthropic" || explicit === "ollama") return explicit;
-    return env("ANTHROPIC_API_KEY") || env("ANTHROPIC_AUTH_TOKEN")
-      ? "anthropic"
-      : "ollama";
+    if (explicit === "uzlegal" || explicit === "anthropic" || explicit === "ollama") {
+      return explicit;
+    }
+    return "uzlegal";
   },
 
   get ollamaBaseUrl(): string {

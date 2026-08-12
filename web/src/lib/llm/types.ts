@@ -1,9 +1,19 @@
 /**
  * Provayderlar uchun umumiy shartnoma.
  *
- * Ikkita provayder bor: Anthropic (bulut) va Ollama (lokal). Servislar
- * (`ask`, `analyze`, `review`, `generate`) qaysi biri ishlayotganini
- * bilmasligi kerak — ular faqat shu tiplarga tayanadi.
+ * Uchta provayder bor:
+ *
+ *   uzlegal    yadro orqali (`POST /v1/generate`) — STANDART
+ *   ollama     to'g'ridan-to'g'ri lokal Ollama
+ *   anthropic  bulut (ixtiyoriy, kalit talab qiladi)
+ *
+ * Servislar (`ask`, `analyze`, `review`, `generate`) qaysi biri
+ * ishlayotganini bilmasligi kerak — ular faqat shu tiplarga tayanadi.
+ *
+ * NEGA `uzlegal` STANDART. `ollama` ishlaydi, lekin u yadrodan
+ * MUSTAQIL: `uzlegal models use` bilan modelni almashtirsangiz web
+ * eski modelda qolaveradi va bir savolga ikki xil javob chiqadi.
+ * Yadro orqali borilsa model tanlovi bitta joyda bo'ladi.
  */
 
 import type { Effort } from "../config";
@@ -13,7 +23,7 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 export type { Usage };
 
 /** Provayder nomi. */
-export type Provider = "anthropic" | "ollama";
+export type Provider = "uzlegal" | "anthropic" | "ollama";
 
 export interface CallOptions {
   /**
