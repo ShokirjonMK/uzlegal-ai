@@ -159,6 +159,13 @@ NO_SUCH_ARTICLE = (
     "keltirilgan — lekin ular so'ralgan modda **emas**."
 )
 
+NO_SUCH_DOCUMENT = (
+    "«{document}» bilim bazasida topilmadi.\n\n"
+    "Bunday hujjat mavjud bo'lmasligi yoki bilim bazasiga hali "
+    "qo'shilmagan bo'lishi mumkin. Quyida mavzuga yaqin normalar "
+    "keltirilgan — lekin ular so'ralgan hujjatdan **emas**."
+)
+
 
 def _to_result(
     state: ConsultState, request: ConsultRequest, latency_ms: int, registry: Any
@@ -167,23 +174,31 @@ def _to_result(
     answer = gate.answer if gate else ""
     confidence = _confidence(state)
 
-    # Foydalanuvchi aniq modda raqamini so'radi, lekin u indeksda yo'q.
+    # Foydalanuvchi aniq hujjat yoki modda so'radi, lekin u indeksda yo'q.
     # Bunday holatda modelning javobi o'rniga deterministik xabar
     # beriladi va ishonch nolga tushadi: yaqin moddalarni «javob» deb
     # ko'rsatish savolga JAVOB EMAS, boshqa savolga javob bo'lardi.
+    #
+    # Hujjat moddadan oldin tekshiriladi: hujjatning o'zi yo'q bo'lsa,
+    # undagi modda haqida gapirish ma'nosiz.
+    if state.missing_document:
+        return _deterministic_refusal(
+            state,
+            request,
+            latency_ms,
+            registry,
+            answer=NO_SUCH_DOCUMENT.format(document=state.missing_document),
+            caveat=f"«{state.missing_document}» bilim bazasida topilmadi",
+        )
+
     if state.missing_article:
-        return ConsultResult(
-            trace_id=state.trace.trace_id,
+        return _deterministic_refusal(
+            state,
+            request,
+            latency_ms,
+            registry,
             answer=NO_SUCH_ARTICLE.format(article=state.missing_article),
-            citations=gate.citations if gate else state.citations,
-            confidence=0.0,
-            caveats=[f"So'ralgan {state.missing_article}-modda bilim bazasida topilmadi"],
-            mode_used=state.mode.value,
-            latency_ms=latency_ms,
-            model_version=getattr(registry, "active_id", None),
-            kb_version=_kb_version(),
-            disclaimer=DISCLAIMER,
-            trace=state.trace if request.trace else None,
+            caveat=f"So'ralgan {state.missing_article}-modda bilim bazasida topilmadi",
         )
 
     caveats = list(state.verdict.caveats) if state.verdict else []
@@ -210,6 +225,36 @@ def _to_result(
         mode_used=state.mode.value,
         latency_ms=latency_ms,
         model_version=model_version,
+        kb_version=_kb_version(),
+        disclaimer=DISCLAIMER,
+        trace=state.trace if request.trace else None,
+    )
+
+
+def _deterministic_refusal(
+    state: ConsultState,
+    request: ConsultRequest,
+    latency_ms: int,
+    registry: Any,
+    *,
+    answer: str,
+    caveat: str,
+) -> ConsultResult:
+    """Model javobi o'rniga aniq xabar — so'ralgan narsa bazada yo'q.
+
+    Iqtiboslar saqlanadi: foydalanuvchi yaqin normalarni ko'rishi
+    foydali, lekin ular «javob» sifatida taqdim etilmaydi va ishonch
+    nolga teng.
+    """
+    return ConsultResult(
+        trace_id=state.trace.trace_id,
+        answer=answer,
+        citations=state.gate.citations if state.gate else state.citations,
+        confidence=0.0,
+        caveats=[caveat],
+        mode_used=state.mode.value,
+        latency_ms=latency_ms,
+        model_version=getattr(registry, "active_id", None),
         kb_version=_kb_version(),
         disclaimer=DISCLAIMER,
         trace=state.trace if request.trace else None,

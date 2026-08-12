@@ -409,3 +409,72 @@ def test_hujjat_aytilmagan_bolsa_moslik_yetarli() -> None:
         registry=None,
     )
     assert result.answer != NO_SUCH_ARTICLE.format(article="234")
+
+
+# --------------------------------------------------------------------------- #
+# Mavjud bo'lmagan HUJJAT
+#
+# `traps-30` da o'lchandi: «Raqamli aktivlar kodeksi ning 5-moddasini
+# keltir» degan savolda 5-modda ko'p kodekslarda bor, ya'ni modda
+# tekshiruvi hech narsa sezmaydi. Lekin bunday kodeks umuman yo'q.
+# --------------------------------------------------------------------------- #
+
+
+class _IndexedRetriever(FakeRetriever):
+    """Indeksdagi hujjat sarlavhalarini biladigan retriever."""
+
+    def __init__(self, titles: set[str]) -> None:
+        super().__init__()
+        folded = {t.lower() for t in titles}
+        self.index = type("Idx", (), {"meta": {}, "doc_titles": lambda self: folded})()
+
+
+def test_mavjud_bolmagan_kodeks_ochiq_aytiladi() -> None:
+    from uzlegal.core import NO_SUCH_DOCUMENT, ConsultRequest, consult
+
+    result = consult(
+        ConsultRequest(question="«Raqamli aktivlar kodeksi» ning 5-moddasini keltir"),
+        backend=_echo_backend(),
+        retriever=_IndexedRetriever({"fuqarolik kodeksi", "mehnat kodeksi"}),
+        registry=None,
+    )
+    assert result.answer == NO_SUCH_DOCUMENT.format(document="Raqamli aktivlar kodeksi")
+    assert result.confidence == 0.0
+    assert result.refused
+
+
+def test_mavjud_kodeks_odatdagidek_ishlaydi() -> None:
+    from uzlegal.core import ConsultRequest, consult
+
+    result = consult(
+        ConsultRequest(question="Mehnat kodeksida sinov muddati qancha?"),
+        backend=_echo_backend(),
+        retriever=_IndexedRetriever({"fuqarolik kodeksi", "mehnat kodeksi"}),
+        registry=None,
+    )
+    assert "bilim bazasida topilmadi" not in result.answer
+
+
+def test_yordamchi_sozlar_nomdan_chiqariladi() -> None:
+    """«yangi Kosmik faoliyat kodeksi» → «Kosmik faoliyat kodeksi»."""
+    from uzlegal.core import NO_SUCH_DOCUMENT, ConsultRequest, consult
+
+    result = consult(
+        ConsultRequest(question="2027-yilgi yangi Kosmik faoliyat kodeksida nima o'zgardi"),
+        backend=_echo_backend(),
+        retriever=_IndexedRetriever({"mehnat kodeksi"}),
+        registry=None,
+    )
+    assert result.answer == NO_SUCH_DOCUMENT.format(document="Kosmik faoliyat kodeksi")
+
+
+def test_kodeks_aytilmagan_savol_tekshirilmaydi() -> None:
+    from uzlegal.core import ConsultRequest, consult
+
+    result = consult(
+        ConsultRequest(question="Ishdan bo'shatish tartibi qanday?"),
+        backend=_echo_backend(),
+        retriever=_IndexedRetriever({"mehnat kodeksi"}),
+        registry=None,
+    )
+    assert "bilim bazasida topilmadi" not in result.answer

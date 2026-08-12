@@ -30,6 +30,7 @@ tizimning butun ma'nosiga zid.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Literal
@@ -101,6 +102,8 @@ class ConsultState:
     missing: list[str] = field(default_factory=list)
     # Foydalanuvchi aniq modda raqamini so'radi, lekin u indeksda yo'q.
     missing_article: str | None = None
+    # Foydalanuvchi hujjat nomini aytdi, lekin bunday hujjat indeksda yo'q.
+    missing_document: str | None = None
     trace: Trace = field(default_factory=lambda: Trace(trace_id=new_trace_id()))
 
     # Agent chaqiruvlari uchun tayyorlangan kontekst
@@ -220,6 +223,68 @@ def _missing_article(question: str, found: Any) -> str | None:
     return article
 
 
+# «… kodeksi» / «… kодекс» — nomdan oldingi 1–3 so'z.
+_DOCUMENT_RE = re.compile(
+    r"([\w'ʻʼ‘’-]+(?:\s+[\w'ʻʼ‘’-]+){0,2})\s+kodeks\w*",
+    re.IGNORECASE | re.UNICODE,
+)
+
+# Nomning bir qismi bo'la olmaydigan yordamchi so'zlar. Bularsiz
+# «yangi Kosmik faoliyat kodeksi» dan «yangi kosmik faoliyat» chiqadi va
+# u hech qanday sarlavhaga mos kelmaydi — to'g'ri, lekin sabab noto'g'ri.
+_DOC_STOPWORDS = frozenset(
+    {"yangi", "eski", "amaldagi", "joriy", "shu", "bu", "ushbu", "haqidagi", "bo'yicha"}
+)
+
+
+def _missing_document(question: str, retriever: Any) -> str | None:
+    """Foydalanuvchi aytgan hujjat bilim bazasida bormi.
+
+    ## Nima uchun modda tekshiruvi yetarli emas
+
+    «Raqamli aktivlar kodeksi ning 5-moddasini keltir» degan savolda
+    5-modda ko'p kodekslarda bor, ya'ni aniq moslik kanali bo'sh
+    qaytmaydi va `_missing_article()` hech narsa sezmaydi. Lekin
+    O'zbekistonda bunday kodeks **umuman yo'q** — javob esa boshqa
+    kodeksning 5-moddasi bo'lardi.
+
+    O'lchandi (`traps-30`, 2026-08-12): aynan shu ikki holat
+    (`yoq-03`, `yoq-04`) shu sababdan yiqilardi.
+
+    ## Nima uchun bu ham deterministik
+
+    Indeksdagi hujjat sarlavhalari ma'lum. Foydalanuvchi aytgan nom
+    ularning birortasida uchramasa — bunday hujjat bazada yo'q. Bu ball
+    yoki o'xshashlik masalasi emas.
+    """
+    index = getattr(retriever, "index", None)
+    if index is None or not hasattr(index, "doc_titles"):
+        return None
+
+    mentioned = [
+        " ".join(w for w in m.group(1).split() if w.lower() not in _DOC_STOPWORDS).strip()
+        for m in _DOCUMENT_RE.finditer(question)
+    ]
+    mentioned = [name for name in mentioned if name]
+    if not mentioned:
+        return None
+
+    try:
+        from uzlegal.ingest.normalize import fold
+
+        titles = index.doc_titles()
+    except Exception:  # pragma: no cover — indeks o'qilmasa jim o'tamiz
+        return None
+    if not titles:
+        return None
+
+    for name in mentioned:
+        folded = fold(name)
+        if not any(folded in title for title in titles):
+            return f"{name} kodeksi"
+    return None
+
+
 def node_retrieve(state: ConsultState, deps: Deps) -> ConsultState:
     """Gibrid qidiruv va agentlar uchun umumiy kontekst.
 
@@ -240,6 +305,7 @@ def node_retrieve(state: ConsultState, deps: Deps) -> ConsultState:
                 step.set(error=str(exc))
 
         state.missing_article = _missing_article(state.question, found)
+        state.missing_document = _missing_document(state.question, deps.retriever)
 
         state.context_text, used = build_context(results, budget_tokens=deps.budget_tokens)
         state.context = used

@@ -283,6 +283,16 @@ class KnowledgeIndex:
         self._db = lancedb.connect(str(self.vectors_path))
         self._table = self._db.open_table(TABLE_NAME)
 
+    def doc_titles(self) -> set[str]:
+        """Indeksdagi hujjat sarlavhalari (normallashtirilgan).
+
+        Foydalanuvchi «Raqamli aktivlar kodeksi» kabi mavjud bo'lmagan
+        hujjatni so'raganda buni **aniq** aytish uchun kerak: semantik
+        jihatdan yaqin boshqa kodeksni ko'rsatish javob emas.
+        """
+        self.load()
+        return {fold(c.doc_title) for c in self._chunks.values() if c.doc_title}
+
     @property
     def meta(self) -> dict[str, Any]:
         if self.meta_path.exists():
