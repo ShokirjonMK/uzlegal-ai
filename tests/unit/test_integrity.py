@@ -70,7 +70,8 @@ def _criminal_decision(
         judge=judge,
         decided_at=decided_at,
         hearing_at=hearing_at,
-        parties=parties or [
+        parties=parties
+        or [
             Party(role="prokuror", name="Davlat"),
             Party(role="sudlanuvchi", name="Aliyev I.R."),
             Party(role="himoyachi", name="Ergashev D.K."),
@@ -288,15 +289,9 @@ class TestProfile:
 
     def test_koplab_qaror_profil(self) -> None:
         decisions = [
-            _criminal_decision(
-                penalty_years=2, suspended=True, judge="B. Raximov"
-            ),
-            _criminal_decision(
-                penalty_years=3, suspended=True, judge="B. Raximov"
-            ),
-            _criminal_decision(
-                penalty_years=1, suspended=True, judge="B. Raximov"
-            ),
+            _criminal_decision(penalty_years=2, suspended=True, judge="B. Raximov"),
+            _criminal_decision(penalty_years=3, suspended=True, judge="B. Raximov"),
+            _criminal_decision(penalty_years=1, suspended=True, judge="B. Raximov"),
         ]
         profile = build_profile("B. Raximov", decisions)
         assert profile.case_count == 3

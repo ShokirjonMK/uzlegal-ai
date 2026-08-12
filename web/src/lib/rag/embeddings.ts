@@ -9,7 +9,7 @@
  */
 
 import { config } from "../config";
-import { foldForSearch } from "../uz/orthography";
+import { foldForIndex } from "../uz/orthography";
 
 /** Lokal embedding o'lchami. */
 const LOCAL_DIM = 512;
@@ -98,15 +98,18 @@ class VoyageEmbedder implements Embedder {
  * Tashqi xizmatsiz ishlaydi; semantik emas, leksik o'xshashlikni topadi.
  */
 class LocalEmbedder implements Embedder {
-  // v2 — `foldForSearch` apostrofni olib tashlaydigan bo'ldi, ya'ni
-  // n-grammalar ham o'zgardi. Nom o'zgarganda `getMeta("embedder")` eski
-  // bazani sezadi va qayta yuklash kerakligi ma'lum bo'ladi.
-  readonly name = "local:hashed-ngrams-v2";
+  // Nom o'zgarganda `getMeta("embedder")` eski bazani sezadi va qayta
+  // yuklash kerakligi ma'lum bo'ladi — aks holda eski vektorlar jimgina
+  // 0 ball olardi (audit #14).
+  //   v2 — `foldForSearch` apostrofni olib tashlaydigan bo'ldi
+  //   v3 — `foldForIndex` kirillni lotinga o'giradigan bo'ldi
+  // Ikkalasi ham n-grammalarni o'zgartirdi.
+  readonly name = "local:hashed-ngrams-v3";
   readonly dim = LOCAL_DIM;
 
   private embedOne(text: string): Float32Array {
     const v = new Float32Array(LOCAL_DIM);
-    const s = ` ${foldForSearch(text).replace(/[^\p{L}\p{N}]+/gu, " ").trim()} `;
+    const s = ` ${foldForIndex(text).replace(/[^\p{L}\p{N}]+/gu, " ").trim()} `;
 
     // 3–5 belgili n-grammalar.
     for (let n = 3; n <= 5; n++) {

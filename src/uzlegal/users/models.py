@@ -49,9 +49,7 @@ class QuotaExceededError(Exception):
         self.period = period
         self.used = used
         self.limit = limit
-        super().__init__(
-            f"{period.capitalize()} chegarasiga yetildi: {used}/{limit}"
-        )
+        super().__init__(f"{period.capitalize()} chegarasiga yetildi: {used}/{limit}")
 
 
 class UserNotFoundError(Exception):

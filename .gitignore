@@ -17,6 +17,13 @@ data/traces.db
 *.jsonl.gz
 reports/*.html
 
+# Foydalanuvchi bazasi — API kalit xeshlari va foydalanish tarixi.
+# `data/traces.db` sanab o'tilgan edi, `users.db` esa yo'q edi: u
+# `uzlegal serve` birinchi ishga tushishida o'zi yaratiladi va
+# tasodifan commitga tushib ketishi mumkin edi.
+data/users.db
+data/*.db
+
 # Shaxsiy konfiguratsiya
 configs/local.yaml
 .env

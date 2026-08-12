@@ -4,11 +4,24 @@
  */
 
 import { chunkLegalText } from "../src/lib/rag/chunk";
+import { stems } from "../src/lib/rag/retrieve";
 import { foldForSearch, cyrillicToLatin } from "../src/lib/uz/orthography";
 import { markdownToDocx } from "../src/lib/util/docx";
 
 let pass = 0;
 let fail = 0;
+
+/**
+ * Manbadan izohlarni olib tashlaydi.
+ *
+ * Bu tekshiruvlar naqsh bilan ishlaydi, izohlar esa aynan nuqsonni
+ * TASVIRLAYDI («ilgari bu yerda `if (expected)` edi»). Izohlar
+ * qoldirilsa, tuzatishni tushuntirgan matn tuzatilmagan kod deb
+ * o'qiladi — va vosita yana yolg'on gapira boshlaydi.
+ */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
+}
 
 function check(claim: string, confirmed: boolean, evidence: string): void {
   const mark = confirmed ? "\x1b[31mTASDIQLANDI\x1b[0m" : "\x1b[32mRAD ETILDI\x1b[0m";
@@ -47,12 +60,18 @@ function check(claim: string, confirmed: boolean, evidence: string): void {
 }
 
 // ── 3. O'zbek morfologiyasi: teskari yo'nalish ishlamaydi ─────────────────
+//
+// DIQQAT: bu tekshiruv `retrieve.ts` dagi HAQIQIY `stems()` ni chaqiradi.
+// Ilgari u `foldForSearch(...).includes(...)` ni sinardi — bu qidiruvning
+// eski, allaqachon almashtirilgan mantiqi edi, shuning uchun tuzatilgan
+// muammo abadiy «TASDIQLANDI» bo'lib qolardi.
 {
-  const chunkText = foldForSearch("Mehnat shartnomasining bekor qilinishi tartibi");
-  const results = ["shartnoma", "shartnomani", "shartnomaning", "shartnomalar"].map(
-    (q) => `${q}=${chunkText.includes(foldForSearch(q)) ? "✓" : "✗"}`,
+  const chunkStems = new Set(stems("Mehnat shartnomasining bekor qilinishi tartibi"));
+  const queries = ["shartnoma", "shartnomani", "shartnomaning", "shartnomalar"];
+  const results = queries.map(
+    (q) => `${q}=${stems(q).every((s) => chunkStems.has(s)) ? "✓" : "✗"}`,
   );
-  const broken = !chunkText.includes("shartnomaning");
+  const broken = queries.some((q) => !stems(q).every((s) => chunkStems.has(s)));
   check(
     "retrieve.ts: qo'shimchali so'rov o'zakli matnda topilmaydi (morfologiya)",
     broken,
@@ -61,14 +80,21 @@ function check(claim: string, confirmed: boolean, evidence: string): void {
 }
 
 // ── 4. Kirill korpus + lotin so'rov = 0 moslik ────────────────────────────
+//
+// Bu ham haqiqiy `stems()` ustida. `cyrillicToLatin` loyihada BOR, lekin
+// `rag/store.ts` va `rag/ingest.ts` da chaqirilmaydi — nuqson aynan shu
+// ulanmaganlikda, funksiyaning o'zida emas.
 {
-  const cyrChunk = foldForSearch("Меҳнат шартномаси бекор қилиниши");
+  const CYRILLIC = "Меҳнат шартномаси бекор қилиниши";
+  const chunkStems = new Set(stems(CYRILLIC));
   const latQuery = ["mehnat", "shartnoma", "bekor"];
-  const hits = latQuery.filter((t) => cyrChunk.includes(t));
-  const fixed = foldForSearch(cyrillicToLatin("Меҳнат шартномаси бекор қилиниши"));
-  const hitsAfter = latQuery.filter((t) => fixed.includes(t));
+
+  const hits = latQuery.filter((t) => stems(t).every((s) => chunkStems.has(s)));
+  const afterStems = new Set(stems(cyrillicToLatin(CYRILLIC)));
+  const hitsAfter = latQuery.filter((t) => stems(t).every((s) => afterStems.has(s)));
+
   check(
-    "store.ts: kirill matn lotin so'rov bilan topilmaydi (translit yo'q)",
+    "store.ts: kirill matn lotin so'rov bilan topilmaydi (translit ulanmagan)",
     hits.length === 0,
     `hozir: ${hits.length}/3 moslik | translitdan keyin: ${hitsAfter.length}/3`,
   );
@@ -76,27 +102,50 @@ function check(claim: string, confirmed: boolean, evidence: string): void {
 
 // ── 5. .docx pastki chiziqni o'chiradi → to'ldirish joyi buziladi ─────────
 {
+  // .docx — zip, matn siqilgan, shuning uchun natijani to'g'ridan-to'g'ri
+  // o'qib bo'lmaydi. Ilgari bu yerda tozalash regexi QO'LDA takrorlangan
+  // edi — ya'ni tekshiruv `docx.ts` ni umuman ko'rmasdi va u tuzatilsa
+  // ham «TASDIQLANDI» deb qolaverardi. Endi regex MANBADAN olinadi.
   const buf = await markdownToDocx("Ijarachi: {{TOMON_NOMI}} va {{IJARA_HAQI}}", "Test");
-  const raw = buf.toString("latin1");
-  // .docx — zip, matn siqilgan. Buning o'rniga inlineRuns mantig'ini bevosita sinaymiz.
-  const stripped = "{{TOMON_NOMI}}".replace(/[*_`]/g, "");
+  const src = await import("node:fs").then((fs) =>
+    fs.readFileSync("src/lib/util/docx.ts", "utf8"),
+  );
+  const pattern = /part\.replace\((\/\[[^/]*\]\/g)/.exec(stripComments(src))?.[1];
+  if (!pattern) throw new Error("docx.ts dagi tozalash regexi topilmadi");
+
+  const cleaner = new Function(`return (s) => s.replace(${pattern}, "");`)() as (
+    s: string,
+  ) => string;
+  const stripped = cleaner("{{TOMON_NOMI}}");
+
   check(
     "docx.ts: {{TOMON_NOMI}} dagi pastki chiziq o'chib ketadi",
     stripped !== "{{TOMON_NOMI}}",
-    `"{{TOMON_NOMI}}" → "${stripped}"  (docx hajmi: ${buf.length} bayt)`,
+    `regex ${pattern}: "{{TOMON_NOMI}}" → "${stripped}"  (docx hajmi: ${buf.length} bayt)`,
   );
 }
 
 // ── 6. topK validatsiyasi yo'q ────────────────────────────────────────────
+//
+// Bu topilma BIRLASHTIRISHDAN KEYIN eskirdi: `ask.ts` endi qidiruvni
+// o'zi bajarmaydi, u `POST /v1/consult` ga uzatadi va `topK` degan
+// maydonni umuman qabul qilmaydi. Tekshiruv shuni tasdiqlaydi — agar
+// kimdir kelajakda `topK` ni qaytarib olib kelsa, chegarasiz holat
+// yana ushlanadi.
 {
   const src = await import("node:fs").then((fs) =>
     fs.readFileSync("src/lib/services/ask.ts", "utf8"),
   );
+  const usesTopK = /\btopK\b/.test(src);
   const hasClamp = /Math\.min[\s\S]{0,80}topK|topK[\s\S]{0,40}Math\.min/.test(src);
   check(
     "ask.ts: topK cheklanmagan (butun korpus promptga tushishi mumkin)",
-    !hasClamp,
-    hasClamp ? "clamp topildi" : "topK: req.topK ?? 8 — hech qanday yuqori chegara yo'q",
+    usesTopK && !hasClamp,
+    usesTopK
+      ? hasClamp
+        ? "clamp topildi"
+        : "topK ishlatiladi, lekin yuqori chegara yo'q"
+      : "ask.ts topK ni umuman qabul qilmaydi — qidiruv yadroda (/v1/consult)",
   );
 }
 
@@ -105,11 +154,16 @@ function check(claim: string, confirmed: boolean, evidence: string): void {
   const src = await import("node:fs").then((fs) =>
     fs.readFileSync("src/app/api/telegram/route.ts", "utf8"),
   );
-  const failOpen = /if\s*\(\s*expected\s*\)/.test(src);
+  // Izohlar olib tashlanadi: aks holda nuqsonni TASVIRLAYDIGAN izoh
+  // nuqsonning o'zi deb o'qiladi. Bu aynan shu yerda sodir bo'lgan edi.
+  const code = stripComments(src);
+  const failClosed = /if\s*\(\s*!\s*expected\s*\)/.test(code);
   check(
     "telegram/route.ts: sir sozlanmagan bo'lsa tekshiruv butunlay o'tkazib yuboriladi",
-    failOpen,
-    failOpen ? "`if (expected) {…}` — sirsiz holatda hech narsa tekshirilmaydi" : "fail-closed",
+    !failClosed,
+    failClosed
+      ? "`if (!expected) → 503` — sirsiz holatda marshrut ishlamaydi (fail-closed)"
+      : "sirsiz holatda hech narsa tekshirilmaydi (fail-open)",
   );
 }
 
@@ -131,11 +185,20 @@ function check(claim: string, confirmed: boolean, evidence: string): void {
   const src = await import("node:fs").then((fs) =>
     fs.readFileSync("src/lib/bot.ts", "utf8"),
   );
-  const replyLong = /async function replyLong[\s\S]{0,300}?\n}/.exec(src)?.[0] ?? "";
+  // Oyna 300 belgi edi va funksiya undan uzunroq bo'lgach naqsh umuman
+  // mos kelmay qoldi — bo'sh satr esa "parse_mode yo'q" deb o'qilardi.
+  // Endi funksiya tanasi yopuvchi qavsgacha to'liq olinadi.
+  const code = stripComments(src);
+  const replyLong = /async function replyLong[\s\S]*?\n}/.exec(code)?.[0] ?? "";
+  const hasParseMode = replyLong.includes("parse_mode");
   check(
     "bot.ts: replyLong parse_mode bermaydi → foydalanuvchi **yulduzcha** ko'radi",
-    !replyLong.includes("parse_mode"),
-    replyLong.includes("parse_mode") ? "parse_mode bor" : "replyLong da parse_mode yo'q",
+    replyLong === "" || !hasParseMode,
+    replyLong === ""
+      ? "replyLong topilmadi — tekshiruvni yangilash kerak"
+      : hasParseMode
+        ? "parse_mode bor (HTML), xato bo'lsa belgilashsiz qayta yuboriladi"
+        : "replyLong da parse_mode yo'q",
   );
 }
 
@@ -169,16 +232,27 @@ function check(claim: string, confirmed: boolean, evidence: string): void {
 }
 
 // ── 12. normalizeStatus oqlangan qo'shtirnoq va bosh harfni ushlamaydi ────
+//
+// DIQQAT: ilgari bu yerda `normalizeStatus` NUSXASI yozilgan edi.
+// Ya'ni tekshiruv haqiqiy kodni emas, o'zi yozgan taqlidni sinardi —
+// asl funksiya tuzatilsa ham natija o'zgarmasdi. Endi `review.ts`
+// manbasidan funksiya ajratib olinadi va AYNAN U bajariladi.
 {
-  const normalize = (s: string) => {
-    const valid = ["oʻtdi", "ogohlantirish", "oʻtmadi", "aniqlanmadi"];
-    if (valid.includes(s)) return s;
-    const folded = s.replace(/[''ʻʼ`]/g, "");
-    if (folded === "otdi") return "oʻtdi";
-    if (folded === "otmadi") return "oʻtmadi";
-    if (folded === "ogohlantirish") return "ogohlantirish";
-    return "aniqlanmadi";
-  };
+  const src = await import("node:fs").then((fs) =>
+    fs.readFileSync("src/lib/services/review.ts", "utf8"),
+  );
+  const body = /function normalizeStatus\(s: string\): CheckStatus \{[\s\S]*?\n}/.exec(src)?.[0];
+  if (!body) throw new Error("normalizeStatus topilmadi — tekshiruvni yangilash kerak");
+
+  // TypeScript tip belgilarini olib tashlab, funksiyani jonlantiramiz.
+  const js = body
+    .replace(/: CheckStatus\[\]/g, "")
+    .replace(/: CheckStatus/g, "")
+    .replace(/: string/g, "")
+    .replace(/ as string\[\]/g, "")
+    .replace(/ as CheckStatus/g, "");
+  const normalize = new Function(`${js}; return normalizeStatus;`)() as (s: string) => string;
+
   const results = [
     ["o'tdi (ASCII)", normalize("o'tdi")],
     ["o’tdi (U+2019)", normalize("o’tdi")],

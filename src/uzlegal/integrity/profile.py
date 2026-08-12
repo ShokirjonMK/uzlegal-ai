@@ -125,8 +125,7 @@ def build_profile(
     caveats: list[str] = []
     if n < 5:
         caveats.append(
-            f"Faqat {n} ta qaror tahlil qilingan — statistik xulosa "
-            "chiqarish uchun yetarli emas."
+            f"Faqat {n} ta qaror tahlil qilingan — statistik xulosa chiqarish uchun yetarli emas."
         )
     if sentencing.suspended_ratio > 0.7 and custodial >= 3:
         caveats.append(
@@ -157,7 +156,7 @@ def _aggregate_risk(profiles: list[IntegrityProfile]) -> float:
     if not profiles:
         return 0.0
     scores = [p.risk_score for p in profiles]
-    weighted = sum(s ** 1.5 for s in scores)
+    weighted = sum(s**1.5 for s in scores)
     n = len(scores)
-    raw = (weighted / n) ** (1 / 1.5)
+    raw = float((weighted / n) ** (1 / 1.5))
     return min(1.0, raw)

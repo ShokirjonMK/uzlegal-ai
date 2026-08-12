@@ -59,49 +59,55 @@ def check_sentencing(decision: CourtDecision) -> list[RedFlag]:
         ratio_high = penalty.amount / high if high > 0 else 1.0
 
         if ratio_low < _LENIENCY_THRESHOLD:
-            out.append(RedFlag(
-                code="SENT-001",
-                category=FlagCategory.DISPROPORTIONATE,
-                severity=Severity.HIGH,
-                title="Jazo oʻrtachadan sezilarli yengil",
-                description=(
-                    f"«{crime}» uchun odatiy jazo {low}–{high} yil, "
-                    f"tayinlangan: {penalty.amount:.0f} yil "
-                    f"({ratio_low:.0%} past chegaradan)."
-                ),
-                evidence=penalty.raw[:200],
-                weight=0.35,
-            ))
+            out.append(
+                RedFlag(
+                    code="SENT-001",
+                    category=FlagCategory.DISPROPORTIONATE,
+                    severity=Severity.HIGH,
+                    title="Jazo oʻrtachadan sezilarli yengil",
+                    description=(
+                        f"«{crime}» uchun odatiy jazo {low}–{high} yil, "
+                        f"tayinlangan: {penalty.amount:.0f} yil "
+                        f"({ratio_low:.0%} past chegaradan)."
+                    ),
+                    evidence=penalty.raw[:200],
+                    weight=0.35,
+                )
+            )
         elif ratio_high > _HARSHNESS_THRESHOLD:
-            out.append(RedFlag(
-                code="SENT-002",
-                category=FlagCategory.DISPROPORTIONATE,
-                severity=Severity.MEDIUM,
-                title="Jazo oʻrtachadan sezilarli ogʻir",
-                description=(
-                    f"«{crime}» uchun odatiy jazo {low}–{high} yil, "
-                    f"tayinlangan: {penalty.amount:.0f} yil "
-                    f"({ratio_high:.0%} yuqori chegaradan)."
-                ),
-                evidence=penalty.raw[:200],
-                weight=0.20,
-            ))
+            out.append(
+                RedFlag(
+                    code="SENT-002",
+                    category=FlagCategory.DISPROPORTIONATE,
+                    severity=Severity.MEDIUM,
+                    title="Jazo oʻrtachadan sezilarli ogʻir",
+                    description=(
+                        f"«{crime}» uchun odatiy jazo {low}–{high} yil, "
+                        f"tayinlangan: {penalty.amount:.0f} yil "
+                        f"({ratio_high:.0%} yuqori chegaradan)."
+                    ),
+                    evidence=penalty.raw[:200],
+                    weight=0.20,
+                )
+            )
         break
 
     if penalty.suspended:
-        out.append(RedFlag(
-            code="SENT-003",
-            category=FlagCategory.DISPROPORTIONATE,
-            severity=Severity.MEDIUM,
-            title="Shartli hukm",
-            description=(
-                "Ozodlikdan mahrum qilish tayinlangan, lekin shartli ravishda "
-                "bajarilmaydi — bu oʻz-oʻzida belgi emas, lekin boshqa "
-                "belgilar bilan birga diqqatga loyiq."
-            ),
-            evidence=penalty.raw[:200],
-            weight=0.10,
-        ))
+        out.append(
+            RedFlag(
+                code="SENT-003",
+                category=FlagCategory.DISPROPORTIONATE,
+                severity=Severity.MEDIUM,
+                title="Shartli hukm",
+                description=(
+                    "Ozodlikdan mahrum qilish tayinlangan, lekin shartli ravishda "
+                    "bajarilmaydi — bu oʻz-oʻzida belgi emas, lekin boshqa "
+                    "belgilar bilan birga diqqatga loyiq."
+                ),
+                evidence=penalty.raw[:200],
+                weight=0.10,
+            )
+        )
 
     return out
 
@@ -115,9 +121,7 @@ _FAST_TRIAL = re.compile(
     r"soddalashtirilgan",
     re.IGNORECASE,
 )
-_PLEA_DEAL = re.compile(
-    r"aybni\s+tan\s+ol\w*|kelishuv|yarashuv", re.IGNORECASE
-)
+_PLEA_DEAL = re.compile(r"aybni\s+tan\s+ol\w*|kelishuv|yarashuv", re.IGNORECASE)
 
 
 def check_procedural(decision: CourtDecision) -> list[RedFlag]:
@@ -125,43 +129,49 @@ def check_procedural(decision: CourtDecision) -> list[RedFlag]:
     body = fold(decision.raw)
 
     if _FAST_TRIAL.search(body) and decision.is_criminal:
-        out.append(RedFlag(
-            code="PROC-001",
-            category=FlagCategory.PROCEDURAL,
-            severity=Severity.LOW,
-            title="Qisqartirilgan tartibda koʻrilgan",
-            description=(
-                "Ish qisqartirilgan tartibda koʻrilgan — bu qonuniy, lekin "
-                "boshqa belgilar bilan birga diqqatga loyiq."
-            ),
-            weight=0.05,
-        ))
+        out.append(
+            RedFlag(
+                code="PROC-001",
+                category=FlagCategory.PROCEDURAL,
+                severity=Severity.LOW,
+                title="Qisqartirilgan tartibda koʻrilgan",
+                description=(
+                    "Ish qisqartirilgan tartibda koʻrilgan — bu qonuniy, lekin "
+                    "boshqa belgilar bilan birga diqqatga loyiq."
+                ),
+                weight=0.05,
+            )
+        )
 
     if not decision.has_role("himoyachi") and decision.is_criminal:
-        out.append(RedFlag(
-            code="PROC-002",
-            category=FlagCategory.PROCEDURAL,
-            severity=Severity.HIGH,
-            title="Himoyachisiz sud",
-            description=(
-                "Jinoyat ishida himoyachi ishtiroki qayd etilmagan — "
-                "mudofaa huquqi buzilgan boʻlishi mumkin."
-            ),
-            weight=0.30,
-        ))
+        out.append(
+            RedFlag(
+                code="PROC-002",
+                category=FlagCategory.PROCEDURAL,
+                severity=Severity.HIGH,
+                title="Himoyachisiz sud",
+                description=(
+                    "Jinoyat ishida himoyachi ishtiroki qayd etilmagan — "
+                    "mudofaa huquqi buzilgan boʻlishi mumkin."
+                ),
+                weight=0.30,
+            )
+        )
 
     if _PLEA_DEAL.search(body) and decision.penalty and decision.penalty.suspended:
-        out.append(RedFlag(
-            code="PROC-003",
-            category=FlagCategory.PROCEDURAL,
-            severity=Severity.MEDIUM,
-            title="Kelishuv + shartli jazo",
-            description=(
-                "Aybni tan olish yoki yarashuv asosida shartli jazo — "
-                "kombinatsiya boshqa belgilar bilan birga diqqatga loyiq."
-            ),
-            weight=0.15,
-        ))
+        out.append(
+            RedFlag(
+                code="PROC-003",
+                category=FlagCategory.PROCEDURAL,
+                severity=Severity.MEDIUM,
+                title="Kelishuv + shartli jazo",
+                description=(
+                    "Aybni tan olish yoki yarashuv asosida shartli jazo — "
+                    "kombinatsiya boshqa belgilar bilan birga diqqatga loyiq."
+                ),
+                weight=0.15,
+            )
+        )
 
     return out
 
@@ -181,47 +191,52 @@ def check_evidence_handling(decision: CourtDecision) -> list[RedFlag]:
     body = fold(decision.raw)
 
     inadmissible_count = sum(
-        1 for e in decision.evidence
-        if "qabul qilinmaydigan" in fold(e) or "noqonuniy" in fold(e)
+        1 for e in decision.evidence if "qabul qilinmaydigan" in fold(e) or "noqonuniy" in fold(e)
     )
     if inadmissible_count > 0 and "aybdor" in fold(decision.conclusion):
-        out.append(RedFlag(
-            code="EVID-001",
-            category=FlagCategory.EVIDENCE,
-            severity=Severity.HIGH,
-            title="Qabul qilinmaydigan dalil asosida ayblov",
-            description=(
-                f"{inadmissible_count} ta dalil qabul qilinmaydigan deb "
-                "belgilangan, lekin ayblov xulosasi chiqarilgan."
-            ),
-            weight=0.30,
-        ))
+        out.append(
+            RedFlag(
+                code="EVID-001",
+                category=FlagCategory.EVIDENCE,
+                severity=Severity.HIGH,
+                title="Qabul qilinmaydigan dalil asosida ayblov",
+                description=(
+                    f"{inadmissible_count} ta dalil qabul qilinmaydigan deb "
+                    "belgilangan, lekin ayblov xulosasi chiqarilgan."
+                ),
+                weight=0.30,
+            )
+        )
 
     if _RECANTED.search(body):
-        out.append(RedFlag(
-            code="EVID-002",
-            category=FlagCategory.EVIDENCE,
-            severity=Severity.MEDIUM,
-            title="Oʻzgartirilgan koʻrsatma",
-            description=(
-                "Guvoh koʻrsatmasini oʻzgartirgan yoki rad etgan — "
-                "dalillar bazasining ishonchliligi tekshirilishi kerak."
-            ),
-            weight=0.15,
-        ))
+        out.append(
+            RedFlag(
+                code="EVID-002",
+                category=FlagCategory.EVIDENCE,
+                severity=Severity.MEDIUM,
+                title="Oʻzgartirilgan koʻrsatma",
+                description=(
+                    "Guvoh koʻrsatmasini oʻzgartirgan yoki rad etgan — "
+                    "dalillar bazasining ishonchliligi tekshirilishi kerak."
+                ),
+                weight=0.15,
+            )
+        )
 
     if len(decision.evidence) <= 1 and "aybdor" in fold(decision.conclusion):
-        out.append(RedFlag(
-            code="EVID-003",
-            category=FlagCategory.EVIDENCE,
-            severity=Severity.HIGH,
-            title="Yagona dalil asosida ayblov",
-            description=(
-                "Ayblov xulosasi bitta yoki nol dalilga tayanadi — "
-                "dalillar majmuasi koʻrsatilmagan."
-            ),
-            weight=0.25,
-        ))
+        out.append(
+            RedFlag(
+                code="EVID-003",
+                category=FlagCategory.EVIDENCE,
+                severity=Severity.HIGH,
+                title="Yagona dalil asosida ayblov",
+                description=(
+                    "Ayblov xulosasi bitta yoki nol dalilga tayanadi — "
+                    "dalillar majmuasi koʻrsatilmagan."
+                ),
+                weight=0.25,
+            )
+        )
 
     return out
 
@@ -252,28 +267,30 @@ def check_timing(decision: CourtDecision) -> list[RedFlag]:
     if decided and heard and decided >= heard:
         delta = (decided - heard).days
         if delta <= _VERY_FAST_DAYS and decision.is_criminal:
-            out.append(RedFlag(
-                code="TIME-001",
-                category=FlagCategory.TIMING,
-                severity=Severity.MEDIUM,
-                title="Juda tez qaror",
-                description=(
-                    f"Majlisdan qaror chiqarishgacha {delta} kun — "
-                    "murakkab ish uchun gʻayrioddiy tez."
-                ),
-                weight=0.15,
-            ))
+            out.append(
+                RedFlag(
+                    code="TIME-001",
+                    category=FlagCategory.TIMING,
+                    severity=Severity.MEDIUM,
+                    title="Juda tez qaror",
+                    description=(
+                        f"Majlisdan qaror chiqarishgacha {delta} kun — "
+                        "murakkab ish uchun gʻayrioddiy tez."
+                    ),
+                    weight=0.15,
+                )
+            )
         elif delta <= _SUSPICIOUS_FAST_DAYS and decision.is_criminal:
-            out.append(RedFlag(
-                code="TIME-002",
-                category=FlagCategory.TIMING,
-                severity=Severity.LOW,
-                title="Tez qaror",
-                description=(
-                    f"Majlisdan qaror chiqarishgacha {delta} kun."
-                ),
-                weight=0.05,
-            ))
+            out.append(
+                RedFlag(
+                    code="TIME-002",
+                    category=FlagCategory.TIMING,
+                    severity=Severity.LOW,
+                    title="Tez qaror",
+                    description=(f"Majlisdan qaror chiqarishgacha {delta} kun."),
+                    weight=0.05,
+                )
+            )
 
     return out
 
@@ -289,47 +306,51 @@ def check_structural(decision: CourtDecision) -> list[RedFlag]:
     out: list[RedFlag] = []
 
     if not decision.reasoning.strip():
-        out.append(RedFlag(
-            code="STRUC-001",
-            category=FlagCategory.STRUCTURAL,
-            severity=Severity.HIGH,
-            title="Asoslovchi qism yoʻq",
-            description=(
-                "Qarorning asoslovchi qismi topilmadi — sudya nima uchun "
-                "shunday qaror chiqarganini tushuntirmagan."
-            ),
-            weight=0.25,
-        ))
+        out.append(
+            RedFlag(
+                code="STRUC-001",
+                category=FlagCategory.STRUCTURAL,
+                severity=Severity.HIGH,
+                title="Asoslovchi qism yoʻq",
+                description=(
+                    "Qarorning asoslovchi qismi topilmadi — sudya nima uchun "
+                    "shunday qaror chiqarganini tushuntirmagan."
+                ),
+                weight=0.25,
+            )
+        )
 
     if not decision.law_references and decision.penalty is not None:
-        out.append(RedFlag(
-            code="STRUC-002",
-            category=FlagCategory.STRUCTURAL,
-            severity=Severity.HIGH,
-            title="Jazo tayinlangan, qonun koʻrsatilmagan",
-            description=(
-                "Jazo tayinlangan, lekin birorta qonun moddasiga havola "
-                "yoʻq — asossiz jazo."
-            ),
-            weight=0.30,
-        ))
+        out.append(
+            RedFlag(
+                code="STRUC-002",
+                category=FlagCategory.STRUCTURAL,
+                severity=Severity.HIGH,
+                title="Jazo tayinlangan, qonun koʻrsatilmagan",
+                description=(
+                    "Jazo tayinlangan, lekin birorta qonun moddasiga havola yoʻq — asossiz jazo."
+                ),
+                weight=0.30,
+            )
+        )
 
     if (
         decision.is_criminal
         and decision.penalty is not None
         and not decision.has_role("jabrlanuvchi")
     ):
-        out.append(RedFlag(
-            code="STRUC-003",
-            category=FlagCategory.STRUCTURAL,
-            severity=Severity.LOW,
-            title="Jabrlanuvchi koʻrsatilmagan",
-            description=(
-                "Jinoyat ishida jabrlanuvchi qayd etilmagan — ishning "
-                "toʻliq tasviri yoʻq."
-            ),
-            weight=0.05,
-        ))
+        out.append(
+            RedFlag(
+                code="STRUC-003",
+                category=FlagCategory.STRUCTURAL,
+                severity=Severity.LOW,
+                title="Jabrlanuvchi koʻrsatilmagan",
+                description=(
+                    "Jinoyat ishida jabrlanuvchi qayd etilmagan — ishning toʻliq tasviri yoʻq."
+                ),
+                weight=0.05,
+            )
+        )
 
     # Yengillashtiruvchi holatlar qayd etilgan, ogʻirlashtiruvchi yoʻq,
     # va jazo shartli — kombinatsiya
@@ -348,17 +369,19 @@ def check_structural(decision: CourtDecision) -> list[RedFlag]:
         and decision.penalty is not None
         and decision.penalty.suspended
     ):
-        out.append(RedFlag(
-            code="STRUC-004",
-            category=FlagCategory.STRUCTURAL,
-            severity=Severity.MEDIUM,
-            title="Faqat yengillashtiruvchi + shartli jazo",
-            description=(
-                "Faqat yengillashtiruvchi holatlar qayd etilgan va jazo "
-                "shartli — qaror bir tomonlama asoslangan boʻlishi mumkin."
-            ),
-            weight=0.15,
-        ))
+        out.append(
+            RedFlag(
+                code="STRUC-004",
+                category=FlagCategory.STRUCTURAL,
+                severity=Severity.MEDIUM,
+                title="Faqat yengillashtiruvchi + shartli jazo",
+                description=(
+                    "Faqat yengillashtiruvchi holatlar qayd etilgan va jazo "
+                    "shartli — qaror bir tomonlama asoslangan boʻlishi mumkin."
+                ),
+                weight=0.15,
+            )
+        )
 
     return out
 

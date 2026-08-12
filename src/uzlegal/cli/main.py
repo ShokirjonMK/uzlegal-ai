@@ -929,15 +929,28 @@ def doctor() -> None:
     reg = get_registry()
     console.print(f"  Xotira        {reg.total_memory_gb:.0f} GB")
 
-    wired = subprocess.run(["sysctl", "-n", "iogpu.wired_limit_mb"], capture_output=True, text=True)
-    if wired.returncode == 0:
-        mb = int(wired.stdout.strip() or 0)
-        if mb == 0:
-            console.print(
-                "  GPU chegarasi [yellow]sozlanmagan[/yellow] (sudo sysctl iogpu.wired_limit_mb=20480)"
+    # `iogpu.wired_limit_mb` — faqat Apple Silicon sozlamasi. Ilgari `sysctl`
+    # shartsiz chaqirilardi va Windows da `doctor` ning o'zi yiqilardi:
+    # diagnostika vositasi birinchi navbatda ISHLASHI kerak.
+    if sys.platform == "darwin":
+        try:
+            wired = subprocess.run(
+                ["sysctl", "-n", "iogpu.wired_limit_mb"],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
-        else:
-            console.print(f"  GPU chegarasi {mb} MB")
+            if wired.returncode == 0:
+                mb = int(wired.stdout.strip() or 0)
+                if mb == 0:
+                    console.print(
+                        "  GPU chegarasi [yellow]sozlanmagan[/yellow] "
+                        "(sudo sysctl iogpu.wired_limit_mb=20480)"
+                    )
+                else:
+                    console.print(f"  GPU chegarasi {mb} MB")
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
 
     console.print("\n[bold]Katalog[/bold]")
     models = reg.list_models()
@@ -945,12 +958,79 @@ def doctor() -> None:
     console.print(f"  Modellar      {len(models)} ta, {ready} tasi tayyor")
     console.print(f"  Faol          {reg.active_id or '[dim]yo’q[/dim]'}")
 
+    # OpenAI-mos server (Ollama/vLLM) — MLX bo'lmagan platformada asosiy yo'l,
+    # shuning uchun uning holati diagnostikada ko'rinishi kerak.
+    _doctor_openai_endpoint()
+
     console.print("\n[bold]Bilim bazasi[/bold]")
-    console.print("  [dim]Faza 2 da quriladi[/dim]")
+    if not _doctor_knowledge_base():
+        ok = False
 
     console.print(
         f"\n{'[green]✓ Muhit tayyor[/green]' if ok else '[yellow]⚠ E’tibor talab qiladi[/yellow]'}"
     )
+
+
+def _doctor_openai_endpoint() -> None:
+    """OpenAI-mos server holati (Ollama, vLLM, LM Studio).
+
+    Xato hech qachon tashlanmaydi: bu server ixtiyoriy va uning yo'qligi
+    `doctor` ni yiqitmasligi kerak — u shunchaki holatni ko'rsatadi.
+    """
+    import os
+
+    import httpx
+
+    endpoint = (os.getenv("UZLEGAL_OPENAI_ENDPOINT") or "http://localhost:11434/v1").rstrip("/")
+    try:
+        response = httpx.get(f"{endpoint}/models", timeout=3.0)
+        response.raise_for_status()
+        names = [str(item.get("id")) for item in (response.json().get("data") or [])]
+    except Exception:
+        console.print(f"  LLM server    [yellow]javob bermadi[/yellow] ({endpoint})")
+        console.print("                [dim]Ollama uchun: ollama serve[/dim]")
+        return
+
+    console.print(f"  LLM server    [green]ishlayapti[/green] ({endpoint}) — {len(names)} model")
+    if names:
+        console.print(f"                [dim]{', '.join(sorted(names)[:6])}[/dim]")
+
+
+def _doctor_knowledge_base() -> bool:
+    """Bilim bazasi holati.
+
+    Ilgari bu yerda «Faza 2 da quriladi» degan qotib qolgan matn turardi —
+    baza qurilgandan keyin ham o'sha matn chiqaverardi. Endi haqiqiy
+    indeksdan o'qiladi.
+    """
+    hint = "                [dim]Qurish: uzlegal kb sync --priority && uzlegal index build[/dim]"
+
+    # Ataylab `load()` chaqirilmaydi: u lancedb ni import qiladi va butun
+    # indeksni xotiraga oladi. Diagnostika arzon bo'lishi kerak — meta
+    # faylining o'zi yetarli.
+    try:
+        from uzlegal.index.store import KnowledgeIndex
+
+        index = KnowledgeIndex()
+        built = index.exists()
+        meta = index.meta if built else {}
+    except Exception as exc:
+        console.print(f"  Indeks        [red]tekshirilmadi[/red] ({type(exc).__name__}: {exc})")
+        return False
+
+    chunks = int(meta.get("chunks") or 0)
+    if not built or chunks == 0:
+        console.print("  Indeks        [yellow]yo’q yoki bo’sh[/yellow]")
+        console.print(hint)
+        return False
+
+    version = str(meta.get("kb_version") or "(versiyasiz)")
+    documents = int(meta.get("documents") or 0)
+    console.print(
+        f"  Indeks        [green]tayyor[/green] — {documents} hujjat, "
+        f"{chunks} bo'lak, versiya {version}"
+    )
+    return True
 
 
 if __name__ == "__main__":

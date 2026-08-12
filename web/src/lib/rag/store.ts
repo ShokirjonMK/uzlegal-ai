@@ -11,7 +11,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { config } from "../config";
-import { foldForSearch } from "../uz/orthography";
+import { foldForIndex } from "../uz/orthography";
 import type { CorpusChunk, Lang, Script } from "../types";
 
 export interface StoredChunk extends CorpusChunk {
@@ -133,7 +133,7 @@ export function upsertChunks(
         c.version ?? null,
         c.lang,
         c.script,
-        foldForSearch(`${c.document} ${c.heading ?? ""} ${c.text}`),
+        foldForIndex(`${c.document} ${c.heading ?? ""} ${c.text}`),
         toBlob(c.embedding),
       );
     }

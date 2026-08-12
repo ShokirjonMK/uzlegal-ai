@@ -18,13 +18,24 @@ export const maxDuration = 300;
  * yoki `npm run bot:poll` bilan polling rejimidan foydalaning.
  */
 export async function POST(request: Request): Promise<Response> {
-  // Webhook maxfiy tokenini tekshirish.
+  // Webhook maxfiy tokenini tekshirish — FAIL-CLOSED (audit #21).
+  //
+  // Ilgari bu blok `if (expected) {…}` edi: sir sozlanmagan bo'lsa
+  // tekshiruv BUTUNLAY o'tkazib yuborilardi. Ya'ni standart holatda
+  // (`.env` da o'zgaruvchi yo'q) marshrut har kimga ochiq edi va
+  // istalgan odam bot nomidan soxta `Update` yubora olardi — bu esa
+  // model chaqiruvi, ya'ni to'g'ridan-to'g'ri pul.
+  //
+  // Endi sir MAJBURIY. Sozlanmagan bo'lsa marshrut ishlamaydi va sabab
+  // aniq aytiladi. Lokal ishlab chiqish uchun webhook shart emas —
+  // `npm run bot:poll` (long-polling) ishlatiladi.
   const expected = config.telegramWebhookSecret;
-  if (expected) {
-    const got = request.headers.get("x-telegram-bot-api-secret-token");
-    if (got !== expected) {
-      return new Response("Forbidden", { status: 403 });
-    }
+  if (!expected) {
+    console.error("[telegram] TELEGRAM_WEBHOOK_SECRET sozlanmagan — webhook oʻchirilgan");
+    return new Response("Webhook sozlanmagan: TELEGRAM_WEBHOOK_SECRET kerak", { status: 503 });
+  }
+  if (request.headers.get("x-telegram-bot-api-secret-token") !== expected) {
+    return new Response("Forbidden", { status: 403 });
   }
 
   let update: Update;
@@ -51,12 +62,21 @@ export async function POST(request: Request): Promise<Response> {
   return new Response("OK");
 }
 
-/** GET — webhook manzili to'g'ri sozlanganini tekshirish uchun. */
+/**
+ * GET — webhook manzili to'g'ri sozlanganini tekshirish uchun.
+ *
+ * `secretRequired` maydoni olib tashlandi: u `false` qaytarganda
+ * marshrut himoyasiz ekanini OSHKOR QILARDI. Endi sir baribir majburiy,
+ * shuning uchun `ready` bitta halol signal beradi va hech qanday
+ * chetlab o'tish yo'lini ko'rsatmaydi.
+ */
 export async function GET(): Promise<Response> {
+  const ready = Boolean(config.telegramToken) && Boolean(config.telegramWebhookSecret);
   return Response.json({
     ok: true,
-    configured: Boolean(config.telegramToken),
-    secretRequired: Boolean(config.telegramWebhookSecret),
-    hint: "Bu manzilni Telegram webhook sifatida sozlang: npm run bot:set-webhook",
+    ready,
+    hint: ready
+      ? "Bu manzilni Telegram webhook sifatida sozlang: npm run bot:set-webhook"
+      : "TELEGRAM_BOT_TOKEN va TELEGRAM_WEBHOOK_SECRET sozlanishi kerak",
   });
 }

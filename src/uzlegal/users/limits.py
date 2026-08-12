@@ -27,9 +27,7 @@ class FeatureNotAllowedError(Exception):
     def __init__(self, feature: str, plan: PlanTier) -> None:
         self.feature = feature
         self.plan = plan
-        super().__init__(
-            f"«{feature}» — «{plan.value}» rejasida mavjud emas"
-        )
+        super().__init__(f"«{feature}» — «{plan.value}» rejasida mavjud emas")
 
 
 def check_access(

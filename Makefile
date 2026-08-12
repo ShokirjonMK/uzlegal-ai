@@ -8,14 +8,18 @@ help:  ## Buyruqlar ro'yxati
 setup-mac:  ## Apple Silicon muhitini o'rnatish (MLX)
 	brew install python@3.11
 	uv venv --python 3.11 .venv
-	. .venv/bin/activate && uv pip install -e ".[mac,dev]"
+	. .venv/bin/activate && uv pip install -e ".[mac,dev,rag]"
 	@echo ""
 	@echo "GPU chegarasini oshirish uchun (bir marta):"
 	@echo "  sudo sysctl iogpu.wired_limit_mb=20480"
 
-setup-linux:  ## Linux + CUDA muhitini o'rnatish (vLLM)
+setup-linux:  ## Linux muhitini o'rnatish (model Ollama yoki vLLM da)
 	uv venv --python 3.11 .venv
-	. .venv/bin/activate && uv pip install -e ".[cuda,dev]"
+	. .venv/bin/activate && uv pip install -e ".[dev,rag]"
+	@echo ""
+	@echo "Model serveri kerak. Eng osoni:"
+	@echo "  curl -fsSL https://ollama.com/install.sh | sh"
+	@echo "  ollama pull gemma3:12b && uzlegal models use ollama-gemma3-12b"
 
 doctor:  ## Muhit diagnostikasi
 	uzlegal doctor
@@ -44,14 +48,19 @@ eval-full:  ## To'liq baholash (gold-500, ~2 soat)
 serve:  ## API + Web (local-dev)
 	uzlegal serve --profile local-dev
 
-ingest:  ## Bilim bazasini noldan qurish
-	uzlegal ingest discover --source lex.uz
-	uzlegal ingest fetch --queue discovered --rate 1/s
+ingest:  ## Bilim bazasini qurish — 20 ustuvor kodeks (~7 daqiqa)
+	uzlegal kb sync
 	uzlegal index build
 
-index-update:  ## Inkremental yangilash
-	uzlegal ingest sync --since-last-run
-	uzlegal index update --changed-only
+ingest-full:  ## To'liq korpus — lex.uz katalogini kashf qilib yuklash
+	@echo "DIQQAT: robots.txt Crawl-delay 20 s. 40 000 hujjat ≈ 17 kun."
+	uzlegal kb discover
+	uzlegal kb sync
+	uzlegal index build
+
+index-update:  ## Inkremental yangilash — faqat o'zgarganlari
+	uzlegal kb sync
+	uzlegal index build
 
 train:  ## Rol adapterini o'qitish — make train ROLE=advocate
 	uzlegal train lora --role $(ROLE) --config configs/training/role-lora.yaml

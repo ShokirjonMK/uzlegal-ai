@@ -63,10 +63,18 @@ class Reranker:
 
     @property
     def device(self) -> str:
-        if self._device is None:
-            import torch
+        """Hisoblash qurilmasi. `UZLEGAL_EMBED_DEVICE` bilan majburlanadi.
 
-            self._device = "mps" if torch.backends.mps.is_available() else "cpu"
+        Embedder bilan bir xil funksiyani ishlatadi — ikkalasi bir xil
+        qurilmada ishlashi kerak, aks holda bitta so'rovda ikkita GPU
+        konteksti ochiladi va 8 GB VRAM da bu sig'maydi.
+        """
+        if self._device is None:
+            import os
+
+            from uzlegal.index.embedder import best_device
+
+            self._device = os.getenv("UZLEGAL_EMBED_DEVICE") or best_device()
         return self._device
 
     def load(self) -> None:

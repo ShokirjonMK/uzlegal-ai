@@ -81,13 +81,67 @@ models:
     risks: [memory_tight, lora_training_constrained]
 
   # ------------------------------------------------------------------ #
-  # Kelajakda: o'z serveringiz (hybrid profili)
-  # Mijoz ma'lumoti uchinchi tomonga chiqmasligi uchun faqat o'z endpointingiz
+  # OpenAI-mos serverlar — Ollama, vLLM, LM Studio
+  #
+  # Bu yozuvlar MLX BO'LMAGAN platformalar (Linux, Windows) uchun asosiy
+  # yo'l. Model boshqa jarayonda turadi, shuning uchun `size_gb: 0.0` —
+  # u bizning xotira byudjetimizni band qilmaydi va reestr uni hech
+  # qachon "sig'maydi" deb belgilamaydi.
+  #
+  # `hf_id` — SERVERDAGI nom. Ollama da `gemma3:12b`, vLLM da to'liq
+  # HuggingFace yo'li. `endpoint` ko'rsatilmasa UZLEGAL_OPENAI_ENDPOINT,
+  # u ham bo'lmasa http://localhost:11434/v1 ishlatiladi.
   # ------------------------------------------------------------------ #
+
+  ollama-gemma3-12b:
+    display_name: "Gemma 3 12B (Ollama)"
+    backend: openai
+    hf_id: gemma3:12b
+    params: "12B"
+    quant_bits: 4
+    size_gb: 0.0
+    context_length: 131072
+    license: Gemma-ToU
+    default_temperature: 0.3
+    strengths: [multilingual_140, turkic_languages, long_context]
+    note: "ADR-001 da tanlangan model. 8 GB VRAM da bir qismi CPU ga tushadi."
+
+  ollama-gemma3-27b:
+    display_name: "Gemma 3 27B (Ollama)"
+    backend: openai
+    hf_id: gemma3:27b
+    params: "27B"
+    quant_bits: 4
+    size_gb: 0.0
+    context_length: 131072
+    license: Gemma-ToU
+    default_temperature: 0.3
+    strengths: [general_quality, long_context]
+    risks: [slow_on_8gb_vram]
+    note: "Sifat yuqoriroq, lekin 8 GB VRAM da sezilarli sekin."
+
+  ollama-gemma3-4b:
+    display_name: "Gemma 3 4B (Ollama — tez)"
+    backend: openai
+    hf_id: gemma3:4b
+    params: "4B"
+    quant_bits: 4
+    size_gb: 0.0
+    context_length: 131072
+    license: Gemma-ToU
+    default_temperature: 0.3
+    strengths: [fast, fits_8gb_vram]
+    risks: [complex_legal_reasoning_weak]
+    note: "8 GB VRAM ga to'liq sig'adi — iteratsiya va smoke testlar uchun."
+
+  # O'z GPU serveringiz (hybrid / server profili). Mijoz ma'lumoti
+  # uchinchi tomonga chiqmasligi uchun faqat o'z endpointingiz.
   # remote-32b:
   #   display_name: "UzLegal 32B (o'z serveri)"
   #   backend: openai
   #   endpoint: https://gpu.example.uz/v1
+  #   hf_id: Qwen/Qwen3-32B
+  #   size_gb: 0.0
   #   context_length: 32768
 
 

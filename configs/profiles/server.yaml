@@ -4,13 +4,27 @@
 profile: server
 
 inference:
-  backend: vllm
+  # `openai` — vLLM ni OpenAI-mos HTTP orqali chaqiradi.
+  #
+  # NEGA `vllm` EMAS. `backend: vllm` degan yozuv uzoq vaqt shu yerda
+  # turdi, lekin `src/uzlegal/inference/` da bunday backend HECH QACHON
+  # yozilmagan edi — ya'ni bu profil ishga tushmasdi. vLLM esa o'zi
+  # OpenAI-mos server sifatida ishlaydi (`vllm serve …`), shuning uchun
+  # alohida backend umuman kerak emas: bitta `openai` backend Ollama ni
+  # ham, vLLM ni ham, o'z endpointingizni ham qamrab oladi.
+  #
+  # vLLM ni shunday ishga tushiring:
+  #   vllm serve models/uzlegal-32b --enable-lora --max-loras 5 \
+  #        --max-lora-rank 16 --enable-prefix-caching \
+  #        --gpu-memory-utilization 0.90 --max-model-len 32768
+  backend: openai
+  endpoint: http://vllm:8000/v1
   model: models/uzlegal-32b
   dtype: bfloat16
   tensor_parallel_size: 1
   gpu_memory_utilization: 0.90
   max_model_len: 32768
-  enable_lora: true            # ← multi-LoRA
+  enable_lora: true            # ← multi-LoRA (vLLM tomonida sozlanadi)
   max_loras: 5
   max_lora_rank: 16
   adapters:

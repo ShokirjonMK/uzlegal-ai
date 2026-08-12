@@ -2,9 +2,9 @@
 
 > O'zbekiston huquqiy tizimi uchun ko'p-agentli, iqtibosga asoslangan (citation-grounded) sun'iy intellekt platformasi.
 
-[![Status](https://img.shields.io/badge/status-design%20phase-orange)]()
+[![Status](https://img.shields.io/badge/status-beta-yellow)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
-[![Platform](https://img.shields.io/badge/platform-Apple%20Silicon%20%7C%20Linux%20%7C%20Docker-lightgrey)]()
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20%7C%20Docker-lightgrey)]()
 
 ---
 
@@ -131,33 +131,61 @@ Batafsil: [`docs/09-deployment.md`](docs/09-deployment.md)
 
 ---
 
-## Tezkor boshlash (rejalashtirilgan)
+## Tezkor boshlash
 
 ```bash
 git clone https://github.com/ShokirjonMK/uzlegal-ai.git
 cd uzlegal-ai
 
-# 1. Muhit (Apple Silicon)
-make setup-mac
+# 1. Muhit
+python -m venv .venv && . .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e ".[dev,rag]"
 
-# 2. Baza modelni yuklash va nomzodlarni solishtirish
-uzlegal models bench --candidates qwen3-14b,gemma3-12b
+# 2. Model — ikki yo'ldan biri
+#    a) Har qanday platforma (Linux, Windows, macOS) — Ollama orqali
+ollama pull gemma3:12b
+uzlegal models use ollama-gemma3-12b
+#    b) Faqat Apple Silicon — MLX orqali
+#    pip install -e ".[mac]" && uzlegal models use gemma3-12b
 
-# 3. Bilim bazasini qurish
-uzlegal ingest --source lex.uz --since 2020-01-01
+# 3. Bilim bazasini qurish (20 kodeks ≈ 7 daqiqa — Crawl-delay 20 s)
+uzlegal kb sync
 uzlegal index build
 
-# 4. Ishga tushirish
+# 4. Tekshirish va ishga tushirish
+uzlegal doctor
+uzlegal ask "Mehnat shartnomasida sinov muddati necha oy?"
 uzlegal serve --profile local-dev
 ```
+
+> **NVIDIA kartada.** `uzlegal index build` embedding uchun avtomatik
+> `cuda` ni tanlaydi. 8 GB VRAM da model bilan bir vaqtda ishlatilsa
+> xotira yetmasligi mumkin — bunday holda `UZLEGAL_EMBED_DEVICE=cpu`.
 
 ---
 
 ## Loyiha holati
 
-**Hozirgi bosqich: Faza 0 — dizayn va muhit.** Bu repozitoriyda ayni paytda to'liq arxitektura hujjatlari va texnik spetsifikatsiya mavjud. Implementatsiya yo'l xaritasi bo'yicha bosqichma-bosqich qo'shiladi — [`docs/11-roadmap.md`](docs/11-roadmap.md).
+**Beta.** Yadro to'liq ishlaydi: savol → gibrid qidiruv → agentlar
+munozarasi → sudya xulosasi → iqtibos nazorati → javob. Barcha
+interfeyslar (CLI, REST+SSE, MCP, Telegram bot, SDK, Web) ulangan.
 
-Har bir modul o'z spetsifikatsiyasiga ega, shuning uchun ular **parallel** ishlab chiqilishi mumkin.
+**Nima tayyor:**
+
+- 20 ta kodeks (7 090 modda) indekslangan, versiyalash bilan
+- Uchala platformada model ishlaydi (`openai` backend orqali)
+- `/v1/admin/*` kalitsiz ochilmaydi; rate-limit va reja chegaralari amalda
+- 800+ test, `mypy --strict` toza, CI har push da yuguradi
+
+**Nima yo'q — ochiq aytiladi:**
+
+| Cheklov | Nima uchun |
+|---------|-----------|
+| Korpus 20 kodeks bilan cheklangan | Qonunosti hujjatlari va sud amaliyoti hali yig'ilmagan (40k hujjat ≈ 17 kun, `robots.txt` Crawl-delay 20) |
+| Rol adapterlari o'qitilmagan | Rollar farqi promptdan keladi; LoRA uchun yurist tekshiruvidan o'tgan dataset kerak |
+| Huquqiy hujjatlar yo'q | Foydalanuvchi shartnomasi va maxfiylik siyosati yurist tasdig'ini talab qiladi |
+
+Yo'l xaritasi: [`docs/11-roadmap.md`](docs/11-roadmap.md).
 
 ---
 

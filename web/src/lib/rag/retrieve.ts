@@ -11,7 +11,7 @@
 import { config } from "../config";
 import { cosine, getEmbedder } from "./embeddings";
 import { getMeta, loadAll, type StoredChunk } from "./store";
-import { foldForSearch } from "../uz/orthography";
+import { foldForIndex } from "../uz/orthography";
 import type { Citation, Retrieved } from "../types";
 
 /** Vektor va kalit so'z ballarining nisbati. */
@@ -76,10 +76,21 @@ function stem(word: string): string {
   return w;
 }
 
-/** Matnni qidiruv o'zaklariga ajratadi. */
-function stems(text: string): string[] {
+/**
+ * Matnni qidiruv o'zaklariga ajratadi.
+ *
+ * Eksport qilingan, chunki `scripts/verify-audit.mts` audit qarzlarini
+ * AYNAN SHU funksiya ustida tekshiradi. Ilgari u `foldForSearch` ni
+ * sinardi — ya'ni allaqachon almashtirilgan eski mantiqni — va tuzatilgan
+ * muammolarni «TASDIQLANDI» deb ko'rsatardi. Regressiya vositasi
+ * tekshirayotgan koddan uzilib qolsa, u noto'g'ri signal manbaiga aylanadi.
+ */
+export function stems(text: string): string[] {
   const out: string[] = [];
-  for (const w of foldForSearch(text).split(/[^\p{L}\p{N}]+/u)) {
+  // `foldForIndex` — kirilldan lotinga ham o'giradi. lex.uz da hujjatlar
+  // ko'pincha kirillda, foydalanuvchi esa lotinda yozadi; ikkalasi bir
+  // alifboga keltirilmasa moslik NOL bo'ladi (audit #13).
+  for (const w of foldForIndex(text).split(/[^\p{L}\p{N}]+/u)) {
     if (w.length >= 3 && !STOPWORDS.has(w)) out.push(stem(w));
   }
   return out;
@@ -94,8 +105,10 @@ function queryStems(text: string): string[] {
  * Bo'lak o'zaklari, bo'lak obyektiga bog'lab keshlanadi.
  *
  * `chunk.folded` ustunidan FOYDALANILMAYDI: u baza yozilgan paytdagi
- * `foldForSearch` bilan hisoblangan va funksiya o'zgarsa jimgina eskiradi.
- * Matnning o'zidan hisoblash bu butun xatolar sinfini yo'q qiladi.
+ * folding funksiyasi bilan hisoblangan va funksiya o'zgarsa jimgina
+ * eskiradi (aynan shu `foldForSearch` → `foldForIndex` o'tishida sodir
+ * bo'lardi). Matnning o'zidan hisoblash bu butun xatolar sinfini
+ * yo'q qiladi.
  */
 const stemCache = new WeakMap<StoredChunk, Set<string>>();
 

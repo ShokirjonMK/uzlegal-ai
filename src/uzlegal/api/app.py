@@ -11,10 +11,12 @@ from collections.abc import Iterator
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from uzlegal.api.auth import access_control, auth_status
 from uzlegal.config import DATA_DIR, PROJECT_ROOT, get_registry, get_settings
 from uzlegal.core import ConsultRequest, ConsultResult
 from uzlegal.court import CourtReport, review
@@ -33,6 +35,29 @@ app = FastAPI(
     version="0.1.0",
     description="O'zbekiston huquqiy tizimi uchun ko'p-agentli AI platformasi",
 )
+
+# --------------------------------------------------------------------------- #
+# Kirish nazorati
+#
+# NEGA MIDDLEWARE, NEGA HAR ENDPOINTGA `Depends(...)` EMAS. Himoyani
+# marshrut yo'li bo'yicha qo'yish uni UNUTIB BO'LMAYDIGAN qiladi: kelajakda
+# qo'shiladigan har qanday `/v1/admin/...` avtomatik yopiq bo'ladi.
+# `Depends` bilan esa yangi endpoint yozgan odam uni qo'shishni unutsa,
+# marshrut jimgina ochiq qolardi — va aynan shu holat bu repoda sodir
+# bo'lgan edi: `/v1/admin/users` hech qanday kalitsiz javob berardi.
+# --------------------------------------------------------------------------- #
+
+app.middleware("http")(access_control)
+
+_cors = get_settings().cors_origins
+if _cors:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors,
+        allow_credentials=True,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Authorization", "Content-Type", "X-API-Key"],
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -328,17 +353,59 @@ def sync_configure(req: SyncConfigRequest) -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 
 
+def _index_status() -> tuple[bool, str, int]:
+    """Indeksning HAQIQIY holati: (qurilganmi, versiya, bo'laklar soni).
+
+    NEGA `_sync.state` YETARLI EMAS. Ilgari `kb_ready` sinxronizatsiya
+    holati faylidan (`data/sync-state.json`) o'qilardi. U fayl repoda
+    saqlanadi va «oxirgi marta qachondir sync bo'lgan» degani, «hozir
+    indeks bor» degani emas. Natijada bo'sh mashinada ham `/v1/health`
+    `kb_ready: true, kb_version: "v2026.08.10"` deb javob berardi, o'sha
+    paytda `/v1/consult` esa `kb_version: ""` qaytarardi va bitta ham
+    manba topmasdi. Monitoring yolg'on gapirsa — u monitoring emas.
+    """
+    try:
+        from uzlegal.index.store import KnowledgeIndex
+
+        index = KnowledgeIndex()
+        if not index.exists():
+            return False, "", 0
+        meta = index.meta
+        return True, str(meta.get("kb_version") or ""), int(meta.get("chunks") or 0)
+    except Exception:
+        return False, "", 0
+
+
 @app.get("/v1/health", tags=["system"])
 def health() -> dict[str, Any]:
     reg = get_registry()
+    # `active_id` bo'sh bo'lsa ham saqlangan tanlov tiklanishi mumkin —
+    # `consult()` aynan shunday qiladi. Salomatlik u bilan bir xil
+    # javob berishi kerak, aks holda bitta jarayonda ikki xil haqiqat
+    # paydo bo'ladi: health «model yo'q» deydi, consult esa ishlaydi.
+    model_id = reg.active_id
+    if model_id is None:
+        try:
+            if reg.restore_state():
+                model_id = reg.active_id
+        except Exception:
+            model_id = None
+
+    kb_ready, kb_version, kb_chunks = _index_status()
+
     return {
-        "status": "healthy" if reg.active_id else "degraded",
-        "model_ready": reg.active_id is not None,
-        "active_model": reg.active_id,
-        "kb_ready": _sync.state.kb_version is not None,
-        "kb_version": _sync.state.kb_version,
+        "status": "healthy" if (model_id and kb_ready) else "degraded",
+        "model_ready": model_id is not None,
+        "active_model": model_id,
+        "kb_ready": kb_ready,
+        "kb_version": kb_version,
+        "kb_chunks": kb_chunks,
         "kb_stale": _sync.state.is_stale(),
         "sync_status": _sync.status.value,
+        # Kalitlar oshkor qilinmaydi — faqat himoya yoqilgan-yoqilmagani.
+        # Bu monitoring uchun kerak: «auth: none bilan ishlab chiqarishda
+        # turibmiz» holatini kimdir sezishi kerak.
+        "auth": auth_status(),
     }
 
 
@@ -353,7 +420,8 @@ def meta() -> dict[str, Any]:
         "active_model": reg.active_id,
         "available_backends": available_backends(),
         "total_memory_gb": round(reg.total_memory_gb, 1),
-        "kb_version": _sync.state.kb_version,
+        # Indeksdan — `_sync.state` dan emas (`_index_status` izohiga qarang)
+        "kb_version": _index_status()[1],
         "kb_updated_at": (
             _sync.state.last_sync_at.isoformat() if _sync.state.last_sync_at else None
         ),
@@ -444,7 +512,7 @@ class IntegrityBatchRequest(BaseModel):
 
 
 @app.post("/v1/integrity/check", tags=["integrity"])
-def integrity_check(req: IntegrityRequest) -> dict:
+def integrity_check(req: IntegrityRequest) -> dict[str, Any]:
     """Bitta sud qarorida pora belgilarini tekshiradi.
 
     Model chaqirilmaydi: deterministik qoidalar asosida ishlaydi.
@@ -462,7 +530,7 @@ def integrity_check(req: IntegrityRequest) -> dict:
 
 
 @app.post("/v1/integrity/profile", tags=["integrity"])
-def integrity_profile(req: IntegrityBatchRequest) -> dict:
+def integrity_profile(req: IntegrityBatchRequest) -> dict[str, Any]:
     """Bir nechta qaror asosida sudya profilini tuzadi.
 
     Kamida 5 qaror tavsiya etiladi — kamroq boʻlsa statistik xulosa
@@ -601,10 +669,20 @@ class PlanUpdateRequest(BaseModel):
     plan: str
 
 
+_user_store: UserStore | None = None
+
+
 def _get_store() -> UserStore:
-    if not hasattr(_get_store, "_instance"):
-        _get_store._instance = UserStore(DATA_DIR / "users.db")  # type: ignore[attr-defined]
-    return _get_store._instance  # type: ignore[attr-defined]
+    """Foydalanuvchi bazasi — bitta nusxa.
+
+    Ilgari nusxa funksiya atributida saqlanardi (`_get_store._instance`),
+    bu esa mypy uchun `Any` edi va tip tekshiruvi shu yerda uzilardi.
+    Modul darajasidagi o'zgaruvchi bir xil ishlaydi va tipi ma'lum.
+    """
+    global _user_store
+    if _user_store is None:
+        _user_store = UserStore(DATA_DIR / "users.db")
+    return _user_store
 
 
 @app.post("/v1/admin/users", tags=["users"])

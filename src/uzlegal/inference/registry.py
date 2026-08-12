@@ -384,20 +384,62 @@ class ModelRegistry:
 
 
 def _detect_memory_gb() -> float:
-    """Tizim xotirasi hajmi (GB)."""
+    """Tizim xotirasi hajmi (GB).
+
+    Uch platforma uchun uchta yo'l. Windows tarmog'i ataylab qo'shildi:
+    usiz `os.sysconf` yiqilib, hamma joyda 16 GB deb taxmin qilinardi va
+    48 GB li mashinada 8 GB lik model «sig'maydi» deb belgilanardi.
+    """
+    import os
     import subprocess
+    import sys
 
-    try:
-        out = subprocess.run(
-            ["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=5
-        )
-        if out.returncode == 0:
-            return int(out.stdout.strip()) / (1024**3)
-    except Exception:
-        pass
-    try:
-        import os
+    if sys.platform == "darwin":
+        try:
+            out = subprocess.run(
+                ["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=5
+            )
+            if out.returncode == 0:
+                return int(out.stdout.strip()) / (1024**3)
+        except Exception:
+            pass
 
-        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / (1024**3)
-    except Exception:
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            class _MemoryStatus(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            status = _MemoryStatus()
+            status.dwLength = ctypes.sizeof(_MemoryStatus)
+            # `windll` faqat Windows da mavjud — boshqa platformada mypy
+            # uni umuman ko'rmaydi, shuning uchun `getattr` orqali olinadi.
+            kernel32 = getattr(ctypes, "windll", None)
+            if kernel32 is not None and kernel32.kernel32.GlobalMemoryStatusEx(
+                ctypes.byref(status)
+            ):
+                return float(status.ullTotalPhys) / (1024**3)
+        except Exception:
+            pass
+
+    # `os.sysconf` Windows da yo'q. `getattr` bilan olinsa mypy uni
+    # platformaga bog'liq ravishda tekshirmaydi va kod uchala tizimda
+    # bir xil ishlaydi.
+    sysconf = getattr(os, "sysconf", None)
+    if sysconf is None:
+        return 16.0
+    try:
+        return float(sysconf("SC_PAGE_SIZE")) * float(sysconf("SC_PHYS_PAGES")) / (1024**3)
+    except (ValueError, OSError):
         return 16.0

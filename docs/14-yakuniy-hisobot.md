@@ -1,4 +1,20 @@
-# 14 — Yakuniy hisobot (kod 100%)
+# 14 — Yakuniy hisobot (2026-08-11)
+
+> **ESKIRGAN SARLAVHA.** Bu hujjat dastlab «kod 100%» deb nomlangan edi.
+> 2026-08-12 dagi mustaqil tekshiruv ikkita muhim istisno topdi:
+>
+> * **Inference qatlami 100% emas edi.** `backend.py` `vllm_backend` va
+>   `openai_backend` ni import qilardi, lekin bu ikki fayl **mavjud
+>   emasdi**. Ya'ni macOS'dan tashqarida ishlaydigan bitta ham model
+>   yo'q edi va `server` profili ishga tushmasdi.
+> * **Xavfsizlik umuman hisobga olinmagan edi.** `/v1/admin/*` —
+>   foydalanuvchi yaratish va API kalitini qayta tiklash — hech qanday
+>   kalitsiz ochiq edi.
+>
+> Ikkalasi ham 2026-08-12 da tuzatildi. Joriy holat:
+> [`16-holat-2026-08-12.md`](16-holat-2026-08-12.md).
+>
+> Quyidagi matn tarixiy yozuv sifatida o'zgarishsiz qoldirilgan.
 
 **Sana:** 2026-08-11 · **Muallif:** PM · **Asos:** [13 — Yakunlash rejasi](13-completion-plan.md)
 

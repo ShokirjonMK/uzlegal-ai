@@ -106,6 +106,27 @@ export function foldForSearch(input: string): string {
     .toLocaleLowerCase("uz");
 }
 
+/**
+ * Indeks va qidiruv uchun: `foldForSearch` + KIRILLDAN LOTINGA.
+ *
+ * NEGA ALOHIDA FUNKSIYA (audit #13). lex.uz da hujjatlarning katta qismi
+ * kirill yozuvida, foydalanuvchilar esa odatda lotinda yozadi. Ikkalasi
+ * bir xil alifboga keltirilmasa, kirill bo'lak lotin so'rov bilan
+ * HECH QACHON topilmaydi — o'lchandi: 0/3 moslik.
+ *
+ * `cyrillicToLatin` loyihada allaqachon bor edi, lekin qidiruv yo'liga
+ * ulanmagan edi. Nuqson funksiyada emas, ulanmaganlikda edi.
+ *
+ * NEGA `foldForSearch` NING O'ZIGA QO'SHILMADI. Uni `uz/detect.ts` til
+ * aniqlashda ishlatadi: u yerda kirill matn LOTINGA aylansa, ruscha
+ * savol o'zbekcha deb belgilanib qolardi. Yozuv haqidagi ma'lumot til
+ * aniqlash uchun kerak, qidiruv uchun esa zararli — shuning uchun ikki
+ * funksiya.
+ */
+export function foldForIndex(input: string): string {
+  return foldForSearch(cyrillicToLatin(input));
+}
+
 // ── Yozuv (skript) aniqlash ────────────────────────────────────────────────
 
 export type Script = "latn" | "cyrl";

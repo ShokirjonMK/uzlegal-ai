@@ -68,7 +68,8 @@ class UserStore:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA foreign_keys=ON")
             self._local.conn = conn
-        return self._local.conn
+        connection: sqlite3.Connection = self._local.conn
+        return connection
 
     def _init_db(self) -> None:
         self._conn.executescript(_SCHEMA)
@@ -116,9 +117,7 @@ class UserStore:
         return user, api_key
 
     def get_user(self, user_id: str) -> User:
-        row = self._conn.execute(
-            "SELECT * FROM users WHERE user_id = ?", (user_id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
         if row is None:
             raise UserNotFoundError(user_id)
         return _row_to_user(row)

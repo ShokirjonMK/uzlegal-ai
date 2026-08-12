@@ -71,9 +71,7 @@ class Embedder:
             if forced:
                 self._device = forced
             else:
-                import torch
-
-                self._device = "mps" if torch.backends.mps.is_available() else "cpu"
+                self._device = best_device()
         return self._device
 
     def load(self) -> None:
@@ -113,3 +111,27 @@ class Embedder:
 
     def unload(self) -> None:
         self._model = None
+
+
+def best_device() -> str:
+    """Mavjud eng tez qurilma: `cuda` → `mps` → `cpu`.
+
+    NEGA `cuda` BIRINCHI. Ilgari faqat `mps` tekshirilardi va NVIDIA
+    kartali mashinada embedder jimgina `cpu` da ishlardi — 8 000 bo'lakni
+    kodlash o'nlab daqiqa olardi, holbuki GPU bir necha daqiqada bajaradi.
+    Izohda uchala qurilma sanalgan edi, lekin `cuda` hech qachon
+    tanlanmasdi.
+
+    `torch` o'rnatilmagan bo'lsa `cpu` qaytariladi: bu funksiya hech
+    qachon yiqilmasligi kerak — u faqat maslahat beradi.
+    """
+    try:
+        import torch
+    except ImportError:
+        return "cpu"
+
+    if torch.cuda.is_available():
+        return "cuda"
+    if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"

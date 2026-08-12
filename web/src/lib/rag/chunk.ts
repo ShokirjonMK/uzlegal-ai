@@ -21,16 +21,37 @@ const MIN_CHARS = 400;
  * Modda sarlavhasini topadigan naqshlar.
  * Qo'llab-quvvatlanadi: "173-modda.", "173-modda", "Статья 173.", "Article 173."
  * Sarlavha satr boshida turishi shart.
+ *
+ * ## `(?![\p{L}])` NEGA KERAK (audit #11)
+ *
+ * O'zbek tili agglyutinativ, shuning uchun matn ichidagi havola
+ * qo'shimcha bilan keladi: «173-modda**da** nazarda tutilgan tartibda»,
+ * «81-modda**ning** ikkinchi qismiga». Naqshdagi barcha ajratuvchilar
+ * ixtiyoriy bo'lgani uchun `modda` dan keyingi `da`/`ning` shunchaki
+ * SARLAVHA deb o'qilardi va bazaga MAVJUD BO'LMAGAN modda tushardi.
+ *
+ * Bu eng xavfli xatolar sinfi: model halol ravishda «173-moddaga ko'ra»
+ * deb yozadi, lekin o'sha «modda» aslida boshqa moddaning o'rtasidan
+ * kesib olingan gap bo'ladi.
+ *
+ * Endi `modda` dan keyin harf kelsa — bu sarlavha emas, havola.
+ *
+ * ## Rus naqshidan `.` olib tashlandi (audit #19)
+ *
+ * `[¹²³⁴.-]` sinfida nuqta bor edi, shuning uchun «Статья 173.»
+ * `article = "173."` berardi. Modda raqami bo'yicha qidiruv bonusi esa
+ * `"173"` ni izlaydi — ya'ni rus korpusida bonus umuman ishlamasdi.
+ * O'zbek naqshlarida nuqta yo'q edi, bu shunchaki nomuvofiqlik edi.
  */
 const ARTICLE_PATTERNS: RegExp[] = [
   // 173-modda. Sarlavha
-  /^\s*(\d+(?:[¹²³⁴-]\d*)?)\s*-\s*modda\s*[.．:]?\s*(.*)$/i,
+  /^\s*(\d+(?:[¹²³⁴-]\d*)?)\s*-\s*modda(?![\p{L}])\s*[.．:]?\s*(.*)$/iu,
   // Модда 173 / 173-модда
-  /^\s*(\d+(?:[¹²³⁴-]\d*)?)\s*-\s*модда\s*[.．:]?\s*(.*)$/i,
+  /^\s*(\d+(?:[¹²³⁴-]\d*)?)\s*-\s*модда(?![\p{L}])\s*[.．:]?\s*(.*)$/iu,
   // Статья 173. Заголовок
-  /^\s*статья\s+(\d+(?:[¹²³⁴.-]\d*)?)\s*[.．:]?\s*(.*)$/i,
+  /^\s*статья\s+(\d+(?:[¹²³⁴-]\d*)?)\s*[.．:]?\s*(.*)$/iu,
   // Article 173. Heading
-  /^\s*article\s+(\d+(?:[¹²³⁴.-]\d*)?)\s*[.．:]?\s*(.*)$/i,
+  /^\s*article\s+(\d+(?:[¹²³⁴-]\d*)?)\s*[.．:]?\s*(.*)$/iu,
 ];
 
 interface ArticleMatch {

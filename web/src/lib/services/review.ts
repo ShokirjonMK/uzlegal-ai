@@ -133,11 +133,31 @@ export async function review(req: ReviewRequest): Promise<ReviewResult> {
   };
 }
 
+/**
+ * Model qaytargan holat satrini kanonik qiymatga keltiradi.
+ *
+ * NEGA BU FUNKSIYA MAVJUD va nega u ishlamayotgan edi (audit #51).
+ * Model `status` maydonini har safar biroz boshqacha yozadi: goh ASCII
+ * apostrof bilan (`o'tdi`), goh oqlangan qo'shtirnoq bilan (`o’tdi`,
+ * U+2019), goh bosh harf bilan (`Oʻtdi`), goh oldida bo'sh joy bilan.
+ * Funksiyaning butun maqsadi shu chetlanishlarni yig'ish edi.
+ *
+ * Lekin u faqat `''ʻʼ\`` to'rttasini olib tashlardi — U+2019 ro'yxatda
+ * YO'Q edi — va na `trim()`, na `toLowerCase()` qilardi. Natijada uchta
+ * eng keng tarqalgan variant `aniqlanmadi` ga tushardi. Bu jimgina
+ * sodir bo'lardi: foydalanuvchi tekshiruv natijasi o'rniga
+ * «aniqlanmadi» ko'rardi va nima uchunligini bilmasdi.
+ *
+ * Endi avval tozalanadi (bo'sh joy, registr), so'ng apostrofning BARCHA
+ * ma'lum shakllari olib tashlanadi.
+ */
 function normalizeStatus(s: string): CheckStatus {
   const valid: CheckStatus[] = ["oʻtdi", "ogohlantirish", "oʻtmadi", "aniqlanmadi"];
-  if ((valid as string[]).includes(s)) return s as CheckStatus;
-  // Apostrof varianti boshqacha kelgan bo'lishi mumkin.
-  const folded = s.replace(/[''ʻʼ`]/g, "");
+  const trimmed = s.trim();
+  if ((valid as string[]).includes(trimmed)) return trimmed as CheckStatus;
+
+  // U+0027 ' · U+2018 ' · U+2019 ' · U+02BB ʻ · U+02BC ʼ · U+0060 ` · U+00B4 ´
+  const folded = trimmed.toLocaleLowerCase("uz").replace(/['‘’ʻʼ`´]/g, "");
   if (folded === "otdi") return "oʻtdi";
   if (folded === "otmadi") return "oʻtmadi";
   if (folded === "ogohlantirish") return "ogohlantirish";

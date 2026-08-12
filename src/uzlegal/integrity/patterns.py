@@ -48,7 +48,8 @@ class RedFlag(BaseModel):
     description: str
     evidence: str = ""
     weight: float = Field(
-        ge=0.0, le=1.0,
+        ge=0.0,
+        le=1.0,
         description="0.0–1.0 ogʻirlik — shubha darajasi emas, belgi kuchi",
     )
 
@@ -65,7 +66,9 @@ class IntegrityProfile(BaseModel):
     case_count: int = 0
     flags: list[RedFlag] = Field(default_factory=list)
     risk_score: float = Field(
-        default=0.0, ge=0.0, le=1.0,
+        default=0.0,
+        ge=0.0,
+        le=1.0,
         description="Belgilar yigʻindisidan hisoblangan raqam, ehtimollik emas",
     )
     risk_label: str = ""

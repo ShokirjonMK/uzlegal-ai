@@ -19,6 +19,7 @@ import { generate } from "./services/generate";
 import { extractText, isSupported } from "./util/extract";
 import { resultToDocx, safeFilename } from "./util/docx";
 import { stats } from "./rag/store";
+import { markdownToTelegramHtml } from "./telegram";
 import { allUserIds, formatSummary, record, summary, lifetime } from "./analytics";
 import { recordAiCall } from "./db/log";
 import { confirmBotLogin } from "./auth/users";
@@ -65,9 +66,35 @@ function splitMessage(text: string, limit = TG_LIMIT): string[] {
   return parts;
 }
 
+/**
+ * Uzun javobni bo'lib yuboradi va Markdown ni RENDER QILADI.
+ *
+ * NEGA AVVAL `parse_mode` YO'Q EDI va nega uni shunchaki qo'shib
+ * bo'lmaydi (audit #29 va #30 birga). Modelning javobi Markdown:
+ * `**Qisqa javob:**`, `_ogohlantirish_`. `parse_mode` siz foydalanuvchi
+ * yulduzchalarni xom ko'radi — birinchi taassurot buziladi.
+ *
+ * Lekin `parse_mode` ni ko'r-ko'rona qo'shish undan ham yomon: Telegram
+ * belgilashni QAT'IY tekshiradi va toq sondagi `_` yoki `*` da butun
+ * xabarni 400 xatosi bilan rad etadi. Hujjat shablonidagi
+ * `{{TOMON_NOMI}}` aynan shunday qilardi va foydalanuvchi javob o'rniga
+ * xato olardi.
+ *
+ * Shuning uchun: MarkdownV2 emas, eski `Markdown` ham emas — HTML.
+ * Matn avval HTML ga o'giriladi (`markdownToTelegramHtml` faqat
+ * qo'llab-quvvatlanadigan teglarni chiqaradi va qolgan hammasini
+ * ekranlaydi), so'ng yuboriladi. Baribir xato bo'lsa — o'sha bo'lak
+ * belgilashsiz qayta yuboriladi: foydalanuvchi hech qachon javobsiz
+ * qolmaydi.
+ */
 async function replyLong(ctx: Context, text: string): Promise<void> {
   for (const part of splitMessage(text)) {
-    await ctx.reply(part, { link_preview_options: { is_disabled: true } });
+    const options = { link_preview_options: { is_disabled: true } } as const;
+    try {
+      await ctx.reply(markdownToTelegramHtml(part), { ...options, parse_mode: "HTML" });
+    } catch {
+      await ctx.reply(part, options);
+    }
   }
 }
 
@@ -79,8 +106,21 @@ function keepTyping(ctx: Context): () => void {
   return () => clearInterval(timer);
 }
 
+/**
+ * Xabar yuborgan ODAM adminmi.
+ *
+ * NEGA `ctx.from`, `ctx.chat` EMAS (audit #22). `ctx.chat.id` — suhbat
+ * identifikatori. Shaxsiy yozishmada u foydalanuvchi ID siga teng,
+ * shuning uchun xato uzoq vaqt sezilmasdi. Lekin bot guruhga qo'shilsa
+ * va guruh ID si `ADMIN_CHAT_ID` ga yozilsa (bildirishnoma olish uchun —
+ * mutlaqo tabiiy sozlash), guruhning HAR BIR A'ZOSI `/xabar` va `/stat`
+ * ga kirish huquqini olardi.
+ *
+ * Endi shaxs tekshiriladi. Shaxsiy yozishmada xatti-harakat o'zgarmaydi
+ * (`from.id === chat.id`), guruhda esa faqat admin o'zi admin bo'ladi.
+ */
 function isAdmin(ctx: Context): boolean {
-  const id = ctx.chat?.id;
+  const id = ctx.from?.id;
   return id !== undefined && config.adminChatIds.includes(id);
 }
 

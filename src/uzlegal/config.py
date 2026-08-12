@@ -63,6 +63,14 @@ class Settings(BaseModel):
     api_port: int = 8080
     log_level: str = "INFO"
 
+    # Profil fayllari (`configs/profiles/*.yaml`) bu siyosatni ALLAQACHON
+    # e'lon qilgan edi — `local-dev: auth: none`, `server: auth: api_key`
+    # va rate-limit qiymatlari bilan. Lekin kod ularni hech qachon
+    # o'qimasdi, ya'ni `server` profilida ham API butunlay ochiq edi.
+    api_auth: str = "none"
+    cors_origins: list[str] = Field(default_factory=list)
+    rate_limit: dict[str, Any] = Field(default_factory=dict)
+
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)
     raw: dict[str, Any] = Field(default_factory=dict)
 
@@ -87,6 +95,9 @@ class Settings(BaseModel):
             profile=profile,
             api_host=os.getenv("UZLEGAL_API_HOST", api.get("host", "127.0.0.1")),
             api_port=int(os.getenv("UZLEGAL_API_PORT", api.get("port", 8080))),
+            api_auth=os.getenv("UZLEGAL_API_AUTH", str(api.get("auth", "none"))),
+            cors_origins=list(api.get("cors_origins") or []),
+            rate_limit=dict(api.get("rate_limit") or {}),
             log_level=os.getenv("UZLEGAL_LOG_LEVEL", obs.get("log_level", "INFO")),
             telegram=TelegramSettings.from_env(),
             raw=raw,

@@ -310,6 +310,7 @@ class TestEdgeCases:
         store2.close()
 
         import os
+
         os.unlink(path)
 
     def test_plan_upgrade_resets_access(self, store: UserStore) -> None:

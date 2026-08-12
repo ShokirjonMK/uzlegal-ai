@@ -1,4 +1,4 @@
 {
-  "active_model": "gemma3-12b",
+  "active_model": "ollama-gemma3-12b",
   "active_adapter": null
 }

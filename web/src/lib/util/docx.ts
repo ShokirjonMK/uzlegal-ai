@@ -100,9 +100,15 @@ function inlineRuns(
   for (const part of parts) {
     if (!part) continue;
     const bold = /^\*\*[^*]+\*\*$/.test(part);
+    // `_` ATAYLAB olib tashlanmaydi (audit #31). Ilgari `[*_`]` sinfi
+    // pastki chiziqni ham yeb qo'yardi va `{{TOMON_NOMI}}` hujjatda
+    // `{{TOMONNOMI}}` bo'lib chiqardi. Foydalanuvchi Word da to'ldirish
+    // joyini qidirib topa olmasdi — hujjatning butun maqsadi shu joylarni
+    // to'ldirishda edi. Kursiv uchun `_` yozuvi bu loyihada ishlatilmaydi,
+    // shuning uchun uni saqlash hech narsani buzmaydi.
     const clean = bold
       ? part.slice(2, -2)
-      : part.replace(/[*_`]/g, "");
+      : part.replace(/[*`]/g, "");
     if (clean) runs.push(new TextRunCtor({ text: clean, bold }));
   }
 
