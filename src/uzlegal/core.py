@@ -152,12 +152,39 @@ async def aconsult(request: ConsultRequest, **kwargs: Any) -> ConsultResult:
 # --------------------------------------------------------------------------- #
 
 
+NO_SUCH_ARTICLE = (
+    "So'ralgan {article}-modda bilim bazasida topilmadi.\n\n"
+    "Modda raqami noto'g'ri bo'lishi yoki hujjat bilim bazasiga hali "
+    "qo'shilmagan bo'lishi mumkin. Quyida mavzuga yaqin normalar "
+    "keltirilgan — lekin ular so'ralgan modda **emas**."
+)
+
+
 def _to_result(
     state: ConsultState, request: ConsultRequest, latency_ms: int, registry: Any
 ) -> ConsultResult:
     gate = state.gate
     answer = gate.answer if gate else ""
     confidence = _confidence(state)
+
+    # Foydalanuvchi aniq modda raqamini so'radi, lekin u indeksda yo'q.
+    # Bunday holatda modelning javobi o'rniga deterministik xabar
+    # beriladi va ishonch nolga tushadi: yaqin moddalarni «javob» deb
+    # ko'rsatish savolga JAVOB EMAS, boshqa savolga javob bo'lardi.
+    if state.missing_article:
+        return ConsultResult(
+            trace_id=state.trace.trace_id,
+            answer=NO_SUCH_ARTICLE.format(article=state.missing_article),
+            citations=gate.citations if gate else state.citations,
+            confidence=0.0,
+            caveats=[f"So'ralgan {state.missing_article}-modda bilim bazasida topilmadi"],
+            mode_used=state.mode.value,
+            latency_ms=latency_ms,
+            model_version=getattr(registry, "active_id", None),
+            kb_version=_kb_version(),
+            disclaimer=DISCLAIMER,
+            trace=state.trace if request.trace else None,
+        )
 
     caveats = list(state.verdict.caveats) if state.verdict else []
     caveats += _gate_caveats(state)

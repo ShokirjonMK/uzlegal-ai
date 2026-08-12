@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from uzlegal.core import ConsultResult
 from uzlegal.eval.suite import (
     CaseOutcome,
@@ -275,3 +277,64 @@ def test_kategoriya_boyicha_taqsimot() -> None:
     outcomes[1].passed_expect = False
     report = SuiteReport(suite="s", outcomes=outcomes)
     assert report.by_category() == {"mehnat": 0.0, "mulk": 1.0}
+
+
+# --------------------------------------------------------------------------- #
+# CLI ↔ run_suite shartnomasi
+#
+# Yuqoridagi testlarning HAMMASI stub ishlatadi, ya'ni ular `run_suite`
+# ning ichki mantiqini sinaydi, lekin uni HAQIQIY `consult()` ga
+# ulashni sinamaydi. Aynan shu bo'shliqda xato yashiringan edi: CLI
+# `core.consult` ni to'g'ridan-to'g'ri uzatardi, u esa `ConsultRequest`
+# kutadi — natijada `uzlegal eval run` va `uzlegal eval safety` da HAR
+# BIR holat «unexpected keyword argument 'mode'» bilan yiqilardi.
+# --------------------------------------------------------------------------- #
+
+
+def test_cli_koprigi_run_suite_shaklida_chaqiriladi() -> None:
+    """Ko'prik `(savol, mode=…)` shaklini qabul qilishi shart."""
+    import inspect
+
+    from uzlegal.cli.main import _consult_for_eval
+
+    signature = inspect.signature(_consult_for_eval)
+    bound = signature.bind("Savol matni?", mode="simple")
+    assert bound.arguments["question"] == "Savol matni?"
+
+
+def test_cli_koprigi_haqiqiy_consultga_ulanadi(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ko'prik `ConsultRequest` quradi va uni `core.consult` ga uzatadi.
+
+    Bu test haqiqiy imzoni tekshiradi: `core.consult` o'zgarsa va ko'prik
+    unga mos kelmasa, test yiqiladi — CLI jimgina buzilmaydi.
+    """
+    import uzlegal.core as core
+    from uzlegal.cli.main import _consult_for_eval
+
+    seen: dict[str, object] = {}
+
+    def fake_consult(request: core.ConsultRequest, **kwargs: object) -> core.ConsultResult:
+        seen["question"] = request.question
+        seen["mode"] = request.mode
+        return core.ConsultResult(trace_id="t", answer="javob")
+
+    monkeypatch.setattr(core, "consult", fake_consult)
+    result = _consult_for_eval("Sinov savoli matni?", mode="complex")
+
+    assert seen == {"question": "Sinov savoli matni?", "mode": "complex"}
+    assert getattr(result, "answer", None) == "javob"
+
+
+def test_cli_koprigi_rejimsiz_simple_ishlatadi(monkeypatch: pytest.MonkeyPatch) -> None:
+    import uzlegal.core as core
+    from uzlegal.cli.main import _consult_for_eval
+
+    seen: dict[str, object] = {}
+
+    def fake_consult(request: core.ConsultRequest, **kwargs: object) -> core.ConsultResult:
+        seen["mode"] = request.mode
+        return core.ConsultResult(trace_id="t", answer="javob")
+
+    monkeypatch.setattr(core, "consult", fake_consult)
+    _consult_for_eval("Sinov savoli matni?")
+    assert seen["mode"] == "simple"

@@ -99,6 +99,8 @@ class ConsultState:
 
     disagreement: float = 0.0
     missing: list[str] = field(default_factory=list)
+    # Foydalanuvchi aniq modda raqamini so'radi, lekin u indeksda yo'q.
+    missing_article: str | None = None
     trace: Trace = field(default_factory=lambda: Trace(trace_id=new_trace_id()))
 
     # Agent chaqiruvlari uchun tayyorlangan kontekst
@@ -140,6 +142,55 @@ def node_route(state: ConsultState, deps: Deps) -> ConsultState:
     return state
 
 
+def _missing_article(question: str, found: Any) -> str | None:
+    """So'ralgan modda raqami indeksda yo'qmi.
+
+    ## Bu qayerdan qaytib keldi
+
+    Xususiyat `dac4006` da qo'shilgan edi (F5), lekin `7cbab06`
+    refaktorida `consult()` qayta yozilganda **kodi ham, testlari ham
+    butunlay yo'qolgan**. Regressiya sezilmadi, chunki testlar kod bilan
+    birga o'chirilgan edi.
+
+    2026-08-12 da `traps-30` to'plami buni ochib berdi: «Fuqarolik
+    kodeksining 9999-moddasi nima haqida?» degan savolga tizim Oila
+    kodeksining 43-moddasini keltirdi.
+
+    ## Nima uchun bu deterministik qaror
+
+    Foydalanuvchi ANIQ modda raqamini aytdi. Semantik jihatdan yaqin
+    boshqa moddani ko'rsatish — bu «taxminan to'g'ri javob» emas, bu
+    **xato javob**: savol 9999-modda haqida edi, javob esa boshqa modda
+    haqida bo'ladi va foydalanuvchi buni sezmasligi mumkin.
+
+    Aniq moslik kanali (`exact_hits`) bo'sh bo'lsa — bunday modda
+    indeksda yo'q. Bu ball yoki chegara masalasi emas, shuning uchun
+    javob ham taxminiy emas.
+
+    ## Nega ball chegarasi yetarli emas
+
+    O'lchandi (2026-08-12, 20 kodeks): javobi bor savollarning eng
+    yuqori bali 0.20–0.45, javobi YO'Q savollarniki 0.15–**0.54**.
+    Taqsimotlar ustma-ust tushadi — «9999-modda» so'rovi kuchli leksik
+    signal beradi («Fuqarolik kodeksi», «modda») va yuqori ball oladi.
+    Ya'ni oddiy chegara bu holatni **printsipial ravishda** ajrata
+    olmaydi; modda raqamini bevosita tekshirish kerak.
+    """
+    if found is None:
+        return None
+    try:
+        from uzlegal.retrieval.hybrid import QueryKind, extract_article_ref
+    except ImportError:  # pragma: no cover
+        return None
+
+    if getattr(found, "query_kind", None) is not QueryKind.ARTICLE_LOOKUP:
+        return None
+    if getattr(found, "exact_hits", 0):
+        return None
+    article, _ = extract_article_ref(question)
+    return article
+
+
 def node_retrieve(state: ConsultState, deps: Deps) -> ConsultState:
     """Gibrid qidiruv va agentlar uchun umumiy kontekst.
 
@@ -150,6 +201,7 @@ def node_retrieve(state: ConsultState, deps: Deps) -> ConsultState:
 
     with state.trace.step("retrieve") as step:
         results: list[Any] = []
+        found: Any = None
         if deps.retriever is not None:
             try:
                 found = deps.retriever.search(state.question, top_k=deps.top_k, as_of=state.as_of)
@@ -158,10 +210,16 @@ def node_retrieve(state: ConsultState, deps: Deps) -> ConsultState:
                 log.warning("Retrieval xatosi: %s", exc)
                 step.set(error=str(exc))
 
+        state.missing_article = _missing_article(state.question, found)
+
         state.context_text, used = build_context(results, budget_tokens=deps.budget_tokens)
         state.context = used
         state.citations = [to_citation(f"C{i}", item.chunk) for i, item in enumerate(used, 1)]
-        step.set(chunks=len(used), top_score=round(results[0].score, 4) if results else 0.0)
+        step.set(
+            chunks=len(used),
+            top_score=round(results[0].score, 4) if results else 0.0,
+            missing_article=state.missing_article,
+        )
 
     state.ctx = AgentContext(
         question=state.question,

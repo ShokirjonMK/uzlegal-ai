@@ -68,6 +68,53 @@ class FakeRetriever:
         )()
 
 
+def _echo_backend() -> Any:
+    from uzlegal.inference.echo_backend import EchoBackend
+
+    stub = EchoBackend(ModelSpec(id="echo", display_name="Echo", backend="echo"))
+    stub.load()
+    return stub
+
+
+class _ArticleLookupRetriever(FakeRetriever):
+    """Modda raqami bo'yicha so'rovni taqlid qiladi.
+
+    `exact_hits` — aniq moslik kanali nechta natija topgani. Nol bo'lsa
+    bunday modda indeksda yo'q.
+    """
+
+    def __init__(self, exact_hits: int) -> None:
+        super().__init__()
+        self.exact_hits = exact_hits
+
+    def search(self, query: str, **kwargs: Any) -> Any:
+        from uzlegal.retrieval.hybrid import QueryKind
+
+        found = super().search(query, **kwargs)
+        found.query_kind = QueryKind.ARTICLE_LOOKUP
+        found.exact_hits = self.exact_hits
+        return found
+
+
+def _article_lookup_retriever(exact_hits: int) -> Any:
+    return _ArticleLookupRetriever(exact_hits)
+
+
+def _semantic_retriever() -> Any:
+    from uzlegal.retrieval.hybrid import QueryKind
+
+    retriever = FakeRetriever()
+    original = retriever.search
+
+    def search(query: str, **kwargs: Any) -> Any:
+        found = original(query, **kwargs)
+        found.query_kind = QueryKind.ANALYTICAL
+        return found
+
+    retriever.search = search  # type: ignore[method-assign]
+    return retriever
+
+
 class ScriptedBackend:
     """Har chaqiruvda oldindan yozilgan javobni qaytaradi."""
 
@@ -264,3 +311,53 @@ def test_ishonch_gate_qisqartirganda_pasayadi() -> None:
     )
     result = run(mode="standard", replies=(FRAME_JSON, partial))
     assert 0.0 < result.confidence < 1.0
+
+
+# --------------------------------------------------------------------------- #
+# Mavjud bo'lmagan modda
+#
+# Bu xususiyat `dac4006` da qo'shilgan, `7cbab06` refaktorida esa kodi ham,
+# testlari ham butunlay yo'qolgan. Regressiya sezilmadi — testlar kod bilan
+# birga o'chirilgani uchun hech narsa signal bermadi. Testlar shu yerda
+# qayta tiklandi, endi ular xususiyatning yo'qolishini qo'riqlaydi.
+# --------------------------------------------------------------------------- #
+
+
+def test_mavjud_bolmagan_modda_ochiq_aytiladi() -> None:
+    from uzlegal.core import NO_SUCH_ARTICLE, ConsultRequest, consult
+
+    result = consult(
+        ConsultRequest(question="Fuqarolik kodeksining 9999-moddasi nima haqida?"),
+        backend=_echo_backend(),
+        retriever=_article_lookup_retriever(exact_hits=0),
+        registry=None,
+    )
+    assert result.answer == NO_SUCH_ARTICLE.format(article="9999")
+    assert result.confidence == 0.0
+    assert result.refused
+
+
+def test_mavjud_modda_odatdagidek_javob_beradi() -> None:
+    """Aniq moslik topilgan bo'lsa — oddiy oqim."""
+    from uzlegal.core import NO_SUCH_ARTICLE, ConsultRequest, consult
+
+    result = consult(
+        ConsultRequest(question="Fuqarolik kodeksining 228-moddasi nima haqida?"),
+        backend=_echo_backend(),
+        retriever=_article_lookup_retriever(exact_hits=1),
+        registry=None,
+    )
+    assert NO_SUCH_ARTICLE.format(article="228") != result.answer
+
+
+def test_modda_raqamisiz_savol_tekshirilmaydi() -> None:
+    """Umumiy savolda «mavjud emas» qarori umuman qo'llanmaydi."""
+    from uzlegal.core import ConsultRequest, consult
+
+    result = consult(
+        ConsultRequest(question="Mehnat shartnomasi qanday tuziladi?"),
+        backend=_echo_backend(),
+        retriever=_semantic_retriever(),
+        registry=None,
+    )
+    assert "bilim bazasida topilmadi" not in result.answer

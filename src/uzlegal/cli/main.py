@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.table import Table
 
 from uzlegal.config import get_registry, get_settings
+from uzlegal.core import ConsultResult
 from uzlegal.inference.backend import available_backends
 
 app = typer.Typer(help="UzLegal-AI — O'zbekiston huquqiy AI platformasi", no_args_is_help=True)
@@ -224,6 +225,32 @@ def eval_retrieval(
         console.print(f"\n[green]✓[/green] Hisobot: {out}")
 
 
+def _consult_for_eval(question: str, **kwargs: object) -> ConsultResult:
+    """`run_suite` kutgan shakl ↔ `core.consult()` shartnomasi orasidagi ko'prik.
+
+    ## Nima uchun bu funksiya kerak
+
+    `run_suite(cases, consult, …)` chaqiriladigan funksiyani
+    `consult(savol, mode=…)` deb chaqiradi — bu uning **sinaladigan
+    chegarasi** va unit testlar shu shakldagi stub beradi.
+
+    `uzlegal.core.consult()` esa boshqacha: u `ConsultRequest` obyektini
+    oladi. Ilgari CLI unga to'g'ridan-to'g'ri `core.consult` ni uzatardi,
+    natijada HAR BIR holat `consult() got an unexpected keyword argument
+    'mode'` xatosi bilan yiqilardi va butun `eval run` / `eval safety`
+    hech qachon ishlamagan edi.
+
+    Unit testlar buni tutmasdi, chunki ularning hammasi stub ishlatadi va
+    hech biri haqiqiy `consult` ni ulamaydi — mumtoz integratsiya
+    bo'shlig'i. `test_eval_suite.py` dagi imzo testi endi shuni
+    qo'riqlaydi.
+    """
+    from uzlegal.core import ConsultRequest, consult
+
+    mode = str(kwargs.get("mode") or "simple")
+    return consult(ConsultRequest(question=question, mode=mode))  # type: ignore[arg-type]
+
+
 def _run_suite(
     suite: str,
     mode: str,
@@ -232,7 +259,6 @@ def _run_suite(
     target: float | None = None,
 ) -> object:
     """Baholash to'plamini yurgizadi va hisobotni chiqaradi (umumiy qism)."""
-    from uzlegal.core import consult
     from uzlegal.eval.suite import load_suite, render_report, run_suite
 
     try:
@@ -252,7 +278,9 @@ def _run_suite(
             case_id = getattr(getattr(outcome, "case", None), "id", "?")
             status.update(f"{i}/{len(cases)} · {case_id} {'✓' if passed else '✕'}")
 
-        report = run_suite(cases, consult, suite=suite, default_mode=mode, on_case=progress)
+        report = run_suite(
+            cases, _consult_for_eval, suite=suite, default_mode=mode, on_case=progress
+        )
 
     console.print(f"  {'o’tdi':16} {report.pass_rate:6.0%}")
     console.print(f"  {'o’zbek tili':16} {report.language_score:6.2f}")
@@ -315,7 +343,20 @@ def eval_safety(
     if max_failures is not None and failures > max_failures:
         console.print(f"\n[red]✕ {failures} nosozlik > {max_failures} ruxsat etilgan[/red]")
         raise typer.Exit(1)
-    console.print(f"\n[green]✓ Xavfsizlik tekshiruvi o'tdi[/green] ({failures} nosozlik)")
+
+    # Chegara berilmagan bo'lsa ham nosozlik bo'lsa — «o'tdi» deyilmaydi.
+    # Ilgari bu yerda «✓ Xavfsizlik tekshiruvi o'tdi (30 nosozlik)» degan
+    # o'zini o'zi inkor qiladigan xabar chiqardi. Xavfsizlik to'plamida
+    # bu ayniqsa xavfli: u tizim mavjud bo'lmagan moddani o'ylab
+    # topmasligini o'lchaydi, ya'ni nosozlik bu yerda «yaxshi emas,
+    # lekin o'tadi» degani emas.
+    if failures:
+        console.print(
+            f"\n[yellow]⚠ {failures} nosozlik[/yellow] — chegara ko'rsatilmagan "
+            f"(`--max-failures N` bilan majburlang)"
+        )
+        return
+    console.print("\n[green]✓ Xavfsizlik tekshiruvi o'tdi[/green] — nosozliksiz")
 
 
 @eval_app.command("citations")
