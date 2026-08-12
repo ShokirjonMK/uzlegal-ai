@@ -1,0 +1,108 @@
+# Uzluksiz integratsiya — har push va PR da.
+#
+# NEGA BU FAYL KERAK. Repoda 779 ta test bor edi, lekin ularni hech kim
+# avtomatik yurgizmasdi: har o'zgarish qo'lda ishonchga tayanardi. Bir
+# kishilik loyihada bu ayniqsa xavfli — tekshiradigan ikkinchi odam yo'q.
+#
+# Ish oqimi ataylab UCHTA mustaqil ishga bo'lingan: biri yiqilsa
+# qolganlari baribir natija beradi va nima buzilgani darhol ko'rinadi.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Bir shoxda yangi push kelsa eskisini to'xtatadi — navbat kutilmaydi.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python — test va lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Bog'liqliklar
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: ruff check
+        run: ruff check src/ tests/
+
+      - name: ruff format
+        run: ruff format --check src/ tests/
+
+      - name: mypy --strict
+        run: mypy --strict src/uzlegal
+
+      - name: Qatlam shartnomasi
+        run: lint-imports
+
+      - name: Testlar
+        # RAG bog'liqliklari (torch, lancedb) o'rnatilmaydi — ular ~2.5 GB
+        # va unit testlar ularsiz o'tadi. E2E testlar bilim bazasi yo'qligi
+        # uchun o'zi o'tkazib yuboriladi.
+        run: pytest -q --no-header
+
+  web:
+    name: Web — tiplar, matn, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # `node:sqlite` Node 22 da bayroqsiz ishlamaydi (audit #39).
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Bog'liqliklar
+        run: npm ci
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: O'zbek matni linteri
+        run: npm run lint:uz
+
+      - name: Build
+        run: npm run build
+
+  audit:
+    name: Audit qarzlari
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      # Bu qadam ATAYLAB `continue-on-error`: tasdiqlangan qarzlar hali
+      # bor va ular CI ni qizil qilmasligi kerak. Maqsad — ularning
+      # SONINI har build da ko'rish, ya'ni kamayayotganini kuzatish.
+      - name: verify:audit
+        continue-on-error: true
+        run: npm run verify:audit
