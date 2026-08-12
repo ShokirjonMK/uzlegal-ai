@@ -3,7 +3,7 @@
 > O'zbekiston huquqiy tizimi uchun ko'p-agentli, iqtibosga asoslangan (citation-grounded) sun'iy intellekt platformasi.
 
 [![Status](https://img.shields.io/badge/status-beta-yellow)]()
-[![License](https://img.shields.io/badge/license-MIT-blue)]()
+[![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20tijorat-blue)]()
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20%7C%20Docker-lightgrey)]()
 
 ---
@@ -191,7 +191,22 @@ Yo'l xaritasi: [`docs/11-roadmap.md`](docs/11-roadmap.md).
 
 ## Litsenziya
 
-MIT — [`LICENSE`](LICENSE)
+**Ikki tomonlama:** [AGPL-3.0](LICENSE) yoki tijorat litsenziyasi.
+
+| Foydalanish | Litsenziya |
+|---|---|
+| O'rganish, tadqiqot, ochiq kodli loyiha | AGPL-3.0 (bepul) |
+| Tijorat, SaaS, yopiq kodli mahsulot | Tijorat litsenziyasi |
+
+AGPL-3.0 ning § 13 bandi **tarmoq orqali xizmat ko'rsatishni** ham
+qamrab oladi: o'zgartirilgan nusxani server sifatida ishlatsangiz,
+foydalanuvchilarga manba kodini taklif qilishingiz shart.
+
+Batafsil: [`LICENSING.md`](LICENSING.md) · Murojaat: **@ceoNeuron**
+
+> Xizmat buyruqlari (`serve`, `bot`, `mcp`) muallif bergan imzolangan
+> litsenziya talab qiladi. Lokal ish (`search`, `ask`, `doctor`,
+> `index`, `eval`) erkin.
 
 Manba huquqiy hujjatlar (lex.uz va boshqalar) O'zbekiston Respublikasi qonunchiligiga muvofiq ochiq ma'lumot hisoblanadi va o'z shartlari asosida ishlatiladi.
 

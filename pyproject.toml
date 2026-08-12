@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "O'zbekiston huquqiy tizimi uchun ko'p-agentli, iqtibosga asoslangan AI platformasi"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "MIT"}
+license = {text = "AGPL-3.0-or-later"}
 authors = [{name = "Shokirjon Madaminov", email = "mkshokirjon@gmail.com"}]
 
 dependencies = [

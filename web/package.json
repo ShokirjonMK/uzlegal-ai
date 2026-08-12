@@ -1,8 +1,8 @@
 {
-  "name": "ai-lowyer",
+  "name": "uzlegal-mk-web",
   "version": "0.1.0",
   "private": true,
-  "description": "AI Lawyer — yuridik savol-javob, qonun bazasi (RAG), hujjat tahlili va hujjat generatsiyasi. Web + REST API + Telegram bot + CLI, bitta loyihada.",
+  "description": "UzLegal-AI MK — Oʻzbekiston qonunchiligi boʻyicha iqtibosga asoslangan sunʼiy intellekt. Web, REST API, Telegram bot va CLI.",
   "engines": {
     "node": ">=22.5.0"
   },
@@ -54,5 +54,7 @@
     "tailwindcss": "^4.3.3",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
-  }
+  },
+  "license": "AGPL-3.0-or-later",
+  "author": "Shokirjon Madaminov (ShokirjonMK · MKdev · @ceoNeuron)"
 }
