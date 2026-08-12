@@ -1,13 +1,30 @@
 /**
- * Yagona qidiruv interfeysi — API yoki lokal RAG.
+ * Yagona qidiruv interfeysi — yadro API yoki lokal RAG.
  *
- * Strategiya:
- * 1. Agar `UZLEGAL_RAG=api` — faqat Python yadro API
- * 2. Agar `UZLEGAL_RAG=local` — faqat lokal TS RAG
- * 3. Standart (`auto`) — API mavjud boʻlsa uni ishlatadi, aks holda lokal
+ * ## Standart: `api`
  *
- * Bu modul `retrieve()` ni eksport qiladi — xuddi eski `./retrieve` dek.
- * Servislar import ni `../rag/retrieve` dan `../rag/unified` ga almashtiriladi.
+ * | `UZLEGAL_RAG` | Xatti-harakat |
+ * |---|---|
+ * | `api` *(standart)* | Faqat Python yadro. Yadro ishlamasa — xato |
+ * | `auto` | Yadro mavjud boʻlsa u, aks holda lokal (ogohlantirish bilan) |
+ * | `local` | Faqat lokal TS RAG |
+ *
+ * ## Nima uchun `auto` STANDART EMAS
+ *
+ * Ilgari standart `auto` edi va yadro ishlamasa u **jimgina** lokal
+ * RAG ga tushardi. Bu xavfli, chunki ikkala baza bir xil emas:
+ *
+ *     yadro:  20 kodeks · 7 090 modda · 8 636 boʻlak — HAQIQIY qonun
+ *     lokal:  `data/corpus/` — standart holda faqat NAMUNA fayl,
+ *             uning sarlavhasi «BU HAQIQIY QONUN EMAS» deb turadi
+ *
+ * Yaʼni jimgina tushish foydalanuvchiga **oʻylab topilgan qonun**
+ * asosida javob berardi va u buni sezmasdi. «Javob yoʻq» bunday
+ * javobdan yaxshiroq.
+ *
+ * `auto` rejimida ham endi ogohlantirish yoziladi va lokal korpus
+ * boʻsh boʻlsa boʻsh natija qaytadi — «manba topilmadi» yoʻliga
+ * tushadi.
  */
 
 import { config } from "../config";
@@ -18,8 +35,8 @@ type RagMode = "api" | "local" | "auto";
 
 function ragMode(): RagMode {
   const v = process.env["UZLEGAL_RAG"]?.trim().toLowerCase();
-  if (v === "api" || v === "local") return v;
-  return "auto";
+  if (v === "api" || v === "local" || v === "auto") return v;
+  return "api";
 }
 
 let apiChecked = false;
@@ -57,17 +74,43 @@ export async function unifiedRetrieve(
     return apiRetrieve(query, opts as ApiRetrieveOptions);
   }
 
-  // auto: API mavjud bo'lsa — shu, aks holda lokal
+  // auto: yadro mavjud bo'lsa — shu, aks holda lokal (ogohlantirish bilan)
   if (await checkApi()) {
     try {
       return await apiRetrieve(query, opts as ApiRetrieveOptions);
-    } catch {
-      // API xato berdi — lokal ga tushish
+    } catch (err) {
       apiChecked = false;
+      warnFallback((err as Error).message);
     }
+  } else {
+    warnFallback("yadro javob bermadi");
   }
 
   return localRetrieve(query, opts);
+}
+
+/** Lokal RAG ga tushish — bir marta va BALAND ovozda ogohlantiradi.
+ *
+ * Jimgina tushish eng yomon variant: javob sifati keskin tushadi,
+ * lekin buni hech kim sezmaydi.
+ */
+let fallbackWarned = false;
+
+function warnFallback(reason: string): void {
+  if (fallbackWarned) return;
+  fallbackWarned = true;
+  console.warn(
+    [
+      `[rag] YADRO ISHLAMAYAPTI (${reason}) — lokal korpusga tushildi.`,
+      `[rag] DIQQAT: lokal korpus yadronikidan boshqa va standart holda`,
+      `      faqat NAMUNA fayldan iborat. Javoblar ishonchsiz.`,
+      `[rag] Yechim: yadroni ishga tushiring (uzlegal serve) yoki`,
+      `      UZLEGAL_RAG=local deb ATAYLAB tanlang.`,
+    ].join("\n"),
+  );
+  setTimeout(() => {
+    fallbackWarned = false;
+  }, 300_000).unref?.();
 }
 
 async function localRetrieve(
