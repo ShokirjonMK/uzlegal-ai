@@ -185,9 +185,38 @@ def _missing_article(question: str, found: Any) -> str | None:
 
     if getattr(found, "query_kind", None) is not QueryKind.ARTICLE_LOOKUP:
         return None
-    if getattr(found, "exact_hits", 0):
+
+    article, doc_hint = extract_article_ref(question)
+    if article is None:
         return None
-    article, _ = extract_article_ref(question)
+
+    if not getattr(found, "exact_hits", 0):
+        return article
+
+    # Aniq moslik bor, lekin u SO'RALGAN HUJJATDAN bo'lmasligi mumkin.
+    #
+    # `search_article()` ataylab shunday ishlaydi: hujjat ishorasiga mos
+    # modda topilmasa, boshqa kodeksdagi bir xil raqamli moddani
+    # qaytaradi (`matched or others`). Qidiruv uchun bu to'g'ri —
+    # foydalanuvchi hujjat nomini adashtirgan bo'lishi mumkin.
+    #
+    # Lekin JAVOB uchun to'g'ri emas: «Jinoyat kodeksining 1000-moddasi
+    # nima haqida?» degan savolga Soliq kodeksining 1000-moddasini
+    # ko'rsatish — savolga javob emas, boshqa savolga javob. Shuning
+    # uchun hujjat aytilgan bo'lsa, aniq moslik AYNAN o'sha hujjatdan
+    # kelganini tekshiramiz.
+    if not doc_hint:
+        return None
+
+    from uzlegal.ingest.normalize import fold
+
+    hint = fold(doc_hint)
+    for item in getattr(found, "results", None) or []:
+        if getattr(item, "source", None) != "exact":
+            continue
+        title = fold(getattr(getattr(item, "chunk", None), "doc_title", "") or "")
+        if hint in title:
+            return None
     return article
 
 

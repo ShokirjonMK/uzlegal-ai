@@ -80,12 +80,14 @@ class _ArticleLookupRetriever(FakeRetriever):
     """Modda raqami bo'yicha so'rovni taqlid qiladi.
 
     `exact_hits` — aniq moslik kanali nechta natija topgani. Nol bo'lsa
-    bunday modda indeksda yo'q.
+    bunday modda indeksda yo'q. `exact_doc` — aniq moslik qaysi hujjatdan
+    kelgani; so'rovdagi hujjatdan boshqa bo'lishi mumkin.
     """
 
-    def __init__(self, exact_hits: int) -> None:
+    def __init__(self, exact_hits: int, exact_doc: str = "Fuqarolik kodeksi") -> None:
         super().__init__()
         self.exact_hits = exact_hits
+        self.exact_doc = exact_doc
 
     def search(self, query: str, **kwargs: Any) -> Any:
         from uzlegal.retrieval.hybrid import QueryKind
@@ -93,11 +95,14 @@ class _ArticleLookupRetriever(FakeRetriever):
         found = super().search(query, **kwargs)
         found.query_kind = QueryKind.ARTICLE_LOOKUP
         found.exact_hits = self.exact_hits
+        for item in found.results[: self.exact_hits]:
+            item.source = "exact"
+            item.chunk.doc_title = self.exact_doc
         return found
 
 
-def _article_lookup_retriever(exact_hits: int) -> Any:
-    return _ArticleLookupRetriever(exact_hits)
+def _article_lookup_retriever(exact_hits: int, exact_doc: str = "Fuqarolik kodeksi") -> Any:
+    return _ArticleLookupRetriever(exact_hits, exact_doc)
 
 
 def _semantic_retriever() -> Any:
@@ -361,3 +366,46 @@ def test_modda_raqamisiz_savol_tekshirilmaydi() -> None:
         registry=None,
     )
     assert "bilim bazasida topilmadi" not in result.answer
+
+
+def test_boshqa_kodeksdagi_bir_xil_raqam_javob_hisoblanmaydi() -> None:
+    """«Jinoyat kodeksining 1000-moddasi» → Soliq kodeksinikini ko'rsatish xato.
+
+    `search_article()` hujjat topilmasa boshqa kodeksdagi bir xil raqamli
+    moddani qaytaradi — qidiruv uchun to'g'ri, javob uchun emas.
+    """
+    from uzlegal.core import NO_SUCH_ARTICLE, ConsultRequest, consult
+
+    result = consult(
+        ConsultRequest(question="Jinoyat kodeksining 1000-moddasi nima haqida?"),
+        backend=_echo_backend(),
+        retriever=_article_lookup_retriever(exact_hits=1, exact_doc="Soliq kodeksi"),
+        registry=None,
+    )
+    assert result.answer == NO_SUCH_ARTICLE.format(article="1000")
+    assert result.confidence == 0.0
+
+
+def test_soralgan_hujjatdan_kelgan_moslik_qabul_qilinadi() -> None:
+    from uzlegal.core import NO_SUCH_ARTICLE, ConsultRequest, consult
+
+    result = consult(
+        ConsultRequest(question="Jinoyat kodeksining 100-moddasi nima haqida?"),
+        backend=_echo_backend(),
+        retriever=_article_lookup_retriever(exact_hits=1, exact_doc="Jinoyat kodeksi"),
+        registry=None,
+    )
+    assert result.answer != NO_SUCH_ARTICLE.format(article="100")
+
+
+def test_hujjat_aytilmagan_bolsa_moslik_yetarli() -> None:
+    """«234-modda nima haqida?» — hujjat ko'rsatilmagan, tekshirish qat'iy emas."""
+    from uzlegal.core import NO_SUCH_ARTICLE, ConsultRequest, consult
+
+    result = consult(
+        ConsultRequest(question="234-modda nima haqida?"),
+        backend=_echo_backend(),
+        retriever=_article_lookup_retriever(exact_hits=1, exact_doc="Soliq kodeksi"),
+        registry=None,
+    )
+    assert result.answer != NO_SUCH_ARTICLE.format(article="234")
