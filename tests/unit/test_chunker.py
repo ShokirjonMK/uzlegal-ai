@@ -8,7 +8,16 @@ from __future__ import annotations
 
 import pytest
 
-from uzlegal.index.chunker import _ITEM_RE, _PART_RE, Chunker, estimate_tokens, split_by
+from uzlegal.index.chunker import (
+    _ITEM_RE,
+    _PART_RE,
+    HARD_MAX_CHARS,
+    HARD_MAX_TOKENS,
+    Chunker,
+    _split_oversized,
+    estimate_tokens,
+    split_by,
+)
 from uzlegal.ingest.types import Element, ParsedDocument
 
 
@@ -171,3 +180,87 @@ def test_raqamlashsiz_matn_butun_qoladi() -> None:
 @pytest.mark.parametrize(("text", "minimum"), [("bir ikki uch", 6), ("", 0)])
 def test_token_bahosi(text: str, minimum: int) -> None:
     assert estimate_tokens(text) == minimum
+
+
+# --------------------------------------------------------------------------- #
+# Embedding oynasiga sig'maydigan matn
+#
+# Bu testlar bitta narsani qo'riqlaydi: bo'lak BGE-M3 ning 8192 tokenlik
+# oynasidan oshib ketmasin. Oshib ketsa model matnning oxirini JIMGINA
+# kesib tashlaydi — ya'ni «to'liq qoldiramiz» qoidasi o'z aksiga aylanadi.
+# Amalda 20 kodeksda 63 888 belgilik bo'lak topilgan edi: o'sha moddaning
+# ~60% i qidiruvda umuman ko'rinmasdi.
+# --------------------------------------------------------------------------- #
+
+
+def _long_text(sentences: int) -> str:
+    return " ".join(f"Bu {i}-raqamli namuna gap va u yetarlicha uzun." for i in range(sentences))
+
+
+def test_qisqa_matn_bolinmaydi() -> None:
+    """Chegaradan pastda — AYNAN o'sha obyekt qaytadi, nusxa emas.
+
+    Bu muhim: chaqiruvchi shunga qarab `chunk_id` ga bo'lak raqami
+    qo'shish-qo'shmaslikni hal qiladi va oddiy holatda id o'zgarmaydi.
+    """
+    text = "Qisqa modda matni."
+    result = _split_oversized(text)
+    assert result == [text]
+    assert result[0] is text
+
+
+def test_uzun_matn_bolinadi() -> None:
+    pieces = _split_oversized(_long_text(3000))
+    assert len(pieces) > 1
+
+
+def test_har_bolak_chegara_ichida() -> None:
+    for piece in _split_oversized(_long_text(3000)):
+        assert len(piece) <= HARD_MAX_CHARS
+        assert estimate_tokens(piece) <= HARD_MAX_TOKENS
+
+
+def test_belgi_chegarasi_ham_qollaniladi() -> None:
+    """Zich matn: so'z kam, belgi ko'p.
+
+    `estimate_tokens` = so'zlar × 2 bunday matnda haqiqiy token sonidan
+    ancha past chiqadi. Faqat token chegarasiga tayanilsa bo'lak oynadan
+    oshib ketardi — shuning uchun belgi chegarasi ham bor.
+    """
+    # Har «gap» bitta uzun so'zdan iborat: so'z soni past, belgi ko'p.
+    dense = " ".join("x" * 300 + "." for _ in range(120))  # ~120 so'z, ~36 000 belgi
+    assert estimate_tokens(dense) <= HARD_MAX_TOKENS
+    assert len(dense) > HARD_MAX_CHARS
+
+    pieces = _split_oversized(dense)
+    assert len(pieces) > 1
+    assert all(len(piece) <= HARD_MAX_CHARS for piece in pieces)
+
+
+def test_bolaklar_ustma_ust_keladi() -> None:
+    """Chegaraga tushgan shart ikkala bo'lakda ham qolishi kerak.
+
+    Busiz «…bundan mustasno…» kabi davom chegarada yo'qolib, norma
+    teskari talqin qilinishi mumkin.
+    """
+    pieces = _split_oversized(_long_text(3000))
+    first_end = pieces[0][-200:]
+    assert any(word in pieces[1][:400] for word in first_end.split()[-5:])
+
+
+def test_bitta_uzun_gap_kesilmaydi() -> None:
+    """Gap chegarasi yo'q bo'lsa matn butun qoladi.
+
+    Bunday matn yuridik hujjatda deyarli uchramaydi; uni belgi bo'yicha
+    kesish esa normani o'rtasidan bo'lardi — bu tuzatmoqchi bo'lgan
+    narsamizdan yomonroq.
+    """
+    single = "so'z " * 20000
+    assert _split_oversized(single) == [single]
+
+
+def test_haqiqiy_hujjatda_hech_bir_bolak_oshmaydi() -> None:
+    """Chunker chiqishi — uchidan-uchgacha kafolat."""
+    doc = make_doc(("1", _long_text(4000)))
+    for chunk in Chunker().chunk_document(doc):
+        assert len(chunk.content) <= HARD_MAX_CHARS

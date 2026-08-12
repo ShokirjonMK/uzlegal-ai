@@ -126,6 +126,15 @@ services:
     environment:
       UZLEGAL_PROFILE: server
       UZLEGAL_API_HOST: 0.0.0.0
+      # vLLM shu tarmoqda OpenAI-mos server sifatida turadi. `openai`
+      # backend aynan shu manzilga murojaat qiladi (configs/profiles/server.yaml).
+      UZLEGAL_OPENAI_ENDPOINT: http://vllm:8000/v1
+      # `:?` — sozlanmagan bo'lsa compose ISHGA TUSHMAYDI. Ataylab:
+      # ishlab chiqarishda `/v1/admin/*` himoyasiz qolgandan ko'ra
+      # xizmat ko'tarilmagani yaxshiroq. Kalit yaratish:
+      #   python -c "import secrets; print(secrets.token_urlsafe(32))"
+      UZLEGAL_ADMIN_KEY: ${UZLEGAL_ADMIN_KEY:?admin kaliti shart — /v1/admin/* himoyasi}
+      UZLEGAL_API_KEYS: ${UZLEGAL_API_KEYS:-}
       UZLEGAL_TELEGRAM_BOT_TOKEN: ${UZLEGAL_TELEGRAM_BOT_TOKEN:-}
       UZLEGAL_TELEGRAM_CHAT_ID: ${UZLEGAL_TELEGRAM_CHAT_ID:-}
       POSTGRES_DSN: ${POSTGRES_DSN:-postgresql://uzlegal@postgres:5432/uzlegal}
@@ -147,6 +156,7 @@ services:
     restart: unless-stopped
     environment:
       UZLEGAL_PROFILE: server
+      UZLEGAL_OPENAI_ENDPOINT: http://vllm:8000/v1
       UZLEGAL_TELEGRAM_BOT_TOKEN: ${UZLEGAL_TELEGRAM_BOT_TOKEN:?bot uchun token shart}
       UZLEGAL_TELEGRAM_CHAT_ID: ${UZLEGAL_TELEGRAM_CHAT_ID:-}
       UZLEGAL_TELEGRAM_ALLOWED_CHATS: ${UZLEGAL_TELEGRAM_ALLOWED_CHATS:-}
