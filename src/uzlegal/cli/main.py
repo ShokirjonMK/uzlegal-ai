@@ -584,7 +584,24 @@ def kb_sync(
         f"[dim]Taxminiy vaqt: ~{report.total * 20 // 60 + 1} daqiqa (Crawl-delay 20 s)[/dim]\n"
     )
     if not wait:
-        return
+        # `SyncManager` ishni **daemon oqimda** bajaradi. CLI shu yerda
+        # qaytsa Python jarayoni tugaydi va daemon oqim u bilan birga
+        # o'ladi — bitta ham hujjat yuklanmaydi.
+        #
+        # Bu jimgina sodir bo'lardi: buyruq «Boshlandi: sync_… — 843
+        # hujjat» deb yozib chiqib ketardi, arxivda esa hech narsa
+        # paydo bo'lmasdi. Amalda kuzatildi.
+        #
+        # Haqiqiy fon rejimi server jarayonida bo'ladi — u tugamaydi.
+        console.print(
+            "[yellow]⚠ `--no-wait` CLI da ishlamaydi[/yellow] — buyruq tugashi bilan "
+            "fon oqimi ham to'xtaydi.\n"
+            "  Fon rejimi uchun API ni ishlating (server jarayoni tugamaydi):\n"
+            "    [bold]curl -X POST localhost:8080/v1/admin/sync -H 'X-API-Key: …'[/bold]\n"
+            "  Yoki buyruqni terminalda qoldiring: [bold]uzlegal kb sync --from-catalog[/bold]"
+        )
+        manager.cancel()
+        raise typer.Exit(2)
 
     with console.status("yangilanmoqda…") as status:
         while manager.status is SyncStatus.RUNNING:
