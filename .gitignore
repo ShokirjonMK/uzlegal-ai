@@ -3,6 +3,10 @@ models/
 kb/
 data/raw/
 data/processed/
+# Sintetik trening materiali — tekshirilmagan va qayta yaratiladi.
+# Repoga tushsa u «tayyor dataset» kabi koʻrinadi, holbuki u yurist
+# tekshiruvidan oʻtmagan xom material.
+data/sft/
 *.safetensors
 *.gguf
 *.npz
