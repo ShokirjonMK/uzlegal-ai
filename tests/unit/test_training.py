@@ -280,3 +280,34 @@ def test_konfiguratsiya_yamldan(tmp_path: Path) -> None:
     )
     assert config.rank == 32
     assert config.epochs == 3
+
+
+def test_urug_savol_json_ga_yoziladi() -> None:
+    """Natija JSON ga serializatsiya qilinishi SHART.
+
+    Ilgari `seed_questions` `Chunk` obyektining o'zini qaytarardi va
+    `uzlegal train seed` `json.dumps` da yiqilardi — sintetik quvurning
+    birinchi qadami hech qachon ishlamagan. Mavjud testlar buni
+    tutmasdi, chunki ular faqat `question` va `role` maydonlarini
+    tekshirardi va natijani hech qachon JSON ga yozmasdi.
+    """
+    import json
+
+    seeds = list(seed_questions([make_chunk("228", "Vindikatsiya")], "advocate"))
+    assert seeds
+
+    line = json.dumps(seeds[0], ensure_ascii=False)
+    restored = json.loads(line)
+    assert restored["role"] == "advocate"
+    assert restored["chunk_id"] == seeds[0]["chunk_id"]
+    assert restored["context"][0]["chunk_id"] == seeds[0]["chunk_id"]
+    assert restored["context"][0]["text"]
+
+
+def test_urug_savol_kontekst_havolasini_saqlaydi() -> None:
+    """Savol qaysi moddadan olingani yo'qolmasligi kerak."""
+    seeds = list(seed_questions([make_chunk("228", "Vindikatsiya")], "jurist"))
+    seed = seeds[0]
+    assert seed["article"] == "228"
+    assert seed["doc_title"]
+    assert seed["context"][0]["tag"] == "C1"

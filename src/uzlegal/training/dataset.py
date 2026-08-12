@@ -136,8 +136,21 @@ def seed_questions(
         if topic is None:
             continue
         template = templates[index % len(templates)]
+        # `chunk` obyektining O'ZI emas, JSON ga yoziladigan ko'rinishi.
+        #
+        # Ilgari bu yerda `Chunk` modeli to'g'ridan-to'g'ri qaytarilardi va
+        # `uzlegal train seed` `json.dumps` da yiqilardi — ya'ni sintetik
+        # quvurning BIRINCHI qadami hech qachon ishlamagan. Bu sezilmasdi,
+        # chunki `seed_questions` ning unit testlari lug'atning faqat
+        # `question` va `role` maydonlarini tekshirardi va natijani hech
+        # qachon JSON ga yozmasdi.
         yield {
-            "chunk": chunk,
+            "context": [
+                ContextRef(tag="C1", chunk_id=chunk.chunk_id, text=chunk.content).model_dump()
+            ],
+            "chunk_id": chunk.chunk_id,
+            "doc_title": chunk.doc_title,
+            "article": chunk.article,
             "question": template.format(mavzu=topic),
             "role": role,
         }
