@@ -144,3 +144,59 @@ def test_manfiy_id_fayl_nomi() -> None:
     assert conn.raw_path("-111189").name == "neg111189.html"
     assert conn._from_safe_name("neg111189") == "-111189"
     assert conn._from_safe_name("111181") == "111181"
+
+
+# --------------------------------------------------------------------------- #
+# Keng kashfiyot — til va lug'at mosligi
+#
+# Birinchi urinishda rus qidiruviga O'ZBEKCHA atamalar yuborilgan edi
+# (`majburiyat`, `ijara`) va lex.uz har safar 0 ta natija qaytardi:
+# u matn bo'yicha qidiradi, tarjima qilmaydi. 95 daqiqa behuda ketdi.
+# --------------------------------------------------------------------------- #
+
+
+def test_har_til_oz_lugatini_oladi() -> None:
+    from uzlegal.ingest.discover import (
+        LANG_RU,
+        LANG_UZ_LATIN,
+        SEARCH_VOCABULARY,
+        SEARCH_VOCABULARY_RU,
+        broad_queries,
+    )
+
+    queries = broad_queries(langs=(LANG_UZ_LATIN, LANG_RU), forms=(None,))
+    uz = {q.query for q in queries if q.lang == LANG_UZ_LATIN}
+    ru = {q.query for q in queries if q.lang == LANG_RU}
+
+    assert uz == set(SEARCH_VOCABULARY)
+    assert ru == set(SEARCH_VOCABULARY_RU)
+    assert not (uz & ru), "O'zbek va rus lug'atlari ustma-ust tushmasligi kerak"
+
+
+def test_rus_lugatida_kirill_harflari_bor() -> None:
+    """Rus so'rovi lotin harflarda bo'lsa, rus hujjatida uchramaydi."""
+    from uzlegal.ingest.discover import SEARCH_VOCABULARY_RU
+
+    for term in SEARCH_VOCABULARY_RU:
+        assert any("Ѐ" <= ch <= "ӿ" for ch in term), f"kirill emas: {term}"
+
+
+def test_ozbek_lugatida_kirill_yoq() -> None:
+    from uzlegal.ingest.discover import SEARCH_VOCABULARY
+
+    for term in SEARCH_VOCABULARY:
+        assert not any("Ѐ" <= ch <= "ӿ" for ch in term), f"kirill bor: {term}"
+
+
+def test_ikki_lugat_bir_xil_sohalarni_qoplaydi() -> None:
+    """Qamrov nomutanosib bo'lmasligi kerak."""
+    from uzlegal.ingest.discover import SEARCH_VOCABULARY, SEARCH_VOCABULARY_RU
+
+    assert abs(len(SEARCH_VOCABULARY) - len(SEARCH_VOCABULARY_RU)) <= 3
+
+
+def test_sorovlar_soni_kutilganday() -> None:
+    from uzlegal.ingest.discover import LANG_UZ_LATIN, SEARCH_VOCABULARY, broad_queries
+
+    queries = broad_queries(langs=(LANG_UZ_LATIN,), forms=(None, "3964"))
+    assert len(queries) == len(SEARCH_VOCABULARY) * 2

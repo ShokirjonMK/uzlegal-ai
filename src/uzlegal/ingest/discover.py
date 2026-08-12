@@ -214,28 +214,131 @@ SEARCH_VOCABULARY: tuple[str, ...] = (
 )
 
 
+# Rus nashrlari uchun ALOHIDA lug'at.
+#
+# NEGA ALOHIDA. Bu birinchi urinishda o'tkazib yuborilgan va u 95
+# daqiqani behuda sarfladi: rus hujjatlariga o'zbekcha atamalar bilan
+# murojaat qilindi (`majburiyat`, `ijara`) va qidiruv har safar **0 ta**
+# natija qaytardi. lex.uz matn bo'yicha qidiradi, tarjima qilmaydi —
+# rus hujjatida o'zbekcha so'z uchramaydi.
+#
+# Atamalar yuqoridagi o'zbek lug'ati bilan bir xil sohalarni qoplaydi.
+SEARCH_VOCABULARY_RU: tuple[str, ...] = (
+    # Гражданское право
+    "договор",
+    "собственность",
+    "наследство",
+    "ущерб",
+    "обязательство",
+    "аренда",
+    "купля-продажа",
+    "залог",
+    "доверенность",
+    "юридическое лицо",
+    "интеллектуальная собственность",
+    "страхование",
+    # Труд
+    "труд",
+    "заработная плата",
+    "отпуск",
+    "трудовой договор",
+    "профсоюз",
+    "охрана труда",
+    "пособие",
+    "пенсия",
+    # Уголовное и процесс
+    "преступление",
+    "наказание",
+    "суд",
+    "следствие",
+    "доказательство",
+    "апелляция",
+    "кассация",
+    "адвокатура",
+    "прокуратура",
+    "экспертиза",
+    # Административное
+    "административная ответственность",
+    "лицензия",
+    "разрешение",
+    "государственная служба",
+    "обращение",
+    "контроль",
+    "штраф",
+    # Экономика и налоги
+    "налог",
+    "таможня",
+    "бюджет",
+    "банк",
+    "валюта",
+    "инвестиции",
+    "предпринимательство",
+    "конкуренция",
+    "банкротство",
+    "аудит",
+    # Семья и личность
+    "семья",
+    "брак",
+    "ребёнок",
+    "опека",
+    "гражданство",
+    "миграция",
+    # Земля и строительство
+    "земля",
+    "жильё",
+    "градостроительство",
+    "строительство",
+    "недвижимость",
+    # Прочие
+    "образование",
+    "здравоохранение",
+    "экология",
+    "транспорт",
+    "энергетика",
+    "информация",
+    "персональные данные",
+    "электронное правительство",
+    "государственные закупки",
+    "противодействие коррупции",
+    "сельское хозяйство",
+    "культура",
+    "спорт",
+)
+
+# Til → lug'at. Kirill o'zbek nashrlari lotin bilan bir xil atamalarga
+# javob bermaydi, lekin ular hozircha qamrovga kiritilmagan.
+VOCABULARY_BY_LANG: dict[str, tuple[str, ...]] = {
+    LANG_UZ_LATIN: SEARCH_VOCABULARY,
+    LANG_RU: SEARCH_VOCABULARY_RU,
+}
+
+
 def broad_queries(
     *,
     langs: tuple[str, ...] = (LANG_UZ_LATIN,),
     forms: tuple[str | None, ...] = (FORM_CODE, FORM_LAW, FORM_DECREE, FORM_RESOLUTION),
-    vocabulary: tuple[str, ...] = SEARCH_VOCABULARY,
+    vocabulary: tuple[str, ...] | None = None,
     statuses: tuple[str, ...] = (STATUS_IN_FORCE,),
 ) -> list[DiscoveryQuery]:
     """Keng kashfiyot uchun so'rovlar ro'yxatini yig'adi.
 
-    So'rovlar soni = lug'at × shakl × til × holat. Har biri bitta HTTP
-    so'rov, ya'ni `Crawl-delay: 20` bo'yicha 20 soniya. 55 atama × 4
-    shakl ≈ 220 so'rov ≈ **73 daqiqa**.
+    Har til uchun **o'z lug'ati** ishlatiladi (`VOCABULARY_BY_LANG`).
+    `vocabulary` aniq berilsa — u barcha tillarga qo'llaniladi; bu
+    faqat sinov uchun.
 
-    Shuning uchun chaqiruvchi hajmni oldindan bilishi kerak — funksiya
-    ro'yxat qaytaradi, uni o'zi bajarmaydi.
+    So'rovlar soni = lug'at × shakl × til × holat. Har biri bitta HTTP
+    so'rov, ya'ni `Crawl-delay: 20` bo'yicha 20 soniya. 71 atama × 4
+    shakl ≈ 284 so'rov ≈ **95 daqiqa** bitta til uchun.
+
+    Chaqiruvchi hajmni oldindan bilishi kerak — funksiya ro'yxat
+    qaytaradi, uni o'zi bajarmaydi.
     """
     return [
         DiscoveryQuery(query=term, lang=lang, form_id=form, status=status)
         for lang in langs
         for status in statuses
         for form in forms
-        for term in vocabulary
+        for term in (vocabulary or VOCABULARY_BY_LANG.get(lang, SEARCH_VOCABULARY))
     ]
 
 
