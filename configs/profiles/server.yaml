@@ -48,7 +48,13 @@ retrieval:
     type: postgres
     dsn: ${POSTGRES_DSN}
   embedder_service: http://embedder:8002
-  reranker_service: http://reranker:8001
+
+  # Reranker o'chirilgan — `local-dev.yaml` dagi o'lchov izohiga qarang.
+  # Qisqasi: 20 kodeksli korpusda u Recall@10 ni 89% dan 81% ga
+  # tushirdi. Serverda GPU bor, ya'ni kechikish muammo emas — lekin
+  # SIFAT muammo, va u apparatga bog'liq emas.
+  # reranker_service: http://reranker:8001
+  use_reranker: false
   top_k_retrieve: 50
   top_k_rerank: 8
   confidence_threshold: 0.35

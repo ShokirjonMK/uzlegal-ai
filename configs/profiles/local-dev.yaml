@@ -33,7 +33,32 @@ retrieval:
     type: sqlite
     path: ./kb/current/graph.db
   embedder: BAAI/bge-m3
-  reranker: BAAI/bge-reranker-v2-m3
+
+  # RERANKER ATAYLAB O'CHIRILGAN — o'lchov asosida.
+  #
+  # `HybridRetriever(use_reranker=False)` standart holat va bu tasodif
+  # emas. 2026-08-12 da 20 kodeksli korpusda (8 636 bo'lak) o'lchandi:
+  #
+  #   Metrika      rerankersiz   reranker bilan
+  #   Recall@1         42%            47%
+  #   Recall@3         67%            61%   ← yomonlashdi
+  #   Recall@10        89%            81%   ← yomonlashdi
+  #   MRR              0.55           0.58
+  #
+  # Reranker birinchi o'rinni biroz yaxshilaydi, lekin Recall@10 ni
+  # SAKKIZ PUNKTGA tushiradi: to'g'ri normani top-50 dan top-10 ga
+  # saralashda pastga surib yuboradi. Gate uchun bu eng yomon
+  # almashuv — kontekstga tushmagan norma javobda umuman bo'lmaydi.
+  #
+  # Sabab taxminan shu: `bge-reranker-v2-m3` ko'p tilli, lekin o'zbek
+  # tili past-resursli va u yerda BGE-M3 + BM25 (RRF) birikmasidan
+  # zaifroq ishlaydi.
+  #
+  # Yoqishdan oldin QAYTA O'LCHANG: `uzlegal eval retrieval --rerank`.
+  # Korpus kengaygach (qonunosti hujjatlari, sud amaliyoti) natija
+  # o'zgarishi mumkin.
+  # reranker: BAAI/bge-reranker-v2-m3
+  use_reranker: false
   top_k_retrieve: 50
   top_k_rerank: 8
   rrf_k: 60
