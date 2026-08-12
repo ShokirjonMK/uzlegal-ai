@@ -523,10 +523,21 @@ def kb_status() -> None:
 def kb_sync(
     docs: str = typer.Option(None, "--docs", help="Vergul bilan ajratilgan hujjat ID lari"),
     wait: bool = typer.Option(True, "--wait/--no-wait", help="Tugashini kutish"),
+    from_catalog: bool = typer.Option(
+        False, "--from-catalog", help="configs/discovered.yaml dagi barcha hujjatlar"
+    ),
+    skip_existing: bool = typer.Option(
+        True, "--skip-existing/--all", help="Arxivda bor hujjatlarni o'tkazib yuborish"
+    ),
 ) -> None:
     """Bilim bazasini yangilash.
 
     Diqqat: lex.uz `Crawl-delay: 20` talab qiladi — har hujjat kamida 20 soniya.
+
+    `--from-catalog` — `kb discover --broad` qurgan katalogdan yuklaydi.
+    `--skip-existing` standart holda yoqilgan: arxivda bor hujjat qayta
+    yuklanmaydi. Bu uzilgan yurishni davom ettirish imkonini beradi —
+    40 000 hujjatlik korpusda bu majburiy xususiyat.
     """
     import time as _time
 
@@ -534,6 +545,34 @@ def kb_sync(
 
     manager = SyncManager()
     doc_ids = [d.strip() for d in docs.split(",")] if docs else None
+
+    if from_catalog:
+        import yaml as _yaml
+
+        catalog = Path("configs/discovered.yaml")
+        if not catalog.exists():
+            console.print(f"[red]✕[/red] Katalog yo'q: {catalog}")
+            console.print("[dim]Avval: uzlegal kb discover --broad[/dim]")
+            raise typer.Exit(4)
+
+        data = _yaml.safe_load(catalog.read_text(encoding="utf-8")) or {}
+        doc_ids = [str(d["doc_id"]) for d in (data.get("documents") or [])]
+
+        if skip_existing:
+            from uzlegal.ingest.connectors.lex_uz import LexUzConnector
+
+            conn = LexUzConnector()
+            before = len(doc_ids)
+            doc_ids = [d for d in doc_ids if not conn.raw_path(d).exists()]
+            console.print(
+                f"Katalog: {before} hujjat · arxivda bor: {before - len(doc_ids)} · "
+                f"yuklanadi: [bold]{len(doc_ids)}[/bold]"
+            )
+
+        if not doc_ids:
+            console.print("[green]✓[/green] Hammasi allaqachon arxivda")
+            return
+
     try:
         report = manager.start(trigger="manual", doc_ids=doc_ids)
     except SyncAlreadyRunningError as exc:
@@ -600,8 +639,25 @@ def kb_discover(
     query: str = typer.Option("kodeks", "--query", "-q"),
     form: str = typer.Option("kodeks", "--form", help="kodeks · qonun · farmon · qaror"),
     save: bool = typer.Option(False, "--save", help="Natijani configs/discovered.yaml ga yozish"),
+    broad: bool = typer.Option(
+        False, "--broad", help="Keng kashfiyot: lug'at bo'yicha barcha shakllar"
+    ),
+    with_russian: bool = typer.Option(False, "--ru", help="Rus nashrlarini ham qidirish"),
+    limit: int = typer.Option(0, "--limit", help="So'rovlar sonini cheklash (sinov uchun)"),
 ) -> None:
-    """lex.uz da o'zbek (lotin) hujjatlarini qidirib topish."""
+    """lex.uz da hujjatlarni qidirib topish.
+
+    `--broad` — huquqiy sohalar lug'ati bo'yicha keng kashfiyot. lex.uz
+    bir so'rovga 20 ta natija beradi va sahifalashni qo'llab-quvvatlamaydi,
+    shuning uchun katalog **ko'p tor so'rov** bilan quriladi.
+
+    DIQQAT: har so'rov `Crawl-delay: 20` bo'yicha 20 soniya oladi.
+    To'liq keng kashfiyot ≈ 220 so'rov ≈ 73 daqiqa (rus bilan 2×).
+    """
+    if broad:
+        _kb_discover_broad(with_russian=with_russian, limit=limit)
+        return
+
     import yaml as _yaml
 
     from uzlegal.ingest.connectors.lex_uz import LexUzConnector
@@ -646,6 +702,78 @@ def kb_discover(
             encoding="utf-8",
         )
         console.print(f"\n[green]✓[/green] Saqlandi: {out}")
+
+
+def _kb_discover_broad(*, with_russian: bool, limit: int) -> None:
+    """Lug'at bo'yicha keng kashfiyot — katalogni bosqichma-bosqich quradi.
+
+    Natija HAR SO'ROVDAN KEYIN saqlanadi. Sabab amaliy: to'liq yurish
+    bir soatdan oshadi va u uzilishi mumkin (tarmoq, Ctrl+C, qayta
+    ishga tushirish). Oxirida bir marta yozilsa, uzilgan yurishning
+    butun mehnati yo'qolardi.
+    """
+    import yaml as _yaml
+
+    from uzlegal.ingest.connectors.lex_uz import LexUzConnector
+    from uzlegal.ingest.discover import (
+        LANG_RU,
+        LANG_UZ_LATIN,
+        LexUzDiscovery,
+        broad_queries,
+    )
+
+    langs = (LANG_UZ_LATIN, LANG_RU) if with_russian else (LANG_UZ_LATIN,)
+    queries = broad_queries(langs=langs)
+    if limit:
+        queries = queries[:limit]
+
+    out = Path("configs/discovered.yaml")
+    known: dict[str, dict[str, str | None]] = {}
+    if out.exists():
+        existing = _yaml.safe_load(out.read_text(encoding="utf-8")) or {}
+        for item in existing.get("documents") or []:
+            known[str(item["doc_id"])] = item
+
+    minutes = len(queries) * 20 / 60
+    console.print(
+        f"Keng kashfiyot: [bold]{len(queries)}[/bold] so'rov · "
+        f"taxminan [bold]{minutes:.0f} daqiqa[/bold] (Crawl-delay 20 s)\n"
+        f"[dim]Avvaldan ma'lum: {len(known)} hujjat. Natija har so'rovdan keyin saqlanadi.[/dim]\n"
+    )
+
+    with LexUzConnector() as conn:
+        discovery = LexUzDiscovery(conn)
+        for i, query in enumerate(queries, start=1):
+            try:
+                refs = discovery.search(query)
+            except Exception as exc:
+                console.print(f"  [yellow]⚠[/yellow] [{i}/{len(queries)}] {query.query}: {exc}")
+                continue
+
+            fresh = [r for r in refs if r.doc_id not in known]
+            for ref in refs:
+                known[ref.doc_id] = {
+                    "doc_id": ref.doc_id,
+                    "title": ref.title,
+                    "type": ref.doc_type,
+                }
+
+            console.print(
+                f"  [{i}/{len(queries)}] {query.query:24} "
+                f"{len(refs):3} topildi · [green]+{len(fresh)}[/green] yangi · "
+                f"jami {len(known)}"
+            )
+
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(
+                _yaml.safe_dump(
+                    {"documents": list(known.values())}, allow_unicode=True, sort_keys=False
+                ),
+                encoding="utf-8",
+            )
+
+    console.print(f"\n[green]✓[/green] Katalog: [bold]{len(known)}[/bold] hujjat → {out}")
+    console.print("[dim]Yuklab olish: uzlegal kb sync --from-catalog[/dim]")
 
 
 @kb_app.command("parse")

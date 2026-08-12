@@ -113,6 +113,132 @@ def parse_results(html: str, form_id: str | None = None) -> list[DocumentRef]:
     return out
 
 
+# --------------------------------------------------------------------------- #
+# Keng kashfiyot
+# --------------------------------------------------------------------------- #
+
+# Huquqiy sohalar bo'yicha qidiruv lug'ati.
+#
+# NEGA LUG'AT KERAK. lex.uz qidiruvi bir so'rovga **20 ta** natija
+# qaytaradi va sahifalashni qo'llab-quvvatlamaydi (statik HTML da hech
+# qanday `page` parametri yo'q — tekshirildi). Ya'ni bitta so'rov bilan
+# katalogni qurib bo'lmaydi.
+#
+# Yechim: bitta keng so'rov o'rniga **ko'p tor so'rov**. Har biri o'z
+# sohasining eng tegishli 20 tasini beradi, natijalar birlashtiriladi va
+# takrorlanuvchilar olib tashlanadi. Bu to'liq katalogni bermaydi, lekin
+# amaliy qamrovni sezilarli kengaytiradi.
+#
+# Atamalar huquq sohalari bo'yicha tanlangan — alifbo tartibida emas,
+# chunki maqsad KENG QAMROV, tekis taqsimot emas.
+SEARCH_VOCABULARY: tuple[str, ...] = (
+    # Fuqarolik huquqi
+    "shartnoma",
+    "mulk",
+    "meros",
+    "zarar",
+    "majburiyat",
+    "ijara",
+    "oldi-sotdi",
+    "garov",
+    "vakolat",
+    "yuridik shaxs",
+    "intellektual mulk",
+    "sug'urta",
+    # Mehnat
+    "mehnat",
+    "ish haqi",
+    "ta'til",
+    "mehnat shartnomasi",
+    "kasaba uyushmasi",
+    "mehnat muhofazasi",
+    "nafaqa",
+    "pensiya",
+    # Jinoyat va protsess
+    "jinoyat",
+    "jazo",
+    "sud",
+    "tergov",
+    "dalil",
+    "apellyatsiya",
+    "kassatsiya",
+    "advokatura",
+    "prokuratura",
+    "ekspertiza",
+    # Ma'muriy
+    "ma'muriy javobgarlik",
+    "litsenziya",
+    "ruxsatnoma",
+    "davlat xizmati",
+    "murojaat",
+    "nazorat",
+    "jarima",
+    # Iqtisodiy va soliq
+    "soliq",
+    "bojxona",
+    "budjet",
+    "bank",
+    "valyuta",
+    "investitsiya",
+    "tadbirkorlik",
+    "raqobat",
+    "bankrotlik",
+    "auditorlik",
+    # Oila va shaxs
+    "oila",
+    "nikoh",
+    "bola",
+    "vasiylik",
+    "fuqarolik",
+    "migratsiya",
+    # Yer va qurilish
+    "yer",
+    "uy-joy",
+    "shaharsozlik",
+    "qurilish",
+    "ko'chmas mulk",
+    # Boshqa sohalar
+    "ta'lim",
+    "sog'liqni saqlash",
+    "ekologiya",
+    "transport",
+    "energetika",
+    "axborot",
+    "shaxsga doir ma'lumot",
+    "elektron hukumat",
+    "davlat xaridlari",
+    "korrupsiyaga qarshi",
+    "qishloq xo'jaligi",
+    "madaniyat",
+    "sport",
+)
+
+
+def broad_queries(
+    *,
+    langs: tuple[str, ...] = (LANG_UZ_LATIN,),
+    forms: tuple[str | None, ...] = (FORM_CODE, FORM_LAW, FORM_DECREE, FORM_RESOLUTION),
+    vocabulary: tuple[str, ...] = SEARCH_VOCABULARY,
+    statuses: tuple[str, ...] = (STATUS_IN_FORCE,),
+) -> list[DiscoveryQuery]:
+    """Keng kashfiyot uchun so'rovlar ro'yxatini yig'adi.
+
+    So'rovlar soni = lug'at × shakl × til × holat. Har biri bitta HTTP
+    so'rov, ya'ni `Crawl-delay: 20` bo'yicha 20 soniya. 55 atama × 4
+    shakl ≈ 220 so'rov ≈ **73 daqiqa**.
+
+    Shuning uchun chaqiruvchi hajmni oldindan bilishi kerak — funksiya
+    ro'yxat qaytaradi, uni o'zi bajarmaydi.
+    """
+    return [
+        DiscoveryQuery(query=term, lang=lang, form_id=form, status=status)
+        for lang in langs
+        for status in statuses
+        for form in forms
+        for term in vocabulary
+    ]
+
+
 def parse_total(html: str) -> int | None:
     m = _TOTAL.search(_TAG.sub(" ", html))
     if m:
