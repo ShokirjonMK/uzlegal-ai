@@ -8,7 +8,7 @@ Har bir API chaqiruv uchun ikkita tekshiruv:
 from __future__ import annotations
 
 from uzlegal.users.models import QuotaExceededError
-from uzlegal.users.plans import PLANS, PlanTier, has_feature
+from uzlegal.users.plans import PLANS, PlanTier, billing, has_feature
 from uzlegal.users.store import UserStore
 
 ENDPOINT_TO_FEATURE: dict[str, str] = {
@@ -35,8 +35,17 @@ def check_access(
     user_id: str,
     endpoint: str,
 ) -> None:
-    """Ruxsat va chegarani tekshiradi. Xatolik boʻlsa exception otadi."""
+    """Ruxsat va chegarani tekshiradi. Xatolik boʻlsa exception otadi.
+
+    Bepul davrda (`billing.enabled: false`) chegaralar **umuman
+    qoʻllanmaydi**. Foydalanish baribir qayd etiladi — u statistika va
+    kelajakdagi narx qarori uchun kerak, lekin hech kim toʻxtatilmaydi.
+    """
     user = store.get_user(user_id)
+
+    if not billing().enabled:
+        return
+
     plan = PLANS[user.plan]
 
     feature = ENDPOINT_TO_FEATURE.get(endpoint, "")

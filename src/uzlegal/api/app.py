@@ -798,11 +798,32 @@ def deactivate_user(user_id: str) -> dict[str, Any]:
 
 
 @app.get("/v1/plans", tags=["users"])
-def list_plans() -> list[dict[str, Any]]:
-    """Barcha obuna rejalari."""
-    from uzlegal.users.plans import PLANS
+def list_plans() -> dict[str, Any]:
+    """Barcha obuna rejalari va toʻlov holati.
 
-    return [p.model_dump() for p in PLANS.values()]
+    Ommaviy endpoint — narx roʻyxati yashirilmaydi. `billing.enabled`
+    ham koʻrsatiladi: bepul davrda foydalanuvchi buni bilishi kerak.
+    """
+    from uzlegal.users.plans import PLANS, billing
+
+    state = billing()
+    return {
+        "billing": {"enabled": state.enabled, "note": state.note},
+        "plans": [p.model_dump() for p in PLANS.values()],
+    }
+
+
+@app.post("/v1/admin/plans/reload", tags=["users"])
+def reload_plans_endpoint() -> dict[str, Any]:
+    """`configs/plans.yaml` ni qayta oʻqish — xizmatni toʻxtatmasdan.
+
+    Narx va chegara — biznes qarori. Uni oʻzgartirish uchun reliz
+    chiqarish yoki xizmatni qayta ishga tushirish talab qilinishi
+    notoʻgʻri: admin YAML ni tahrirlaydi va shu endpointni chaqiradi.
+    """
+    from uzlegal.users.plans import reload_plans
+
+    return {"ok": True, **reload_plans()}
 
 
 # --------------------------------------------------------------------------- #

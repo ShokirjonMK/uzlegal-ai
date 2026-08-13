@@ -1257,3 +1257,37 @@ def _doctor_knowledge_base() -> bool:
 
 if __name__ == "__main__":
     app()
+
+
+@app.command("plans")
+def plans_show() -> None:
+    """Obuna rejalari va to'lov holati."""
+    from uzlegal.users.plans import PLANS, billing
+
+    state = billing()
+    if state.enabled:
+        console.print("[green]To'lov YOQILGAN[/green] — chegaralar amal qiladi\n")
+    else:
+        console.print(f"[yellow]BEPUL DAVR[/yellow] — {state.note}\n")
+
+    table = Table(box=None, pad_edge=False)
+    table.add_column("Reja", style="bold")
+    table.add_column("Narx (so'm/oy)", justify="right")
+    table.add_column("Kunlik", justify="right")
+    table.add_column("Oylik", justify="right")
+    table.add_column("Imkoniyatlar")
+
+    for plan in PLANS.values():
+        features = [k for k, v in plan.features.model_dump().items() if v]
+        table.add_row(
+            plan.name_uz,
+            f"{plan.price_uzs:,}".replace(",", " ") if plan.price_uzs else "bepul",
+            str(plan.limits.daily_queries),
+            str(plan.limits.monthly_queries),
+            ", ".join(features) or "—",
+        )
+
+    console.print(table)
+    console.print(
+        "\n[dim]Tahrirlash: configs/plans.yaml · Qayta o'qish: POST /v1/admin/plans/reload[/dim]"
+    )

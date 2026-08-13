@@ -1,0 +1,95 @@
+# Obuna rejalari — narx va chegaralar
+#
+# Bu fayl **biznes qarori**, kod emas. Uni oʻzgartirish uchun reliz
+# chiqarish shart emas:
+#
+#   uzlegal plans show                     # joriy holat
+#   POST /v1/admin/plans/reload            # xizmatni toʻxtatmasdan qayta oʻqish
+#
+# Maydonlar: src/uzlegal/users/plans.py → Plan
+
+
+# --------------------------------------------------------------------- #
+# Toʻlov holati
+# --------------------------------------------------------------------- #
+#
+# `enabled: false` — BEPUL DAVR. Chegaralar umuman qoʻllanmaydi va
+# barcha imkoniyatlar ochiq. Rejalar tuzilmasi saqlanadi, yaʼni
+# toʻlovni yoqish uchun shu bitta qiymatni `true` qilish yetarli.
+#
+# Ishga tushirish rejasi:
+#   1-bosqich  enabled: false  — foydalanuvchi jalb qilinadi
+#   2-bosqich  enabled: true   — chegaralar amal qila boshlaydi
+billing:
+  enabled: false
+  note: "Bepul davr — chegaralar qoʻllanmaydi. Toʻlovni yoqish: enabled: true"
+
+
+# --------------------------------------------------------------------- #
+# Rejalar
+# --------------------------------------------------------------------- #
+plans:
+
+  bepul:
+    name_uz: "Bepul"
+    price_uzs: 0
+    limits:
+      daily_queries: 5
+      monthly_queries: 100
+      max_batch_size: 1
+    features:
+      consult: true
+      court_analyze: true
+      litigation: false
+      integrity: false
+      education: false
+      batch_api: false
+      stream: false
+
+  asosiy:
+    name_uz: "Asosiy"
+    price_uzs: 99000
+    limits:
+      daily_queries: 50
+      monthly_queries: 1000
+      max_batch_size: 5
+    features:
+      consult: true
+      court_analyze: true
+      litigation: true
+      integrity: false
+      education: true
+      batch_api: false
+      stream: true
+
+  professional:
+    name_uz: "Professional"
+    price_uzs: 299000
+    limits:
+      daily_queries: 200
+      monthly_queries: 5000
+      max_batch_size: 20
+    features:
+      consult: true
+      court_analyze: true
+      litigation: true
+      integrity: true
+      education: true
+      batch_api: true
+      stream: true
+
+  tashkilot:
+    name_uz: "Tashkilot"
+    price_uzs: 999000
+    limits:
+      daily_queries: 1000
+      monthly_queries: 20000
+      max_batch_size: 100
+    features:
+      consult: true
+      court_analyze: true
+      litigation: true
+      integrity: true
+      education: true
+      batch_api: true
+      stream: true

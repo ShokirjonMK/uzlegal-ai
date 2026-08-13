@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from uzlegal.users.limits import FeatureNotAllowedError, check_access, record_and_check
@@ -14,6 +16,22 @@ from uzlegal.users.models import (
 )
 from uzlegal.users.plans import PLANS, PlanTier, get_plan, has_feature
 from uzlegal.users.store import UserStore
+
+
+@pytest.fixture(autouse=True)
+def _billing_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mavjud testlar chegara AMAL QILADIGAN holatni tekshiradi.
+
+    Standart holat endi «bepul davr» (`billing.enabled: false`) va unda
+    chegaralar umuman qo'llanmaydi. Testlar to'lov yoqilgan holatni
+    ko'zda tutgani uchun uni aniq yoqamiz — aks holda ular nimani
+    tekshirayotgani noaniq bo'lardi.
+    """
+    from uzlegal.users import plans as plans_mod
+
+    monkeypatch.setattr(plans_mod, "_billing", plans_mod.Billing(enabled=True))
+    monkeypatch.setattr(plans_mod, "_loaded", True)
+
 
 # ── Fixtures ────────────────────────────────────────────────────────────
 
@@ -326,3 +344,126 @@ class TestEdgeCases:
         store.deactivate("u1")
         with pytest.raises(UserNotFoundError):
             store.get_by_api_key(key)
+
+
+# --------------------------------------------------------------------------- #
+# Rejalar konfiguratsiyadan o'qiladi
+#
+# Narx va chegara — BIZNES qarori, kod qarori emas. Ularni o'zgartirish
+# uchun reliz chiqarish talab qilinishi noto'g'ri.
+# --------------------------------------------------------------------------- #
+
+
+def test_bepul_davrda_chegara_qollanmaydi(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`billing.enabled: false` — hamma narsa ochiq."""
+    from uzlegal.users import plans as plans_mod
+
+    monkeypatch.setattr(plans_mod, "_billing", plans_mod.Billing(enabled=False))
+
+    # Eng cheklangan rejada ham
+    assert plans_mod.has_feature(plans_mod.PlanTier.BEPUL, "integrity")
+    assert plans_mod.has_feature(plans_mod.PlanTier.BEPUL, "batch_api")
+
+
+def test_tolov_yoqilganda_chegara_ishlaydi(monkeypatch: pytest.MonkeyPatch) -> None:
+    from uzlegal.users import plans as plans_mod
+
+    monkeypatch.setattr(plans_mod, "_billing", plans_mod.Billing(enabled=True))
+    monkeypatch.setattr(plans_mod, "_loaded", True)
+
+    assert plans_mod.has_feature(plans_mod.PlanTier.BEPUL, "consult")
+    assert not plans_mod.has_feature(plans_mod.PlanTier.BEPUL, "integrity")
+
+
+def test_yaml_dan_oqiladi(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from uzlegal.users import plans as plans_mod
+
+    path = tmp_path / "plans.yaml"
+    path.write_text(
+        "billing:\n  enabled: true\n"
+        "plans:\n  bepul:\n    name_uz: 'Sinov'\n    price_uzs: 0\n"
+        "    limits:\n      daily_queries: 42\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(plans_mod, "CONFIG_PATH", path)
+    plans_mod.reload_plans()
+
+    assert plans_mod._billing.enabled
+    assert plans_mod.get_plan(plans_mod.PlanTier.BEPUL).limits.daily_queries == 42
+    assert plans_mod.get_plan(plans_mod.PlanTier.BEPUL).name_uz == "Sinov"
+
+
+def test_yetishmagan_reja_standartdan_toldiriladi(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Qisman yuklash xavfli: reja yo'qolsa foydalanuvchilari chegarasiz qolardi."""
+    from uzlegal.users import plans as plans_mod
+
+    path = tmp_path / "plans.yaml"
+    path.write_text("plans:\n  bepul:\n    name_uz: 'Faqat bitta'\n", encoding="utf-8")
+    monkeypatch.setattr(plans_mod, "CONFIG_PATH", path)
+    plans_mod.reload_plans()
+
+    assert set(plans_mod.all_plans()) == set(plans_mod._DEFAULT_PLANS)
+    assert plans_mod.get_plan(plans_mod.PlanTier.TASHKILOT).price_uzs > 0
+
+
+def test_buzuq_yaml_xizmatni_yiqitmaydi(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from uzlegal.users import plans as plans_mod
+
+    path = tmp_path / "plans.yaml"
+    path.write_text("bu: [yopilmagan\n", encoding="utf-8")
+    monkeypatch.setattr(plans_mod, "CONFIG_PATH", path)
+    plans_mod.reload_plans()
+
+    assert set(plans_mod.all_plans()) == set(plans_mod._DEFAULT_PLANS)
+
+
+def test_plans_lugati_yangi_qiymatni_beradi(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Modul darajasidagi lug'at joyida yangilanadi — havola buzilmaydi."""
+    from uzlegal.users import plans as plans_mod
+
+    path = tmp_path / "plans.yaml"
+    path.write_text(
+        "plans:\n  bepul:\n    name_uz: 'Yangi nom'\n    price_uzs: 0\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(plans_mod, "CONFIG_PATH", path)
+    plans_mod.reload_plans()
+
+    assert plans_mod.PLANS[plans_mod.PlanTier.BEPUL].name_uz == "Yangi nom"
+
+
+def test_qisman_tahrir_qolganini_saqlaydi(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Admin faqat narxni o'zgartirsa, `features` yo'qolmasligi kerak.
+
+    Birinchi urinishda `Plan(**body)` ishlatilgan edi va `features`
+    yozilmagan yozuv validatsiyadan o'tmasdi — reja JIMGINA standartga
+    qaytardi. Konfiguratsiya faylida bu eng yomon xatti-harakat.
+    """
+    from uzlegal.users import plans as plans_mod
+
+    path = tmp_path / "plans.yaml"
+    path.write_text("plans:\n  professional:\n    price_uzs: 149000\n", encoding="utf-8")
+    monkeypatch.setattr(plans_mod, "CONFIG_PATH", path)
+    plans_mod.reload_plans()
+
+    plan = plans_mod.get_plan(plans_mod.PlanTier.PROFESSIONAL)
+    assert plan.price_uzs == 149_000
+    assert plan.features.batch_api is True  # saqlangan
+    assert plan.limits.daily_queries == 200  # saqlangan
+
+
+def test_ichki_blok_ham_birlashtiriladi(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`daily_queries` ni o'zgartirish uchun `monthly_queries` ni qayta yozish shart emas."""
+    from uzlegal.users import plans as plans_mod
+
+    path = tmp_path / "plans.yaml"
+    path.write_text("plans:\n  bepul:\n    limits:\n      daily_queries: 10\n", encoding="utf-8")
+    monkeypatch.setattr(plans_mod, "CONFIG_PATH", path)
+    plans_mod.reload_plans()
+
+    limits = plans_mod.get_plan(plans_mod.PlanTier.BEPUL).limits
+    assert limits.daily_queries == 10
+    assert limits.monthly_queries == 100  # saqlangan
