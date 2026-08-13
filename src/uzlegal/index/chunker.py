@@ -42,7 +42,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from uzlegal.ingest.normalize import fold
-from uzlegal.ingest.types import Element, ParsedDocument
+from uzlegal.ingest.types import Element, ParsedDocument, unit_label
 
 # Chegara qiymatlari — docs/03 § 3.6
 MAX_CHUNK_TOKENS = 800
@@ -258,7 +258,7 @@ class Chunk(BaseModel):
     def citation_label(self) -> str:
         bits = [self.doc_title]
         if self.article:
-            bits.append(f"{self.article}-modda")
+            bits.append(f"{self.article}-{unit_label(self.doc_type)}")
         if self.part:
             bits.append(f"{self.part}-qism")
         if self.item:

@@ -16,6 +16,7 @@ from uzlegal.cli.license import license_app
 from uzlegal.config import get_registry, get_settings
 from uzlegal.core import ConsultResult
 from uzlegal.inference.backend import available_backends
+from uzlegal.ingest.types import unit_label
 
 app = typer.Typer(help="UzLegal-AI — O'zbekiston huquqiy AI platformasi", no_args_is_help=True)
 models_app = typer.Typer(help="Model boshqaruvi", no_args_is_help=True)
@@ -1013,7 +1014,7 @@ def _render_answer(result: object, *, trace: bool) -> None:
     if result.citations:
         console.print("[bold]Manbalar[/bold]")
         for c in result.citations:
-            label = f"{c.doc_title or c.doc_id}, {c.article}-modda"
+            label = f"{c.doc_title or c.doc_id}, {c.article}-{unit_label(c.doc_type)}"
             console.print(f"  [cyan][{c.tag}][/cyan] {label}")
             if c.url:
                 console.print(f"       [dim]{c.url}[/dim]")

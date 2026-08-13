@@ -212,6 +212,93 @@ def detect_doc_type(title: str) -> DocType:
     return "boshqa"
 
 
+# --------------------------------------------------------------------------- #
+# Band segmentatsiyasi — farmon, qaror va boshqa modda tuzilmasiz hujjatlar
+# --------------------------------------------------------------------------- #
+
+# «1. Matn…» — band boshi. Nuqta majburiy, chunki raqamsiz satr boshi
+# (masalan «2026-yildan boshlab…») band emas.
+_POINT_START = re.compile(r"^\s*(\d{1,3})\.\s+(?=\S)")
+
+# Bandning eng kam uzunligi. Undan qisqasi odatda jadval katagi yoki
+# ro'yxat elementi bo'ladi va alohida band sifatida indekslanishi
+# qidiruvni ifloslaydi.
+_MIN_POINT_CHARS = 80
+
+
+def segment_points(elements: list[Element]) -> list[Element]:
+    """Modda tuzilmasi yo'q hujjatni **bandlar** bo'yicha bo'ladi.
+
+    ## Nima uchun kerak
+
+    Kodeks va qonunda «234-modda» sarlavhasi bor va parser uni CSS
+    sinfi bo'yicha taniydi. Prezident farmoni va qarorida esa bunday
+    sarlavha **umuman yo'q** — butun matn tekis paragraflar bo'lib
+    keladi, tuzilma faqat «1.», «2.», «3.» raqamlarida.
+
+    Amalda o'lchandi (863 hujjat, 2026-08-12): 631 tasi — ya'ni **73%** —
+    nol modda bilan qaytdi. Ular indeksga tushsa ham, iqtibos bera
+    olmaydigan tekis matn bo'lib qolardi va gate ularni tasdiqlay
+    olmasdi.
+
+    ## Nima uchun `level="article"`
+
+    Chunker, gate va iqtibos mexanizmi `article_number` ga tayanadi.
+    Bandni alohida daraja qilish uchalasini ham o'zgartirishni talab
+    qilardi. Raqam bir xil ma'noni bajaradi — farq faqat **nomlanishda**,
+    va u `unit_label()` orqali hal qilinadi: kodeksda «3-modda»,
+    farmonda «3-band».
+
+    Faqat modda topilmagan hujjatlarda ishlaydi — kodeksga tegmaydi.
+    """
+    if any(e.level == "article" for e in elements):
+        return elements
+
+    out: list[Element] = []
+    current: Element | None = None
+    buffer: list[str] = []
+
+    def flush() -> None:
+        nonlocal current, buffer
+        if current is not None:
+            current.body = "\n".join(buffer).strip()
+            if len(current.body) >= _MIN_POINT_CHARS:
+                out.append(current)
+            else:
+                # Juda qisqa band — oldingi bandga qo'shiladi, aks holda
+                # u alohida chunk bo'lib qidiruvni ifloslaydi.
+                if out and out[-1].level == "article":
+                    out[-1].body = f"{out[-1].body}\n{current.title}\n{current.body}".strip()
+        current, buffer = None, []
+
+    for element in elements:
+        if element.level != "text":
+            flush()
+            out.append(element)
+            continue
+
+        body = element.body or ""
+        match = _POINT_START.match(body)
+        if match:
+            flush()
+            current = Element(
+                element_id=element.element_id,
+                level="article",
+                title=body[: match.end()].strip(),
+                article_number=match.group(1),
+                lang=element.lang,
+                path=list(element.path),
+            )
+            buffer = [body[match.end() :].strip()]
+        elif current is not None:
+            buffer.append(body)
+        else:
+            out.append(element)
+
+    flush()
+    return out
+
+
 # «Prim» moddalar: keyinchalik kiritilgan qo'shimcha moddalar yuqori indeks
 # bilan raqamlanadi — 358¹, 26², 176³. HTML da bu `<sup>` tegi:
 #
@@ -259,6 +346,10 @@ class LexUzParser:
         title = self._document_title(html, blocks)
         amendments: list[AmendmentNote] = []
         elements = self._build(blocks, lang, warnings, amendments)
+        # Modda tuzilmasi topilmasa — bandlar bo'yicha bo'lamiz. Farmon va
+        # qarorlarda «N-modda» sarlavhasi umuman yo'q, tuzilma faqat
+        # «1.», «2.» raqamlarida (`segment_points` izohiga qarang).
+        elements = segment_points(elements)
         self._cross_check(html, blocks, warnings)
 
         return ParsedDocument(

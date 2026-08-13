@@ -9,6 +9,32 @@ from pydantic import BaseModel, Field
 
 DocType = Literal["kodeks", "qonun", "PF", "PQ", "VMQ", "plenum", "qaror", "boshqa"]
 
+# Hujjat turiga qarab strukturaviy birlik nomi.
+#
+# NEGA MUHIM. Kodeks va qonunda birlik — **modda**. Prezident farmoni,
+# qarori va Vazirlar Mahkamasi qarorida esa **band** (`1.`, `2.`, …).
+# Ikkalasini ham «modda» deb atash yuridik jihatdan **noto'g'ri** va
+# foydalanuvchini chalg'itadi: «Farmonning 3-moddasi» degan havolani
+# yurist izlab topa olmaydi — u yerda modda yo'q, band bor.
+_UNIT_BY_DOC_TYPE: dict[str, str] = {
+    "kodeks": "modda",
+    "qonun": "modda",
+    "PF": "band",
+    "PQ": "band",
+    "VMQ": "band",
+    "qaror": "band",
+    "plenum": "band",
+}
+
+
+def unit_label(doc_type: str | None) -> str:
+    """Hujjat turining strukturaviy birligi: «modda» yoki «band».
+
+    Noma'lum tur uchun «modda» — bu eng keng tarqalgan holat va
+    kodekslar hech qachon noto'g'ri nomlanmasligi kerak.
+    """
+    return _UNIT_BY_DOC_TYPE.get(doc_type or "", "modda")
+
 
 class DocumentRef(BaseModel):
     """Kashfiyot bosqichida topilgan hujjat havolasi."""

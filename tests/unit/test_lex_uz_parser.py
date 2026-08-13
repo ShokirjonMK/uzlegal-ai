@@ -247,3 +247,101 @@ def test_oddiy_sup_matnni_buzmaydi() -> None:
     from uzlegal.ingest.parsers.lex_uz import clean_text
 
     assert "m-2" in clean_text("m<sup>2</sup>")
+
+
+# --------------------------------------------------------------------------- #
+# Band segmentatsiyasi — farmon va qarorlar
+#
+# 863 hujjatlik korpusda o'lchandi: 631 tasi (73%) nol modda bilan qaytdi.
+# Ular Prezident farmoni va qarorlari — ularda «N-modda» sarlavhasi
+# umuman yo'q, tuzilma faqat «1.», «2.» raqamlarida.
+# --------------------------------------------------------------------------- #
+
+
+def _text(body: str, element_id: str = "1") -> "Element":
+    from uzlegal.ingest.types import Element
+
+    return Element(element_id=element_id, level="text", title="", body=body)
+
+
+def test_bandlar_ajratiladi() -> None:
+    from uzlegal.ingest.parsers.lex_uz import segment_points
+
+    long_a = "Sud hokimiyatining mustaqilligini taʼminlash chora-tadbirlari. " * 3
+    long_b = "Vazirlar Mahkamasi bir oy muddatda takliflar kiritsin. " * 3
+    out = segment_points([_text(f"1. {long_a}", "a"), _text(f"2. {long_b}", "b")])
+
+    articles = [e for e in out if e.level == "article"]
+    assert [a.article_number for a in articles] == ["1", "2"]
+    assert long_a.split(".")[0] in articles[0].body
+
+
+def test_band_davomi_oldingi_bandga_qoshiladi() -> None:
+    """Raqamsiz paragraf — oldingi bandning davomi."""
+    from uzlegal.ingest.parsers.lex_uz import segment_points
+
+    head = "Quyidagilar asosiy yoʻnalishlar deb belgilansin. " * 3
+    tail = "inson huquqlarini himoya qilish sohasida faoliyatni kuchaytirish. " * 3
+    out = segment_points([_text(f"1. {head}", "a"), _text(tail, "b")])
+
+    articles = [e for e in out if e.level == "article"]
+    assert len(articles) == 1
+    assert "inson huquqlarini" in articles[0].body
+
+
+def test_modda_bor_hujjatga_tegilmaydi() -> None:
+    """Kodeks allaqachon tuzilgan — segmentatsiya ishlamasligi kerak."""
+    from uzlegal.ingest.parsers.lex_uz import segment_points
+
+    from uzlegal.ingest.types import Element
+
+    elements = [
+        Element(element_id="a", level="article", title="1-modda", article_number="1", body="Matn"),
+        _text("1. Bu band emas, modda tanasidagi ro'yxat elementi.", "b"),
+    ]
+    assert segment_points(elements) == elements
+
+
+def test_juda_qisqa_band_alohida_chiqmaydi() -> None:
+    """Jadval katagi yoki ro'yxat elementi alohida band bo'lmasligi kerak."""
+    from uzlegal.ingest.parsers.lex_uz import segment_points
+
+    long_body = "Birinchi bandning yetarlicha uzun matni bu yerda keladi. " * 3
+    out = segment_points([_text(f"1. {long_body}", "a"), _text("2. Qisqa.", "b")])
+
+    articles = [e for e in out if e.level == "article"]
+    assert len(articles) == 1
+    assert "Qisqa" in articles[0].body
+
+
+def test_raqamsiz_matn_saqlanadi() -> None:
+    """Muqaddima yo'qolmasligi kerak."""
+    from uzlegal.ingest.parsers.lex_uz import segment_points
+
+    out = segment_points([_text("Farmoni", "a"), _text("Muqaddima matni.", "b")])
+    assert len(out) == 2
+    assert all(e.level == "text" for e in out)
+
+
+# --------------------------------------------------------------------------- #
+# Strukturaviy birlik nomi
+# --------------------------------------------------------------------------- #
+
+
+def test_hujjat_turiga_qarab_birlik_nomi() -> None:
+    """Farmonda «modda» emas, «band» — yuridik jihatdan muhim farq."""
+    from uzlegal.ingest.types import unit_label
+
+    assert unit_label("kodeks") == "modda"
+    assert unit_label("qonun") == "modda"
+    assert unit_label("PF") == "band"
+    assert unit_label("PQ") == "band"
+    assert unit_label("VMQ") == "band"
+
+
+def test_nomalum_tur_modda_deb_ataladi() -> None:
+    """Kodeks hech qachon noto'g'ri nomlanmasligi kerak."""
+    from uzlegal.ingest.types import unit_label
+
+    assert unit_label(None) == "modda"
+    assert unit_label("boshqa") == "modda"

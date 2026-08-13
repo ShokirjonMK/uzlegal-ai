@@ -37,6 +37,7 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 from uzlegal.ingest.normalize import fold
+from uzlegal.ingest.types import unit_label
 from uzlegal.orchestrator.text import content_words
 from uzlegal.types import Citation
 
@@ -489,7 +490,7 @@ def _refusal_text(citations: list[Citation]) -> str:
         lines += ["", "Topilgan manbalar:"]
         lines += [
             f"- [{c.tag}] {c.doc_title or c.doc_id}"
-            + (f", {c.article}-modda" if c.article else "")
+            + (f", {c.article}-{unit_label(c.doc_type)}" if c.article else "")
             + (f" — {c.url}" if c.url else "")
             for c in citations
         ]
