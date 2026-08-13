@@ -889,12 +889,17 @@ def index_build(
     # beriladi va qurilma hisobga olinadi.
     total_chars = sum(len(c.indexed_text) for c in chunks)
     embedder = Embedder(batch_size=batch_size)
-    rate = 9_000 if embedder.device != "cpu" else 400  # belgi/s, o'lchangan
+    # O'lchangan (RTX 4060, fp16, haqiqiy korpus): 123 800 belgi/s.
+    # Ehtiyotkorlik uchun pastroq olinadi — GPU boshqa jarayon bilan
+    # bo'lishilgan bo'lsa tezlik tushadi.
+    rate = 90_000 if embedder.device != "cpu" else 400  # belgi/s, o'lchangan
     console.print(
         f"\nJami [bold]{len(chunks)}[/bold] chunk · {total_chars / 1e6:.1f} mln belgi · "
         f"qurilma {embedder.device}"
     )
     console.print(f"[dim]Taxminiy vaqt: ~{total_chars / rate / 60:.0f} daqiqa[/dim]\n")
+
+    _warn_if_vram_busy(embedder.device)
 
     # `console.status()` spinneri EMAS, haqiqiy progress.
     #
@@ -907,6 +912,43 @@ def index_build(
 
     KnowledgeIndex(out).build(chunks, vectors, kb_version=SyncManager().state.kb_version)
     console.print(f"[green]✓[/green] Indeks tayyor: {out}")
+
+
+def _warn_if_vram_busy(device: str) -> None:
+    """Boshqa jarayon VRAM ni band qilgan bo'lsa — oldindan aytadi.
+
+    AMALDA KUZATILGAN. Indeks qurish 3 soat davom etdi va tugamadi.
+    Sabab: `ollama` xotirasida `gemma3:12b` turardi va 8 GB dan atigi
+    260 MB bo'sh qolgandi. Embedder ishlayotgandek ko'rinardi — GPU
+    100% band, xato yo'q — lekin aslida har batch PCIe orqali tizim
+    xotirasiga to'kilardi. Tezlik 40 barobar past edi.
+
+    Buni ishlatishda sezib bo'lmaydi: yagona belgi — GPU quvvati
+    (53 W / 165 W). Shuning uchun tekshiruv ishning BOSHIDA turadi.
+
+    To'xtatmaydi, faqat ogohlantiradi: foydalanuvchi nima uchun uzoq
+    kutayotganini bilishi kerak, lekin qaror uniki.
+    """
+    if device != "cuda":
+        return
+    try:
+        import torch
+
+        free_gb = torch.cuda.mem_get_info()[0] / 1024**3
+    except Exception:  # pragma: no cover — apparatga bog'liq
+        return
+
+    if free_gb >= 4.0:
+        return
+
+    console.print(
+        f"[yellow]⚠ GPU xotirasi kam: atigi {free_gb:.1f} GB bo'sh[/yellow]\n"
+        "  Boshqa jarayon VRAM ni band qilgan bo'lishi mumkin. Tekshiring:\n"
+        "    [bold]ollama ps[/bold]   → model turgan bo'lsa: "
+        "[bold]ollama stop <model>[/bold]\n"
+        "  Aks holda indeks o'nlab barobar sekin quriladi "
+        "(xato bermaydi, shunchaki kutasiz).\n"
+    )
 
 
 @index_app.command("stats")

@@ -79,7 +79,18 @@ ignore = [
 "src/uzlegal/cli/*.py" = ["B008"]
 
 [tool.mypy]
-python_version = "3.11"
+# `python_version` ATAYLAB berilmagan — mypy ishlayotgan interpretatorga
+# ergashadi.
+#
+# Ilgari bu yerda "3.11" turardi va mypy butunlay ishlamay qoldi:
+# `numpy` 2.5 stublari `type` bayonotini ishlatadi (faqat 3.12+ da bor),
+# mypy esa uni 3.11 sintaksisi bilan o'qiyotib yiqilardi va BIZNING
+# kodni umuman tekshirmasdan to'xtardi ("errors prevented further
+# checking"). Ya'ni darvoza yashil emas, o'chirilgan edi.
+#
+# Sozlama bog'liqliklarga zid edi: `numpy` 2.5 ning o'zi Python >= 3.12
+# talab qiladi. 3.11 mosligini CI tekshiradi — u aynan 3.11 da ishlaydi
+# va u yerda `numpy` ning 3.11 ga mos versiyasi o'rnatiladi.
 strict = true
 warn_return_any = true
 disallow_untyped_defs = true
