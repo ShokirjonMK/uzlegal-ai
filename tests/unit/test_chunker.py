@@ -264,3 +264,69 @@ def test_haqiqiy_hujjatda_hech_bir_bolak_oshmaydi() -> None:
     doc = make_doc(("1", _long_text(4000)))
     for chunk in Chunker().chunk_document(doc):
         assert len(chunk.content) <= HARD_MAX_CHARS
+
+
+# --------------------------------------------------------------------------- #
+# Chegara — CHIQISH NUQTASIDA kafolatlanadi
+#
+# Birinchi urinishda chegara `_chunk_article()` ning ikkita tarmog'iga
+# qo'yilgan edi, lekin chunk yaratadigan yo'l BESHTA. 863 hujjatlik
+# korpusda eng uzun chunk 48 561 belgi bo'lib chiqdi — chegaradan uch
+# barobar katta.
+# --------------------------------------------------------------------------- #
+
+
+def test_hech_bir_chunk_chegaradan_oshmaydi() -> None:
+    """Uchala yo'l uchun ham kafolat."""
+    doc = make_doc(
+        ("1", "Qisqa modda matni."),
+        ("2", _long_text(4000)),
+        ("3", "1. Birinchi qism. " + _long_text(2000) + "\n2. Ikkinchi qism. " + _long_text(2000)),
+    )
+    for chunk in Chunker().chunk_document(doc):
+        assert len(chunk.content) <= HARD_MAX_CHARS, chunk.chunk_id
+
+
+def test_chegaradan_pastdagi_chunk_tegilmaydi() -> None:
+    """Bo'linmagan chunk `chunk_id` ini saqlashi kerak."""
+    doc = make_doc(("228", "Mulkdor talab qilishga haqli. " * 5))
+    chunks = Chunker().chunk_document(doc)
+    assert all(
+        ":1" not in c.chunk_id.rsplit(":", 1)[-1] or c.chunk_id.endswith("228") for c in chunks
+    )
+
+
+def test_bolingan_chunk_id_raqamlanadi() -> None:
+    from uzlegal.index.chunker import Chunk, _enforce_limit
+
+    big = Chunk(
+        chunk_id="doc:1",
+        doc_id="doc",
+        doc_title="Sinov",
+        doc_type="kodeks",
+        lang="uz",
+        heading="[Sinov]",
+        content=_long_text(4000),
+        token_count=0,
+    )
+    out = _enforce_limit([big])
+    assert len(out) > 1
+    assert [c.chunk_id for c in out] == [f"doc:1:{i}" for i in range(1, len(out) + 1)]
+    assert all(len(c.content) <= HARD_MAX_CHARS for c in out)
+
+
+def test_merge_tiny_natijasi_ham_tekshiriladi() -> None:
+    """`_merge_tiny` ikki chunkni qo'shadi — natija oshib ketishi mumkin."""
+    from uzlegal.index.chunker import Chunk, _enforce_limit
+
+    merged = Chunk(
+        chunk_id="doc:1",
+        doc_id="doc",
+        doc_title="Sinov",
+        doc_type="kodeks",
+        lang="uz",
+        heading="[Sinov]",
+        content=_long_text(2000) + " " + _long_text(2000),
+        token_count=0,
+    )
+    assert all(len(c.content) <= HARD_MAX_CHARS for c in _enforce_limit([merged]))

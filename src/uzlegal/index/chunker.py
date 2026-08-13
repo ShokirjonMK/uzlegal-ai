@@ -184,6 +184,51 @@ def _tail(sentences: list[str], max_tokens: int) -> list[str]:
     return kept
 
 
+def _enforce_limit(chunks: list[Chunk]) -> list[Chunk]:
+    """Chegarani **chiqish nuqtasida** kafolatlaydi.
+
+    ## Nima uchun bu yerda, tarmoqlarda emas
+
+    Birinchi urinishda chegara `_chunk_article()` ning ikkita tarmogʻiga
+    qoʻyilgan edi. Lekin chunk yaratadigan yoʻl **beshta**:
+
+    1. kichik modda — butunligicha (chegara YOʻQ edi)
+    2. qismlarga boʻlish (chegara YOʻQ edi)
+    3. qism → `_split_oversized` ✓
+    4. band → `_split_oversized` ✓
+    5. `_merge_tiny()` — ikki chunkni **qoʻshadi**, yaʼni yangi
+       chegaradan oshgan chunk yasashi mumkin
+
+    Amalda oʻlchandi (863 hujjat): eng uzun chunk **48 561 belgi**
+    boʻlib chiqdi — chegaradan uch barobar katta. Natijada indeks
+    qurish yana 195 daqiqaga choʻzildi va tugamadi.
+
+    Har tarmoqqa alohida tekshiruv qoʻyish — unutib boʻladigan
+    yondashuv. Bitta chiqish nuqtasida kafolat berish esa yangi tarmoq
+    qoʻshilganda ham ishlaydi.
+
+    Faqat oshib ketganlarga tegadi: qolgan chunklar **oʻsha obyektning
+    oʻzi** boʻlib qoladi.
+    """
+    out: list[Chunk] = []
+    for chunk in chunks:
+        pieces = _split_oversized(chunk.content)
+        if len(pieces) == 1:
+            out.append(chunk)
+            continue
+        for i, piece in enumerate(pieces, start=1):
+            out.append(
+                chunk.model_copy(
+                    update={
+                        "chunk_id": f"{chunk.chunk_id}:{i}",
+                        "content": piece,
+                        "token_count": estimate_tokens(piece),
+                    }
+                )
+            )
+    return out
+
+
 def split_by(pattern: re.Pattern[str], text: str) -> list[tuple[str | None, str]]:
     """Matnni belgilangan raqamlash bo'yicha bo'ladi.
 
@@ -284,7 +329,7 @@ class Chunker:
         chunks: list[Chunk] = []
         for article in doc.articles:
             chunks.extend(self._chunk_article(doc, article))
-        return self._merge_tiny(chunks)
+        return _enforce_limit(self._merge_tiny(chunks))
 
     # ------------------------------------------------------------------ #
 

@@ -292,7 +292,6 @@ def test_band_davomi_oldingi_bandga_qoshiladi() -> None:
 def test_modda_bor_hujjatga_tegilmaydi() -> None:
     """Kodeks allaqachon tuzilgan — segmentatsiya ishlamasligi kerak."""
     from uzlegal.ingest.parsers.lex_uz import segment_points
-
     from uzlegal.ingest.types import Element
 
     elements = [
