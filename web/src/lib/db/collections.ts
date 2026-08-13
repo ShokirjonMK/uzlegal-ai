@@ -108,15 +108,49 @@ export interface EventDoc {
   kind: EventKind;
   surface: Surface;
   userId: ObjectId | null;
+  /**
+   * Yuza identifikatori — Telegram chat ID yoki web sessiya kaliti.
+   *
+   * `userId` (Mongo hisobi) dan ALOHIDA saqlanadi: bot foydalanuvchisi
+   * roʻyxatdan oʻtmagan boʻlishi mumkin, lekin uning faoliyati baribir
+   * hisobga olinishi kerak.
+   */
+  actorId?: string;
+  username?: string;
   telegramId?: number;
+  /** Kiruvchi matn UZUNLIGI. Matnning oʻzi hech qachon saqlanmaydi. */
+  inputChars?: number;
+  inputTokens?: number;
+  outputTokens?: number;
   durationMs?: number;
   error?: string;
   label?: string;
   createdAt: Date;
 }
 
+/**
+ * Yuza ishtirokchisi — Telegram chat yoki web sessiyasi.
+ *
+ * NEGA `users` DAN ALOHIDA. `users` — roʻyxatdan oʻtgan hisob (parol,
+ * email, rollar). Bot foydalanuvchisi esa hech qachon roʻyxatdan
+ * oʻtmasligi mumkin, lekin uning birinchi murojaati va faolligi
+ * hisobga olinishi kerak. Ikkalasini bitta kolleksiyaga qoʻshish
+ * «foydalanuvchi» tushunchasini ikki xil maʼnoda ishlatardi.
+ */
+export interface ActorDoc {
+  /** `${surface}:${actorId}` — yuzalar boʻyicha takrorlanmas kalit. */
+  _id: string;
+  actorId: string;
+  surface: Surface;
+  username?: string;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+  requests: number;
+}
+
 export const NAMES = {
   users: "users",
+  actors: "actors",
   sessions: "sessions",
   loginCodes: "login_codes",
   conversations: "conversations",
@@ -127,6 +161,9 @@ export const NAMES = {
 
 export async function users(): Promise<Collection<UserDoc>> {
   return (await db()).collection<UserDoc>(NAMES.users);
+}
+export async function actors(): Promise<Collection<ActorDoc>> {
+  return (await db()).collection<ActorDoc>(NAMES.actors);
 }
 export async function sessions(): Promise<Collection<SessionDoc>> {
   return (await db()).collection<SessionDoc>(NAMES.sessions);
@@ -207,6 +244,16 @@ async function ensureIndexes(database: Db): Promise<void> {
       .createIndexes([
         { key: { createdAt: -1 } },
         { key: { kind: 1, createdAt: -1 } },
+        { key: { surface: 1, createdAt: -1 } },
+        { key: { actorId: 1, createdAt: -1 } },
+      ]),
+
+    database
+      .collection<ActorDoc>(NAMES.actors)
+      .createIndexes([
+        { key: { surface: 1 } },
+        { key: { firstSeenAt: -1 } },
+        { key: { lastSeenAt: -1 } },
       ]),
   ]);
 }

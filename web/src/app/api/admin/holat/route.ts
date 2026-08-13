@@ -21,7 +21,7 @@ export async function GET(request: Request): Promise<Response> {
   const [corpus, mongo, stat, ollama] = await Promise.all([
     Promise.resolve().then(() => safe(() => stats())),
     pingMongo(),
-    Promise.resolve().then(() => safe(() => ({ ...summary(hours), ...lifetime() }))),
+    safeAsync(async () => ({ ...(await summary(hours)), ...(await lifetime()) })),
     // Lokal model faqat oʻsha provayder tanlanganda soʻraladi.
     config.provider === "ollama" ? pingOllama() : Promise.resolve(null),
   ]);
@@ -64,6 +64,15 @@ type Safe<T> = { ok: true; value: T } | { ok: false; error: string };
 function safe<T>(fn: () => T): Safe<T> {
   try {
     return { ok: true, value: fn() };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "xatolik" };
+  }
+}
+
+/** `safe()` ning asinxron varianti — statistika endi Mongo dan keladi. */
+async function safeAsync<T>(fn: () => Promise<T>): Promise<Safe<T>> {
+  try {
+    return { ok: true, value: await fn() };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "xatolik" };
   }

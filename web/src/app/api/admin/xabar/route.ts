@@ -21,7 +21,7 @@ const SEND_DELAY_MS = 40;
 async function recipients(): Promise<number[]> {
   const ids = new Set<number>();
 
-  for (const raw of allUserIds("telegram")) {
+  for (const raw of await allUserIds("telegram")) {
     const n = Number(raw);
     if (Number.isFinite(n) && n !== 0) ids.add(n);
   }

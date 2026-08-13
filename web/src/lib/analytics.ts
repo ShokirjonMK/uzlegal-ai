@@ -1,17 +1,31 @@
 /**
- * Foydalanish statistikasi.
+ * Foydalanish statistikasi — MongoDB da.
  *
- * Har bir amal SQLite ga yoziladi (korpus bazasidan alohida fayl), keyin
- * admin `/stat` buyrug'i yoki kunlik hisobot orqali ko'ra oladi.
+ * ## Nima uchun SQLite dan koʻchirildi
  *
- * Maxfiylik: savol MATNI saqlanmaydi — faqat uzunligi va turi. Foydalanuvchi
- * identifikatori Telegram chat ID va username bilan cheklangan.
+ * Ilgari statistika **ikki joyda** yashardi: bot va CLI SQLite ga
+ * yozardi, web va kabinet esa Mongo ga. Natijada admin paneli
+ * `/api/admin/xabar` da ikkala manbani qoʻlda birlashtirishga majbur
+ * edi va sonlar hech qachon toʻliq mos kelmasdi.
+ *
+ * Ikkita haqiqat manbai — bitta ham yoʻqdan yomonroq: qaysi biri
+ * toʻgʻri ekanini aytib boʻlmaydi.
+ *
+ * ## Maxfiylik — oʻzgarmadi
+ *
+ * Savol MATNI hech qachon saqlanmaydi — faqat uzunligi, turi va
+ * davomiyligi. Bu ataylab qilingan qaror va koʻchirishda ham
+ * saqlandi.
+ *
+ * ## Mongo sozlanmagan boʻlsa
+ *
+ * Barcha funksiyalar **jimgina boʻsh natija** qaytaradi va asosiy ish
+ * toʻxtamaydi. Statistika yordamchi vazifa: uning yoʻqligi savol-javobni
+ * buzmasligi kerak. Ogohlantirish bir marta yoziladi.
  */
 
-import { DatabaseSync } from "node:sqlite";
-import { mkdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { config } from "./config";
+import { isMongoConfigured } from "./db/mongo";
+import type { ActorDoc, EventDoc } from "./db/collections";
 
 export type EventKind =
   | "ask"
@@ -30,113 +44,89 @@ export interface EventInput {
   /** Telegram chat ID yoki web sessiya identifikatori. */
   userId?: string;
   username?: string;
-  /** Kiruvchi matn uzunligi (matnning o'zi emas). */
+  /** Kiruvchi matn uzunligi (matnning oʻzi emas). */
   inputChars?: number;
   inputTokens?: number;
   outputTokens?: number;
   /** Amal davomiyligi, millisekundda. */
   durationMs?: number;
-  /** Xatolik bo'lsa — qisqa tavsif. */
+  /** Xatolik boʻlsa — qisqa tavsif. */
   error?: string;
-  /** Qo'shimcha belgi: hujjat turi, fayl kengaytmasi va h.k. */
+  /** Qoʻshimcha belgi: hujjat turi, fayl kengaytmasi va h.k. */
   label?: string;
 }
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS events (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  ts            INTEGER NOT NULL,
-  kind          TEXT NOT NULL,
-  surface       TEXT NOT NULL,
-  user_id       TEXT,
-  username      TEXT,
-  input_chars   INTEGER,
-  input_tokens  INTEGER,
-  output_tokens INTEGER,
-  duration_ms   INTEGER,
-  error         TEXT,
-  label         TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
-CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id);
+let warned = false;
 
-CREATE TABLE IF NOT EXISTS users (
-  user_id   TEXT PRIMARY KEY,
-  username  TEXT,
-  surface   TEXT NOT NULL,
-  first_ts  INTEGER NOT NULL,
-  last_ts   INTEGER NOT NULL,
-  requests  INTEGER NOT NULL DEFAULT 0
-);
-`;
-
-let db: DatabaseSync | null = null;
-
-function open(): DatabaseSync {
-  if (db) return db;
-  const path = resolve(config.corpusDbPath).replace(/\.db$/, "") + ".analytics.db";
-  mkdirSync(dirname(path), { recursive: true });
-  db = new DatabaseSync(path);
-  db.exec("PRAGMA journal_mode = WAL;");
-  db.exec(SCHEMA);
-  return db;
-}
-
-export function closeAnalytics(): void {
-  db?.close();
-  db = null;
-}
-
-/** Yangi foydalanuvchi bo'lsa `true` qaytaradi. */
-export function record(e: EventInput): { isNewUser: boolean } {
-  let isNewUser = false;
-  try {
-    const database = open();
-    const now = Date.now();
-
-    database
-      .prepare(
-        `INSERT INTO events
-         (ts, kind, surface, user_id, username, input_chars, input_tokens, output_tokens, duration_ms, error, label)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        now,
-        e.kind,
-        e.surface,
-        e.userId ?? null,
-        e.username ?? null,
-        e.inputChars ?? null,
-        e.inputTokens ?? null,
-        e.outputTokens ?? null,
-        e.durationMs ?? null,
-        e.error ?? null,
-        e.label ?? null,
-      );
-
-    if (e.userId) {
-      const existing = database
-        .prepare("SELECT user_id FROM users WHERE user_id = ?")
-        .get(e.userId);
-      isNewUser = !existing;
-
-      database
-        .prepare(
-          `INSERT INTO users (user_id, username, surface, first_ts, last_ts, requests)
-           VALUES (?, ?, ?, ?, ?, 1)
-           ON CONFLICT(user_id) DO UPDATE SET
-             username = COALESCE(excluded.username, users.username),
-             last_ts  = excluded.last_ts,
-             requests = users.requests + 1`,
-        )
-        .run(e.userId, e.username ?? null, e.surface, now, now);
-    }
-  } catch (err) {
-    // Statistika hech qachon asosiy ishni to'xtatmasligi kerak.
-    console.error("[analytics] yozib boʻlmadi:", err);
+function unavailable(): boolean {
+  if (isMongoConfigured()) return false;
+  if (!warned) {
+    warned = true;
+    console.warn(
+      "[analytics] MONGODB_URI sozlanmagan — statistika yozilmaydi. " +
+        "Asosiy ish davom etadi.",
+    );
   }
-  return { isNewUser };
+  return true;
 }
+
+// ── Yozish ─────────────────────────────────────────────────────────────────
+
+/** Amalni qayd etadi. Yangi ishtirokchi boʻlsa `isNewUser: true`. */
+export async function record(e: EventInput): Promise<{ isNewUser: boolean }> {
+  if (unavailable()) return { isNewUser: false };
+
+  try {
+    const { events, actors } = await import("./db/collections");
+    const now = new Date();
+
+    const [eventsColl, actorsColl] = await Promise.all([events(), actors()]);
+
+    // Hodisa har doim yoziladi — ishtirokchi nomaʼlum boʻlsa ham.
+    await eventsColl.insertOne({
+      kind: e.kind,
+      surface: e.surface,
+      userId: null,
+      actorId: e.userId,
+      username: e.username,
+      telegramId: e.surface === "telegram" ? Number(e.userId) || undefined : undefined,
+      inputChars: e.inputChars,
+      inputTokens: e.inputTokens,
+      outputTokens: e.outputTokens,
+      durationMs: e.durationMs,
+      error: e.error,
+      label: e.label,
+      createdAt: now,
+    } as EventDoc);
+
+    if (!e.userId) return { isNewUser: false };
+
+    // `upsert` bitta amalda: yangi boʻlsa yaratadi, boʻlmasa yangilaydi.
+    // `upsertedCount` — yangi ishtirokchi belgisi. Alohida `findOne`
+    // qilinsa ikki soʻrov orasida poyga paydo boʻlardi.
+    const result = await actorsColl.updateOne(
+      { _id: `${e.surface}:${e.userId}` },
+      {
+        $set: { lastSeenAt: now, ...(e.username ? { username: e.username } : {}) },
+        $inc: { requests: 1 },
+        $setOnInsert: {
+          actorId: e.userId,
+          surface: e.surface,
+          firstSeenAt: now,
+        },
+      },
+      { upsert: true },
+    );
+
+    return { isNewUser: result.upsertedCount > 0 };
+  } catch (err) {
+    // Statistika hech qachon asosiy ishni toʻxtatmasligi kerak.
+    console.error("[analytics] yozib boʻlmadi:", err);
+    return { isNewUser: false };
+  }
+}
+
+// ── Oʻqish ─────────────────────────────────────────────────────────────────
 
 export interface Summary {
   since: number;
@@ -153,98 +143,187 @@ export interface Summary {
   recentErrors: Array<{ ts: number; kind: string; error: string }>;
 }
 
+function emptySummary(since: number): Summary {
+  return {
+    since,
+    totalEvents: 0,
+    byKind: [],
+    bySurface: [],
+    uniqueUsers: 0,
+    newUsers: 0,
+    errors: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    avgDurationMs: 0,
+    topUsers: [],
+    recentErrors: [],
+  };
+}
+
 /** Oxirgi `hours` soat uchun statistika. */
-export function summary(hours = 24): Summary {
-  const database = open();
+export async function summary(hours = 24): Promise<Summary> {
   const since = Date.now() - hours * 3600_000;
+  if (unavailable()) return emptySummary(since);
 
-  const one = <T>(sql: string, ...params: unknown[]): T =>
-    database.prepare(sql).get(...(params as never[])) as T;
-  const many = <T>(sql: string, ...params: unknown[]): T[] =>
-    database.prepare(sql).all(...(params as never[])) as unknown as T[];
+  try {
+    const { events, actors } = await import("./db/collections");
+    const [eventsColl, actorsColl] = await Promise.all([events(), actors()]);
+    const from = new Date(since);
+    const window = { createdAt: { $gte: from } };
 
-  const total = one<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM events WHERE ts >= ?",
-    since,
-  );
-  const tokens = one<{ i: number | null; o: number | null; d: number | null }>(
-    `SELECT SUM(input_tokens) AS i, SUM(output_tokens) AS o, AVG(duration_ms) AS d
-     FROM events WHERE ts >= ?`,
-    since,
-  );
-  const users = one<{ n: number }>(
-    "SELECT COUNT(DISTINCT user_id) AS n FROM events WHERE ts >= ? AND user_id IS NOT NULL",
-    since,
-  );
-  const fresh = one<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM users WHERE first_ts >= ?",
-    since,
-  );
-  const errors = one<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM events WHERE ts >= ? AND error IS NOT NULL",
-    since,
-  );
+    // Barcha agregatsiyalar parallel — ular bir-biriga bogʻliq emas va
+    // ketma-ket bajarilsa admin paneli sezilarli sekinlashardi.
+    const [totals, byKind, bySurface, uniq, fresh, top, recent] = await Promise.all([
+      eventsColl
+        .aggregate<{ n: number; i: number; o: number; d: number; errors: number }>([
+          { $match: window },
+          {
+            $group: {
+              _id: null,
+              n: { $sum: 1 },
+              i: { $sum: { $ifNull: ["$inputTokens", 0] } },
+              o: { $sum: { $ifNull: ["$outputTokens", 0] } },
+              d: { $avg: "$durationMs" },
+              errors: { $sum: { $cond: [{ $ifNull: ["$error", false] }, 1, 0] } },
+            },
+          },
+        ])
+        .toArray(),
 
-  return {
-    since,
-    totalEvents: Number(total.n),
-    byKind: many<{ kind: string; n: number }>(
-      "SELECT kind, COUNT(*) AS n FROM events WHERE ts >= ? GROUP BY kind ORDER BY n DESC",
+      eventsColl
+        .aggregate<{ _id: string; n: number }>([
+          { $match: window },
+          { $group: { _id: "$kind", n: { $sum: 1 } } },
+          { $sort: { n: -1 } },
+        ])
+        .toArray(),
+
+      eventsColl
+        .aggregate<{ _id: string; n: number }>([
+          { $match: window },
+          { $group: { _id: "$surface", n: { $sum: 1 } } },
+          { $sort: { n: -1 } },
+        ])
+        .toArray(),
+
+      eventsColl.distinct("actorId", { ...window, actorId: { $exists: true } }),
+
+      actorsColl.countDocuments({ firstSeenAt: { $gte: from } }),
+
+      eventsColl
+        .aggregate<{ _id: string; username: string | null; n: number }>([
+          { $match: { ...window, actorId: { $exists: true } } },
+          {
+            $group: {
+              _id: "$actorId",
+              username: { $last: "$username" },
+              n: { $sum: 1 },
+            },
+          },
+          { $sort: { n: -1 } },
+          { $limit: 10 },
+        ])
+        .toArray(),
+
+      eventsColl
+        .find({ ...window, error: { $exists: true } })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .toArray(),
+    ]);
+
+    const t = totals[0];
+    return {
       since,
-    ).map((r) => ({ kind: r.kind, n: Number(r.n) })),
-    bySurface: many<{ surface: string; n: number }>(
-      "SELECT surface, COUNT(*) AS n FROM events WHERE ts >= ? GROUP BY surface ORDER BY n DESC",
-      since,
-    ).map((r) => ({ surface: r.surface, n: Number(r.n) })),
-    uniqueUsers: Number(users.n),
-    newUsers: Number(fresh.n),
-    errors: Number(errors.n),
-    inputTokens: Number(tokens.i ?? 0),
-    outputTokens: Number(tokens.o ?? 0),
-    avgDurationMs: Math.round(Number(tokens.d ?? 0)),
-    topUsers: many<{ user_id: string; username: string | null; n: number }>(
-      `SELECT user_id, username, COUNT(*) AS n FROM events
-       WHERE ts >= ? AND user_id IS NOT NULL
-       GROUP BY user_id ORDER BY n DESC LIMIT 10`,
-      since,
-    ).map((r) => ({ userId: r.user_id, username: r.username, n: Number(r.n) })),
-    recentErrors: many<{ ts: number; kind: string; error: string }>(
-      `SELECT ts, kind, error FROM events
-       WHERE ts >= ? AND error IS NOT NULL ORDER BY ts DESC LIMIT 5`,
-      since,
-    ).map((r) => ({ ts: Number(r.ts), kind: r.kind, error: r.error })),
-  };
+      totalEvents: t?.n ?? 0,
+      byKind: byKind.map((r) => ({ kind: r._id, n: r.n })),
+      bySurface: bySurface.map((r) => ({ surface: r._id, n: r.n })),
+      uniqueUsers: uniq.filter(Boolean).length,
+      newUsers: fresh,
+      errors: t?.errors ?? 0,
+      inputTokens: t?.i ?? 0,
+      outputTokens: t?.o ?? 0,
+      avgDurationMs: Math.round(t?.d ?? 0),
+      topUsers: top.map((r) => ({ userId: r._id, username: r.username ?? null, n: r.n })),
+      recentErrors: recent.map((r) => ({
+        ts: r.createdAt.getTime(),
+        kind: r.kind,
+        error: r.error ?? "",
+      })),
+    };
+  } catch (err) {
+    console.error("[analytics] statistika oʻqilmadi:", err);
+    return emptySummary(since);
+  }
 }
 
-/** Umumiy (butun davr) ko'rsatkichlar. */
-export function lifetime(): { users: number; events: number; firstTs: number | null } {
-  const database = open();
-  const u = database.prepare("SELECT COUNT(*) AS n FROM users").get() as { n: number };
-  const e = database.prepare("SELECT COUNT(*) AS n FROM events").get() as { n: number };
-  const f = database.prepare("SELECT MIN(ts) AS t FROM events").get() as {
-    t: number | null;
-  };
-  return {
-    users: Number(u.n),
-    events: Number(e.n),
-    firstTs: f.t !== null ? Number(f.t) : null,
-  };
+/** Umumiy (butun davr) koʻrsatkichlar. */
+export async function lifetime(): Promise<{
+  users: number;
+  events: number;
+  firstTs: number | null;
+}> {
+  if (unavailable()) return { users: 0, events: 0, firstTs: null };
+
+  try {
+    const { events, actors } = await import("./db/collections");
+    const [eventsColl, actorsColl] = await Promise.all([events(), actors()]);
+
+    const [userCount, eventCount, first] = await Promise.all([
+      actorsColl.countDocuments({}),
+      eventsColl.countDocuments({}),
+      eventsColl.find({}).sort({ createdAt: 1 }).limit(1).toArray(),
+    ]);
+
+    return {
+      users: userCount,
+      events: eventCount,
+      firstTs: first[0]?.createdAt.getTime() ?? null,
+    };
+  } catch (err) {
+    console.error("[analytics] umumiy koʻrsatkich oʻqilmadi:", err);
+    return { users: 0, events: 0, firstTs: null };
+  }
 }
 
-/** Ro'yxatdagi barcha foydalanuvchi ID'lari (ommaviy xabar yuborish uchun). */
-export function allUserIds(surface?: string): string[] {
-  const database = open();
-  const rows = (
-    surface
-      ? database.prepare("SELECT user_id FROM users WHERE surface = ?").all(surface)
-      : database.prepare("SELECT user_id FROM users").all()
-  ) as unknown as Array<{ user_id: string }>;
-  return rows.map((r) => r.user_id);
+/** Roʻyxatdagi barcha ishtirokchi ID lari (ommaviy xabar yuborish uchun). */
+export async function allUserIds(surface?: Surface): Promise<string[]> {
+  if (unavailable()) return [];
+
+  try {
+    const { actors } = await import("./db/collections");
+    const coll = await actors();
+    const docs = await coll.find(surface ? { surface } : {}).toArray();
+    return docs.map((d) => d.actorId);
+  } catch (err) {
+    console.error("[analytics] ishtirokchilar oʻqilmadi:", err);
+    return [];
+  }
 }
 
-/** Statistikani o'zbekcha matn ko'rinishida formatlaydi. */
-export function formatSummary(s: Summary, hours: number): string {
-  const life = lifetime();
+// ── Koʻrsatish ─────────────────────────────────────────────────────────────
+
+const KIND_LABELS: Record<string, string> = {
+  ask: "Savol-javob",
+  analyze: "Hujjat tahlili",
+  review: "Tekshiruv",
+  generate: "Hujjat tayyorlash",
+  search: "Qidiruv",
+  start: "Boshlash",
+  error: "Xatolik",
+};
+
+function label(kind: string): string {
+  return KIND_LABELS[kind] ?? kind;
+}
+
+function fmt(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+}
+
+/** Statistikani oʻzbekcha matn koʻrinishida formatlaydi. */
+export async function formatSummary(s: Summary, hours: number): Promise<string> {
+  const life = await lifetime();
   const dur = s.avgDurationMs > 0 ? `${(s.avgDurationMs / 1000).toFixed(1)} s` : "—";
 
   const lines = [
@@ -288,28 +367,16 @@ export function formatSummary(s: Summary, hours: number): string {
   }
 
   lines.push(
-    `Umumiy: ${life.users} foydalanuvchi, ${life.events} soʻrov` +
-      (life.firstTs
-        ? ` (${new Date(life.firstTs).toLocaleDateString("uz-UZ")} dan beri)`
-        : ""),
+    `Umumiy: ${life.users} foydalanuvchi · ${life.events} amal` +
+      (life.firstTs ? ` · ${new Date(life.firstTs).toLocaleDateString("uz-UZ")} dan beri` : ""),
   );
 
   return lines.join("\n");
 }
 
-function fmt(n: number): string {
-  return n.toLocaleString("uz-UZ").replace(/,/g, " ");
+/** Test va toʻxtatish uchun — Mongo ulanishi `db/mongo` da yopiladi. */
+export function closeAnalytics(): void {
+  warned = false;
 }
 
-function label(kind: string): string {
-  const names: Record<string, string> = {
-    ask: "savol-javob",
-    analyze: "hujjat tahlili",
-    review: "tekshiruv",
-    generate: "hujjat yaratish",
-    search: "qidiruv",
-    start: "botga kirish",
-    error: "xatolik",
-  };
-  return names[kind] ?? kind;
-}
+export type { ActorDoc };

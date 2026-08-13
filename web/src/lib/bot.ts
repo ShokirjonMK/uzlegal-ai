@@ -139,11 +139,11 @@ async function track(
   ctx: Context,
   input: Parameters<typeof record>[0],
 ): Promise<void> {
-  const { isNewUser } = record(input);
+  const { isNewUser } = await record(input);
   if (isNewUser && config.adminChatIds.length > 0) {
     const u = ctx.from;
     const name = [u?.first_name, u?.last_name].filter(Boolean).join(" ");
-    const life = lifetime();
+    const life = await lifetime();
     await notifyAdmins(
       b,
       `👤 Yangi foydalanuvchi\n` +
@@ -340,7 +340,7 @@ function registerHandlers(b: Bot): void {
     const days = Number(ctx.match?.toString().trim()) || 1;
     const hours = Math.min(Math.max(days, 1), 365) * 24;
     try {
-      await replyLong(ctx, formatSummary(summary(hours), hours));
+      await replyLong(ctx, await formatSummary(await summary(hours), hours));
     } catch (err) {
       await ctx.reply(humanError(err));
     }
@@ -381,7 +381,7 @@ function registerHandlers(b: Bot): void {
       await ctx.reply("Foydalanish: /xabar <yuboriladigan matn>");
       return;
     }
-    const ids = allUserIds("telegram");
+    const ids = await allUserIds("telegram");
     let sent = 0;
     let failed = 0;
     for (const id of ids) {
@@ -570,7 +570,7 @@ async function handleFailure(
   await ctx.reply(message).catch(() => {});
 
   const technical = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-  record({
+  await record({
     kind,
     surface: "telegram",
     userId: ctx.chat ? String(ctx.chat.id) : undefined,
