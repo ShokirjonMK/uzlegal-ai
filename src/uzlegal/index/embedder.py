@@ -230,7 +230,19 @@ class Embedder:
             try:
                 from tqdm import tqdm
 
-                bar = tqdm(total=len(texts), unit="chunk", desc="Vektorlar")
+                # Hisob BO'LAKLARDA emas, BELGILARDA yuritiladi.
+                #
+                # Bo'laklar uzundan qisqaga saralangani uchun bo'laklar
+                # soni bo'yicha qolgan vaqt qo'pol yolg'on chiqaradi:
+                # amalda birinchi daqiqada «12 soat» deb ko'rsatgan,
+                # aslida butun ish 15 daqiqa olgan. Belgilar bo'yicha
+                # baho ancha halol, chunki vaqt matn hajmiga bog'liq.
+                bar = tqdm(
+                    total=sum(len(t) for t in texts),
+                    unit="belgi",
+                    unit_scale=True,
+                    desc="Vektorlar",
+                )
             except ImportError:  # pragma: no cover
                 bar = None
 
@@ -250,7 +262,7 @@ class Embedder:
                 vectors[part] = encoded
                 pos += len(part)
                 if bar is not None:
-                    bar.update(len(part))
+                    bar.update(sum(len(texts[i]) for i in part))
         finally:
             if bar is not None:
                 bar.close()

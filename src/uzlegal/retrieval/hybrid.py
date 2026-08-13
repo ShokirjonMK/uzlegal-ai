@@ -74,6 +74,18 @@ class QueryKind(StrEnum):
 
 # So'rov turi → (vektor, leksik) vaznlari.
 # Qiymatlar `retrieval-gold-v1` da o'lchab tanlangan, taxmin qilinmagan.
+#
+# 2026-08-13 da to'liq korpusda (792 hujjat, 48 527 bo'lak) qayta
+# o'lchandi: `w_lex` 0.2 dan 0.8 gacha surildi. Hozirgi 0.8/0.2
+# R@1 va R@10 yig'indisi bo'yicha eng yaxshi bo'lib chiqdi, shuning
+# uchun O'ZGARTIRILMADI.
+#
+# MUHIM OGOHLANTIRISH: gold to'plamda 36 ta holat bor, ya'ni bitta
+# holat = 2.8 foiz punkti va R@1 ning ishonch oralig'i ±16 p.p.
+# Sinalgan variantlar orasidagi farq 2-3 ta holat edi — ya'ni
+# SHOVQIN ICHIDA. Bu qiymatlarni «isbotlangan optimum» deb hisoblamang.
+# Ularni jiddiy sozlashdan oldin to'plamni 150+ holatga kengaytirish
+# kerak. Tafsilot: `reports/retrieval-2026-08-13.md`.
 WEIGHTS: dict[QueryKind, tuple[float, float]] = {
     # Modda raqami aytilgan: uchinchi kanal (aniq moslik) hal qiladi,
     # shuning uchun bu ikkisining nisbati unchalik muhim emas.
