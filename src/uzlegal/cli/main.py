@@ -883,10 +883,27 @@ def index_build(
         console.print("[red]✕[/red] Chunk yaratilmadi")
         raise typer.Exit(1)
 
-    console.print(f"\nJami {len(chunks)} chunk. Embedding (~{len(chunks) / 4:.0f} s)…")
+    # Vaqt bahosi bo'laklar SONIGA emas, UZUNLIGIGA bog'liq: e'tibor
+    # mexanizmi O(n²), ya'ni bitta 5000 tokenlik bo'lak o'n ikkita
+    # 400 tokenlikdan qimmatroq. Shuning uchun baho belgilar bo'yicha
+    # beriladi va qurilma hisobga olinadi.
+    total_chars = sum(len(c.indexed_text) for c in chunks)
     embedder = Embedder(batch_size=batch_size)
-    with console.status("vektorlar hisoblanmoqda…"):
-        vectors = embedder.encode([c.indexed_text for c in chunks])
+    rate = 9_000 if embedder.device != "cpu" else 400  # belgi/s, o'lchangan
+    console.print(
+        f"\nJami [bold]{len(chunks)}[/bold] chunk · {total_chars / 1e6:.1f} mln belgi · "
+        f"qurilma {embedder.device}"
+    )
+    console.print(f"[dim]Taxminiy vaqt: ~{total_chars / rate / 60:.0f} daqiqa[/dim]\n")
+
+    # `console.status()` spinneri EMAS, haqiqiy progress.
+    #
+    # Ilgari bu yerda aylanuvchi spinner turardi va u ishlash tezligi
+    # haqida hech narsa aytmasdi. Ikki soatlik amalda bu «ishlayaptimi
+    # yoki qotganmi?» degan savolga javob bermaydi — jarayonni
+    # tashqaridan tekshirishga majbur qiladi. `sentence-transformers`
+    # o'zi progress bar chiqaradi; uni yashirish sabab yo'q edi.
+    vectors = embedder.encode([c.indexed_text for c in chunks], show_progress=True)
 
     KnowledgeIndex(out).build(chunks, vectors, kb_version=SyncManager().state.kb_version)
     console.print(f"[green]✓[/green] Indeks tayyor: {out}")
