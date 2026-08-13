@@ -20,7 +20,7 @@ from uzlegal.ingest.parsers.lex_uz import (
     is_amendment_note,
     parse_amendment,
 )
-from uzlegal.ingest.types import ParsedDocument, RawDocument
+from uzlegal.ingest.types import Element, ParsedDocument, RawDocument
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "lex_uz_sample.html"
 
@@ -258,7 +258,7 @@ def test_oddiy_sup_matnni_buzmaydi() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _text(body: str, element_id: str = "1") -> "Element":
+def _text(body: str, element_id: str = "1") -> Element:
     from uzlegal.ingest.types import Element
 
     return Element(element_id=element_id, level="text", title="", body=body)
