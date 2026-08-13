@@ -813,6 +813,30 @@ def list_plans() -> dict[str, Any]:
     }
 
 
+@app.get("/v1/admin/audit", tags=["admin"])
+def audit_status() -> dict[str, Any]:
+    """Audit jurnali holati va zanjir butunligi (docs/10 § 5)."""
+    from uzlegal import audit
+
+    return {"stats": audit.stats(), "chain": audit.verify_chain()}
+
+
+@app.get("/v1/traces/{trace_id}", tags=["admin"])
+def get_trace(trace_id: str) -> dict[str, Any]:
+    """Bitta maslahatning audit yozuvi.
+
+    `docs/10` § 5: foydalanuvchi oʻz tarixini yuklab olishi mumkin.
+    Hozircha admin kaliti talab qilinadi — foydalanuvchi darajasidagi
+    kirish nazorati hisob tizimi bilan birga qoʻshiladi.
+    """
+    from uzlegal import audit
+
+    record = audit.find(trace_id)
+    if record is None:
+        raise HTTPException(404, f"Audit yozuvi topilmadi: {trace_id}")
+    return record
+
+
 @app.post("/v1/admin/plans/reload", tags=["users"])
 def reload_plans_endpoint() -> dict[str, Any]:
     """`configs/plans.yaml` ni qayta oʻqish — xizmatni toʻxtatmasdan.

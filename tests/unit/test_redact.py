@@ -119,11 +119,27 @@ def test_oddiy_yuridik_matn_ozgarmaydi() -> None:
 
 
 def test_past_ishonchli_topilma_karantin() -> None:
-    """Ikki so'zli nomzod — familiya-ism tartibi noaniq, qo'lda ko'rilsin."""
-    result = redact_text("Guvoh Nodira Yusupova koʻrsatma berdi.")
+    """Familiya belgisi YOʻQ ikki soʻz — tartib noaniq, qoʻlda koʻrilsin.
+
+    Ilgari bu yerda «Nodira Yusupova» turardi va u past ishonch bilan
+    topilardi. Endi `-ova` qoʻshimchasi familiyani ANIQ koʻrsatadi, yaʼni
+    tartibda noaniqlik qolmaydi va karantin kerak emas — bu yaxshilanish.
+
+    Karantin hamon kerak boʻlgan holat: ikkala soʻz ham familiya belgisiz.
+    «Nodira Anvar» — qaysi biri ism, qaysi biri familiya, bilib boʻlmaydi.
+    """
+    result = redact_text("Guvoh Nodira Anvar koʻrsatma berdi.")
     assert "[SHAXS-1]" in result.text
     assert result.quarantine
     assert result.confidence < 0.75
+
+
+def test_familiya_qoshimchasi_noaniqlikni_yoqotadi() -> None:
+    """`-ova` familiyani aniq koʻrsatadi — karantin shart emas."""
+    result = redact_text("Guvoh Nodira Yusupova koʻrsatma berdi.")
+    assert "[SHAXS-1]" in result.text
+    assert not result.quarantine
+    assert result.confidence >= 0.75
 
 
 def test_toza_matn_karantinsiz(natija) -> None:  # type: ignore[no-untyped-def]

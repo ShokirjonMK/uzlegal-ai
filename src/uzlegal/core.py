@@ -136,7 +136,36 @@ def consult(
 
     state = run_consult(state, deps)
     latency_ms = int((time.perf_counter() - started) * 1000)
-    return _to_result(state, request, latency_ms, registry)
+    result = _to_result(state, request, latency_ms, registry)
+    _write_audit(request, result, state)
+    return result
+
+
+def _write_audit(request: ConsultRequest, result: ConsultResult, state: ConsultState) -> None:
+    """Maslahatni audit jurnaliga yozadi (docs/10 § 5).
+
+    Yuridik tizimda bu majburiyat: foydalanuvchi javobga tayanib qaror
+    qabul qilgan boʻlsa va keyin nizo chiqsa, aynan nima aytilgani
+    hujjatlashtirilgan boʻlishi kerak.
+
+    Xato hech qachon soʻrovni yiqitmaydi — audit moduli oʻzi yutadi.
+    """
+    from uzlegal import audit
+
+    gate = state.gate
+    audit.record_consult(
+        trace_id=result.trace_id,
+        question=request.question,
+        answer=result.answer,
+        mode=result.mode_used,
+        confidence=result.confidence,
+        citations=[f"{c.doc_id}:{c.article}" for c in result.citations],
+        kb_version=result.kb_version,
+        model_version=result.model_version,
+        latency_ms=result.latency_ms,
+        gate=gate.summary() if gate else {},
+        retrieval={"chunks": len(state.context), "citations": len(result.citations)},
+    )
 
 
 async def aconsult(request: ConsultRequest, **kwargs: Any) -> ConsultResult:

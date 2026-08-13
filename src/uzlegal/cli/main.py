@@ -1291,3 +1291,43 @@ def plans_show() -> None:
     console.print(
         "\n[dim]Tahrirlash: configs/plans.yaml · Qayta o'qish: POST /v1/admin/plans/reload[/dim]"
     )
+
+
+@app.command("audit")
+def audit_cmd(
+    verify: bool = typer.Option(False, "--verify", help="Hash zanjirini tekshirish"),
+    trace_id: str = typer.Option(None, "--trace", help="Bitta yozuvni ko'rish"),
+) -> None:
+    """Audit jurnali — holat, tekshiruv va yozuvni ko'rish (docs/10 § 5)."""
+    import json as _json
+
+    from uzlegal import audit as _audit
+
+    if trace_id:
+        record = _audit.find(trace_id)
+        if record is None:
+            console.print(f"[red]✕[/red] Topilmadi: {trace_id}")
+            raise typer.Exit(4)
+        console.print_json(_json.dumps(record, ensure_ascii=False))
+        return
+
+    if verify:
+        result = _audit.verify_chain()
+        if result["ok"]:
+            console.print(f"[green]✓ Zanjir butun[/green] — {result['records']} yozuv tekshirildi")
+            return
+        console.print(f"[red]✕ Zanjir buzilgan[/red] — {result['records']} yozuvdan")
+        console.print(f"  {result['broken_at']}-yozuvda: {result['reason']}")
+        console.print(f"  trace_id: {result.get('trace_id')}")
+        raise typer.Exit(1)
+
+    info = _audit.stats()
+    console.print(
+        f"  Holat        {'[green]yoqilgan[/green]' if info['enabled'] else 'o‘chirilgan'}"
+    )
+    console.print(f"  Fayl         {info['path']}")
+    console.print(f"  Yozuvlar     {info['records']}")
+    if info["records"]:
+        console.print(f"  Hajm         {info['size_bytes'] / 1024:.1f} KB")
+        console.print(f"  Davr         {info['first'][:19]} … {info['last'][:19]}")
+    console.print("\n[dim]Zanjirni tekshirish: uzlegal audit --verify[/dim]")

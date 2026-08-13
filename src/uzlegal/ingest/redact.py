@@ -201,6 +201,41 @@ _FULL_NAME_KIN = re.compile(
 _NAME_INITIALS = re.compile(rf"\b([{_UPPER}]{_WORD}+)\s+([{_UPPER}]\.\s?[{_UPPER}]?\.?)(?!\w)")
 _INITIALS_NAME = re.compile(rf"\b([{_UPPER}]\.\s?[{_UPPER}]?\.)\s*([{_UPPER}]{_WORD}+)\b")
 
+# Oʻzbek familiya qoʻshimchalari — juda ajratuvchi belgi.
+#
+# NEGA BU KERAK. Yuqoridagi shablonlar SUD HUJJATI shakllari uchun
+# qurilgan: «Karimov A.A.», «Karimov Alisher Baxtiyorovich». Amalda
+# oʻlchandi: foydalanuvchi savoli boshqacha yoziladi —
+# «Alisher Karimovni ishdan boʻshatish mumkinmi?» — va u
+# **maskalanmasdan** qolardi.
+#
+# Audit jurnali uchun bu jiddiy: jurnalda haqiqiy ism qoladi.
+#
+# Familiya qoʻshimchalari (`-ov`, `-yeva`, `-zoda` …) bosh harf bilan
+# birga kelganda notoʻgʻri ishlash ehtimoli past: yuridik atamalar va
+# joy nomlari bunday shaklda uchramaydi.
+_SURNAME_SUFFIX = r"(?:ova|ov|yeva|yev|eva|ev|zoda|ова|ов|ева|ев|заде)"
+
+# Familiyadan keyin kelishik qoʻshimchasi: «Karimovni», «Yusupovaga».
+#
+# NEGA ANIQ ROʻYXAT, `\w*` EMAS. Birinchi urinishda erkin `\w*`
+# yozilgan edi va u OTASINING ISMINI familiya deb olardi:
+# «Anvarovich» = «Anvar» + «ov» + «ich». Natijada «Sudya Rahimov
+# Bahodir Anvarovich» dan «Bahodir Anvarovich» qismi maskalanardi —
+# holbuki rasmiy rol ismlari ATAYLAB saqlanadi (sud qarorida sudya
+# kim ekani yashirilmaydi).
+_CASE_SUFFIX = r"(?:ning|niki|dan|ga|ni|da|si|i)?"
+
+# «Alisher Karimov», «Alisher Karimovni», «Nodira Yusupovaga».
+#
+# Familiya IKKINCHI soʻzda: oʻzbek tilida savol «Ism Familiya»
+# tartibida yoziladi. Sud hujjatidagi «Familiya Ism» tartibi
+# yuqoridagi `_FULL_NAME` bilan qamrab olingan.
+_NAME_SURNAME = re.compile(
+    rf"\b([{_UPPER}]{_WORD}+)\s+"
+    rf"([{_UPPER}]{_WORD}*?{_SURNAME_SUFFIX}{_CASE_SUFFIX})\b"
+)
+
 # Ikki so'zli nomzod — past ishonch, faqat shaxs konteksti bo'lsa
 _PERSON_CONTEXT = re.compile(
     r"(fuqaro|da[’'ʼ]vogar|javobgar|ariza\s+beruvchi|jabrlanuvchi|sudlanuvchi|"
@@ -295,6 +330,7 @@ class Redactor:
             (_FULL_NAME, "fish", 0.95),
             (_NAME_INITIALS, "fish_initsial", 0.85),
             (_INITIALS_NAME, "initsial_fish", 0.85),
+            (_NAME_SURNAME, "ism_familiya", 0.85),
             (_BARE_NAME, "nomzod", 0.55),
         ):
             for m in pattern.finditer(text):
@@ -302,6 +338,11 @@ class Redactor:
                 start, end = m.span(1) if bare else m.span(0)
                 original = m.group(1) if bare else m.group(0)
                 if _protected(text, start, end):
+                    continue
+                # «Prokuror Ergashev» — rol soʻzi ISM oʻrnida qolib
+                # ketmasin. `_protected()` faqat topilmadan OLDINGI
+                # matnni koʻradi, bu yerda esa rol topilmaning ICHIDA.
+                if category == "ism_familiya" and _OFFICIAL_ROLE.search(m.group(1) + " "):
                     continue
                 if bare and not _PERSON_CONTEXT.search(text[max(0, start - 30) : start]):
                     continue
@@ -372,16 +413,23 @@ class Redactor:
         result.quarantine = bool(result.reasons)
 
 
-_PERSON_CATEGORIES = {"fish", "fish_initsial", "initsial_fish", "nomzod"}
+_PERSON_CATEGORIES = {"fish", "fish_initsial", "initsial_fish", "ism_familiya", "nomzod"}
 
 
 def _surname_of(category: str, original: str) -> str:
     """Yorliq kaliti — familiya.
 
-    «A.B. Karimov» shaklida familiya oxirida, qolganlarida boshida turadi.
+    Familiya qayerda turishi shaklga bogʻliq:
+
+        Karimov A.B.              -> boshida
+        A.B. Karimov              -> oxirida
+        Alisher Karimov           -> oxirida  (ism birinchi)
+        Karimov Alisher B.ovich   -> boshida  (F.I.Sh. tartibi)
     """
     parts = original.split()
-    return parts[-1] if category == "initsial_fish" else parts[0]
+    if category in {"initsial_fish", "ism_familiya"}:
+        return parts[-1]
+    return parts[0]
 
 
 def _distinct_people(variants: set[str]) -> bool:

@@ -25,6 +25,11 @@ reports/*.html
 # `data/traces.db` sanab o'tilgan edi, `users.db` esa yo'q edi: u
 # `uzlegal serve` birinchi ishga tushishida o'zi yaratiladi va
 # tasodifan commitga tushib ketishi mumkin edi.
+# Audit jurnali — shaxsiy maʼlumot maskalangan boʻlsa ham, u
+# ISHLASH ma'lumoti va repoda saqlanmasligi kerak. 7 yillik saqlash
+# talabi (docs/10 § 5) zaxira nusxa bilan bajariladi, git bilan emas.
+data/audit/
+
 data/users.db
 data/*.db
 
