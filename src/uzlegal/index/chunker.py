@@ -37,6 +37,7 @@ ko'radi va iqtibosni to'g'ri shakllantiradi.
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -321,9 +322,14 @@ class Chunker:
         self,
         max_tokens: int = MAX_CHUNK_TOKENS,
         merge_below: int = MERGE_BELOW_TOKENS,
+        *,
+        today: date | None = None,
     ) -> None:
         self.max_tokens = max_tokens
         self.merge_below = merge_below
+        # `today` faqat testlar uchun qotiriladi — `_document_valid_from()`
+        # kelajak sanani shu chegaraga qarab rad etadi.
+        self.today = today
 
     def chunk_document(self, doc: ParsedDocument) -> list[Chunk]:
         chunks: list[Chunk] = []
@@ -336,6 +342,27 @@ class Chunker:
     def _heading(self, doc: ParsedDocument, article: Element, *suffix: str) -> str:
         bits = [doc.title, *article.path, article.title, *suffix]
         return "[" + " > ".join(b.strip() for b in bits if b and b.strip()) + "]"
+
+    def _document_valid_from(self, doc: ParsedDocument) -> str | None:
+        """Hujjatning qabul sanasi — moddada sana bo'lmaganda ishlatiladi.
+
+        Moddaning `valid_from` i faqat tahrir izohlaridan to'ladi
+        (`ingest.versioning`), izohsiz hujjatda esa umuman bo'lmaydi.
+        Natijada bo'lakning 74.5% ida sana yo'q edi va vaqt mashinasi
+        ular ustida ishlamasdi (docs/22 § 1.1).
+
+        **Kelajakdagi sana qaytarilmaydi.** `retrieval/hybrid.py` dagi
+        `version_filter` `valid_from > bugun` bo'lgan bo'lakni chiqarib
+        tashlaydi, ya'ni kelajak sanali hujjat barcha so'rovlardan
+        jimgina yo'qolardi. `versioning._apply_edition` xuddi shu
+        tuzoqni biladi va bunday sanani `pending_from` ga qo'yadi —
+        bu yerda ham sana shunchaki yozilmaydi (docs/22 § 1.4).
+        """
+        adopted = doc.adopted_at
+        if not adopted:
+            return None
+        today = (self.today or date.today()).isoformat()
+        return adopted if adopted <= today else None
 
     def _base(self, doc: ParsedDocument, article: Element) -> dict[str, object]:
         return {
@@ -350,7 +377,8 @@ class Chunker:
             # Versiya maydonlari `ingest.versioning.apply_versions()` dan keladi.
             # Ular bo'lmasa `version_filter` bo'sh ishlaydi va bekor qilingan
             # norma qidiruvga chiqib ketadi (docs/00 «0% deprecated»).
-            "valid_from": article.valid_from,
+            # Modda sanasi bo'lmasa — hujjatning qabul sanasiga tushamiz.
+            "valid_from": article.valid_from or self._document_valid_from(doc),
             "valid_to": article.valid_to,
             "status": article.status,
         }

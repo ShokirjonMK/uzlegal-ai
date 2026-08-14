@@ -149,6 +149,17 @@ _TITLE_TAG = re.compile(r"<title>(.*?)</title>", re.DOTALL | re.IGNORECASE)
 _TAG = re.compile(r"<[^>]+>")
 _SCRIPT_STYLE = re.compile(r"<(script|style)\b.*?</\1>", re.DOTALL | re.IGNORECASE)
 
+# `<title>` tegining tuzilishi — 863/863 xom faylda o'lchangan:
+#
+#     <title>&nbsp;OʻRQ-982-сон 25.10.2024.&nbsp;Oʻzbekiston Respublikasi
+#            Vazirlar Mahkamasi toʻgʻrisida</title>
+#
+# Ya'ni metama'lumot prefiksi (hujjat raqami va **qabul sanasi**)
+# hujjat nomidan uzilmas bo'sh joy bilan ajratilgan. Sana sahifaning
+# boshqa hech bir joyida yo'q: `ACT_TITLE` blokida u hech qachon
+# uchramaydi (docs/22 § 1.1).
+NBSP = "\u00a0"
+
 HEADER_CLASSES = {"TEXT_HEADER_DEFAULT"}
 ARTICLE_CLASSES = {"CLAUSE_DEFAULT"}
 BODY_CLASSES = {"ACT_TEXT", "BY_DEFAULT", "ACT_FORM"}
@@ -321,6 +332,36 @@ def clean_text(fragment: str) -> str:
     return re.sub(r"\n\s*\n+", "\n", fragment).strip()
 
 
+def title_tag_parts(html: str) -> tuple[str, str]:
+    """`<title>` tegini `(prefiks, hujjat nomi)` juftligiga ajratadi.
+
+    Prefiks — raqam va sana (`OʻRQ-982-сон 25.10.2024.`), nom esa
+    hujjatning o'zi. Ajratuvchi — uzilmas bo'sh joy (`NBSP` izohiga
+    qarang). Teg yo'q yoki ajratuvchi topilmasa `("", "")` qaytadi:
+    bunday sahifada taxmin qilinmaydi (docs/22 § 1.6 — aniqlik
+    qamrovdan muhimroq).
+    """
+    m = _TITLE_TAG.search(html)
+    if m is None:
+        return "", ""
+    segments = [part.strip() for part in html_lib.unescape(m.group(1)).split(NBSP) if part.strip()]
+    if len(segments) < 2:
+        return "", ""
+    return segments[0], " ".join(segments[1:])
+
+
+def title_tag_date(html: str) -> str | None:
+    """`<title>` prefiksidagi qabul sanasi (`YYYY-MM-DD`) yoki `None`.
+
+    Sana **faqat prefiksdan** olinadi. Butun sarlavhaga `extract_date()`
+    qo'llansa, nom ichidagi «2020-yil 22-iyundagi» kabi boshqa hujjatga
+    tegishli havola ustun chiqadi va sana noto'g'ri bo'lardi — 863
+    xom fayldan 15 tasida aynan shunday bo'lgan bo'lardi.
+    """
+    prefix, _name = title_tag_parts(html)
+    return extract_date(prefix) if prefix else None
+
+
 # --------------------------------------------------------------------------- #
 # Parser
 # --------------------------------------------------------------------------- #
@@ -343,7 +384,7 @@ class LexUzParser:
         sample = " ".join(text for _, _, text in blocks[:60])
         lang = "ru" if looks_russian(sample) else "uz"
 
-        title = self._document_title(html, blocks)
+        title, adopted_at = self._document_title(html, blocks)
         amendments: list[AmendmentNote] = []
         elements = self._build(blocks, lang, warnings, amendments)
         # Modda tuzilmasi topilmasa — bandlar bo'yicha bo'lamiz. Farmon va
@@ -359,7 +400,7 @@ class LexUzParser:
             title=title,
             doc_type=detect_doc_type(title),
             lang=lang,  # type: ignore[arg-type]
-            adopted_at=extract_date(title),
+            adopted_at=adopted_at,
             elements=elements,
             amendments=amendments,
             warnings=warnings,
@@ -387,14 +428,40 @@ class LexUzParser:
                 out.append((current, m.group(1), text))
         return out
 
-    def _document_title(self, html: str, blocks: list[tuple[str, str, str]]) -> str:
+    def _document_title(
+        self, html: str, blocks: list[tuple[str, str, str]]
+    ) -> tuple[str, str | None]:
+        """Hujjat sarlavhasi va qabul sanasi.
+
+        Ikkalasi **turli manbadan** olinadi va bu ataylab:
+
+        * sarlavha — `ACT_TITLE` blokidan, u toza hujjat nomi;
+        * sana — `<title>` tegining prefiksidan, u boshqa joyda yo'q.
+
+        Sarlavhaga raqam va sana prefiksi **qo'shilmaydi**:
+        `linking.py` dagi `_code_registry()` kodekslarni sarlavha
+        bo'yicha indekslaydi, prefiks esa `refs.jsonl` tarkibini
+        siljitardi (docs/22 § 1.3).
+        """
+        prefix, name = title_tag_parts(html)
+        title = ""
         for cls, _eid, text in blocks:
             if cls in TITLE_CLASSES and len(text) > 10:
-                return canonical(text.replace("\n", " "))
-        m = _TITLE_TAG.search(html)
-        if m:
-            return canonical(clean_text(m.group(1)).replace("\n", " "))
-        return "(sarlavhasiz)"
+                title = canonical(text.replace("\n", " "))
+                break
+        if not title and name:
+            # `ACT_TITLE` bloki yo'q (863 fayldan 2 tasida) — `<title>`
+            # tegining **nom** qismi olinadi, prefiks emas.
+            title = canonical(clean_text(name).replace("\n", " "))
+        if not title:
+            m = _TITLE_TAG.search(html)
+            if m:
+                title = canonical(clean_text(m.group(1)).replace("\n", " "))
+
+        # Prefiks bo'lsa — sana faqat undan. Prefikssiz sahifada eski
+        # xulq saqlanadi: sarlavhaning o'zidan qidiriladi.
+        adopted_at = extract_date(prefix) if prefix else extract_date(title)
+        return title or "(sarlavhasiz)", adopted_at
 
     def _build(
         self,

@@ -16,10 +16,15 @@ butun quvurni qayta ishga tushirish shu tarzda bo'ladi (docs/03 § 3).
 
 from __future__ import annotations
 
+import json
+import shutil
+from collections.abc import Mapping
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import typer
+from pydantic import BaseModel
 from rich.console import Console
 from rich.table import Table
 
@@ -186,6 +191,196 @@ def redact(
         console.print(f"[green]✓[/green] Saqlandi: {out}")
     else:
         console.print(result.text[:2000])
+
+
+# --------------------------------------------------------------------------- #
+# Sana qamrovi — docs/22 § 1.5
+# --------------------------------------------------------------------------- #
+
+# `<title>` tegi sahifaning boshida turadi. Butun faylni o'qish
+# (863 × ~1.5 MB) shu bitta regex uchun ortiqcha — avval bosh qismi
+# o'qiladi, teg topilmasagina to'liq faylga tushiladi.
+_HEAD_BYTES = 8192
+
+
+def _archive_dates() -> dict[str, str]:
+    """Arxivdagi har bir hujjatning qabul sanasi: `doc_id → YYYY-MM-DD`.
+
+    Hujjatni to'liq ajratish shart emas: sana faqat `<title>` tegida
+    va uni o'qish uchun `parsers.lex_uz.title_tag_date()` yetarli.
+    """
+    from uzlegal.ingest.parsers.lex_uz import title_tag_date
+
+    connector = LexUzConnector()
+    out: dict[str, str] = {}
+    for path in sorted(connector.raw_dir.glob("*.html")):
+        with path.open(encoding="utf-8", errors="replace") as fh:
+            head = fh.read(_HEAD_BYTES)
+            found = title_tag_date(head) or title_tag_date(head + fh.read())
+        if found:
+            out[connector._from_safe_name(path.stem)] = found
+    return out
+
+
+class DateCoverage(BaseModel):
+    """`pipeline dates` o'lchovi — oldin/keyin qamrov va rad etish sabablari."""
+
+    chunks: int = 0
+    dated_before: int = 0
+    dated_after: int = 0
+    filled: int = 0
+    future_skipped: int = 0
+    no_archive_date: int = 0
+    docs: int = 0
+    docs_any_before: int = 0
+    docs_any_after: int = 0
+    docs_full_before: int = 0
+    docs_full_after: int = 0
+
+    def rate(self, part: int) -> str:
+        return f"{part / self.chunks:.1%}" if self.chunks else "—"
+
+    def doc_rate(self, part: int) -> str:
+        return f"{part / self.docs:.1%}" if self.docs else "—"
+
+
+def _measure_dates(
+    chunks_path: Path, adopted: Mapping[str, str], today: str, *, out_path: Path | None
+) -> DateCoverage:
+    """`chunks.jsonl` ni satrma-satr o'qib qamrovni o'lchaydi.
+
+    `out_path` berilsa yangilangan nusxa o'sha yerga yoziladi.
+    O'zgarmagan satr **aynan** ko'chiriladi, o'zgargani esa faqat
+    `valid_from` kaliti bo'yicha qayta yig'iladi: `chunk_id`, `heading`
+    va `content` ga tegilmaydi (docs/22 § 5 A6).
+    """
+    cov = DateCoverage()
+    per_doc: dict[str, list[int]] = {}  # doc_id → [jami, oldin, keyin]
+    sink = out_path.open("w", encoding="utf-8", newline="\n") if out_path else None
+
+    try:
+        with chunks_path.open(encoding="utf-8") as fh:
+            for line in fh:
+                if not line.strip():
+                    continue
+                row: dict[str, Any] = json.loads(line)
+                cov.chunks += 1
+                doc_id = str(row.get("doc_id", ""))
+                counts = per_doc.setdefault(doc_id, [0, 0, 0])
+                counts[0] += 1
+
+                before = row.get("valid_from")
+                after = before
+                if before:
+                    cov.dated_before += 1
+                    counts[1] += 1
+                else:
+                    candidate = adopted.get(doc_id)
+                    if candidate is None:
+                        cov.no_archive_date += 1
+                    elif candidate > today:
+                        # Kelajak sana `valid_from` ga yozilmaydi —
+                        # `version_filter` bunday bo'lakni butunlay
+                        # yashirardi (docs/22 § 1.4).
+                        cov.future_skipped += 1
+                    else:
+                        after = candidate
+                        cov.filled += 1
+
+                if after:
+                    cov.dated_after += 1
+                    counts[2] += 1
+
+                if sink is not None:
+                    if after == before:
+                        sink.write(line if line.endswith("\n") else line + "\n")
+                    else:
+                        row["valid_from"] = after
+                        sink.write(json.dumps(row, ensure_ascii=False) + "\n")
+    finally:
+        if sink is not None:
+            sink.close()
+
+    cov.docs = len(per_doc)
+    for total, before_n, after_n in per_doc.values():
+        cov.docs_any_before += 1 if before_n else 0
+        cov.docs_any_after += 1 if after_n else 0
+        cov.docs_full_before += 1 if before_n == total else 0
+        cov.docs_full_after += 1 if after_n == total else 0
+    return cov
+
+
+@pipeline_app.command("dates")
+def dates(
+    index: Path = typer.Option(Path("kb/current"), "--index", help="Indeks katalogi"),
+    apply: bool = typer.Option(False, "--apply", help="chunks.jsonl ni yangilash"),
+    as_of: str = typer.Option(None, "--as-of", help="Bugungi sana o'rniga, YYYY-MM-DD"),
+) -> None:
+    """Bo'laklardagi sana qamrovi: o'lchov va (`--apply` bilan) to'ldirish.
+
+    Sana arxivdagi `<title>` tegidan olinadi va faqat `valid_from` i
+    bo'sh bo'lgan bo'laklarga yoziladi. `--apply` siz hech narsa
+    yozilmaydi — quruq yugurish majburiy (docs/22 § 6).
+    """
+    chunks_path = index / "chunks.jsonl"
+    if not chunks_path.exists():
+        console.print(f"[red]✕[/red] Indeks topilmadi: {chunks_path}. Avval: uzlegal index build")
+        raise typer.Exit(4)
+
+    adopted = _archive_dates()
+    if not adopted:
+        console.print("[red]✕[/red] Arxivda sanali hujjat yo'q. Avval: uzlegal kb sync")
+        raise typer.Exit(4)
+
+    today = (date.fromisoformat(as_of) if as_of else date.today()).isoformat()
+    tmp_path = chunks_path.with_name(chunks_path.name + ".tmp") if apply else None
+    try:
+        cov = _measure_dates(chunks_path, adopted, today, out_path=tmp_path)
+    except json.JSONDecodeError as exc:
+        # Yarim yozilgan `.tmp` qolib ketmasin — u haqiqiy fayl emas.
+        if tmp_path is not None:
+            tmp_path.unlink(missing_ok=True)
+        console.print(f"[red]✕[/red] chunks.jsonl buzuq: {exc}. Qayta quring: uzlegal index build")
+        raise typer.Exit(4) from exc
+
+    table = Table(box=None, pad_edge=False)
+    for name in ("O'lchov", "Oldin", "Keyin"):
+        table.add_column(name, justify="left" if name == "O'lchov" else "right")
+    table.add_row(
+        f"Bo'lak (jami {cov.chunks})",
+        f"{cov.dated_before} ({cov.rate(cov.dated_before)})",
+        f"{cov.dated_after} ({cov.rate(cov.dated_after)})",
+    )
+    table.add_row(
+        f"Hujjat, kamida bitta sanali (jami {cov.docs})",
+        f"{cov.docs_any_before} ({cov.doc_rate(cov.docs_any_before)})",
+        f"{cov.docs_any_after} ({cov.doc_rate(cov.docs_any_after)})",
+    )
+    table.add_row(
+        "Hujjat, to'liq sanali",
+        f"{cov.docs_full_before} ({cov.doc_rate(cov.docs_full_before)})",
+        f"{cov.docs_full_after} ({cov.doc_rate(cov.docs_full_after)})",
+    )
+    console.print(table)
+    console.print(
+        f"\nTo'ldiriladi {cov.filled} · kelajak sana tufayli o'tkazildi "
+        f"{cov.future_skipped} · arxivda sana yo'q {cov.no_archive_date}"
+    )
+
+    if tmp_path is None:
+        console.print("\n[dim]Hech narsa yozilmadi. Yozish uchun: --apply[/dim]")
+        return
+
+    backup = chunks_path.with_name(f"{chunks_path.name}.{date.today():%Y%m%d}.bak")
+    shutil.copy2(chunks_path, backup)
+    tmp_path.replace(chunks_path)
+    console.print(f"\n[green]✓[/green] Yangilandi: {chunks_path}")
+    console.print(f"[dim]Zaxira: {backup}[/dim]")
+    console.print(
+        "[yellow]⚠[/yellow] Bu metama'lumot patchi. Keyingi to'liq "
+        "`uzlegal index build` uni bekor qiladi — u bo'laklarni qaytadan "
+        "hosil qiladi (docs/22 § 1.5)."
+    )
 
 
 if __name__ == "__main__":

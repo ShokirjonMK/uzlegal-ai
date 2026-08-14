@@ -36,6 +36,7 @@ app.add_typer(passport_app, name="passport")
 for _module, _attr, _name in (
     ("uzlegal.cli.pipeline", "pipeline_app", "pipeline"),
     ("uzlegal.cli.train", "train_app", "train"),
+    ("uzlegal.cli.nazorat", "nazorat_app", "nazorat"),
 ):
     try:
         app.add_typer(getattr(__import__(_module, fromlist=[_attr]), _attr), name=_name)
@@ -964,6 +965,95 @@ def index_stats(path: Path = typer.Option(Path("kb/current"), "--path")) -> None
         raise typer.Exit(4)
     for key, value in index.meta.items():
         console.print(f"  {key:12} {value}")
+
+
+@index_app.command("refcheck")
+def index_refcheck(
+    path: Path = typer.Option(Path("kb/current"), "--path"),
+    kind: str = typer.Option(
+        None, "--kind", help="Faqat bitta sinf: uzilgan · bekor · hal-qilinmagan"
+    ),
+    limit: int = typer.Option(
+        10, "--limit", help="Nechta nomzod ko'rsatilsin (0 — hammasi). `--json` da ham amal qiladi"
+    ),
+    rebuild: bool = typer.Option(False, "--rebuild", help="Havola grafini qaytadan qurish"),
+    json_out: bool = typer.Option(False, "--json", help="Mashina uchun JSON"),
+) -> None:
+    """Havola yaxlitligini tekshirish — nomzodlar ro'yxati (docs/22 § 2).
+
+    Bu **ziddiyat detektori emas**: iqtibos grafi «A B ga zid» degan
+    ma'noni bermaydi. Chiqadigan narsa — tekshirilishi kerak bo'lgan
+    havolalar ro'yxati, xulosa emas.
+    """
+    import json as _json
+
+    from rich.markup import escape
+
+    from uzlegal.index.collisions import ISSUE_KINDS, KIND_LABELS, check_references
+    from uzlegal.index.store import KnowledgeIndex
+
+    if kind is not None and kind not in ISSUE_KINDS:
+        console.print(f"[red]✕[/red] Noma'lum sinf: {kind}. Mumkin: {', '.join(ISSUE_KINDS)}")
+        raise typer.Exit(2)
+
+    index = KnowledgeIndex(path)
+    if not index.exists():
+        console.print(f"[red]✕[/red] Indeks yo'q: {path}. Quring: uzlegal index build")
+        raise typer.Exit(4)
+
+    report = check_references(index, rebuild=rebuild, kind=kind)
+
+    if json_out:
+        payload = report.model_dump()
+        payload["counts"] = report.counts
+        payload["candidates"] = report.candidates
+        if limit > 0:
+            payload["issues"] = payload["issues"][:limit]
+        console.print_json(_json.dumps(payload, ensure_ascii=False))
+        return
+
+    if not report.graph_ready:
+        # Graf ixtiyoriy qatlam — usiz qidiruv to'liq ishlaydi. Shuning
+        # uchun bu xato emas, ogohlantirish (docs/22 § 5 B5).
+        console.print(f"[yellow]⚠[/yellow] {report.note}")
+        console.print("[dim]Qurish: uzlegal index refcheck --rebuild[/dim]")
+        return
+
+    console.print(
+        f"Havolalar [bold]{report.references}[/bold] · nishoni aniqlangan "
+        f"{report.resolvable} · tekshirilgan nishon {report.targets}"
+    )
+    console.print(
+        "[dim]Grafdagi tur: "
+        + " · ".join(f"{k} {v}" for k, v in report.ref_kinds.items())
+        + "[/dim]\n"
+    )
+
+    counts = report.counts
+    console.print(f"[bold]Nomzodlar {report.candidates}[/bold] ({report.share:.1%})")
+    for name in ISSUE_KINDS:
+        if kind is not None and name != kind:
+            continue
+        console.print(f"  {name:16} {counts[name]:>7}  [dim]{KIND_LABELS[name]}[/dim]")
+
+    # Havola matni qonundan olinadi va unda `[` bo'lishi mumkin — rich uni
+    # uslub tegi deb o'qiydi. Shuning uchun dalil satrlari qalqonlanadi.
+    shown = report.issues if limit <= 0 else report.issues[:limit]
+    if shown:
+        console.print("")
+        for issue in shown:
+            target = issue.to_node or "—"
+            status = f" · {issue.to_status}" if issue.to_status else ""
+            console.print(
+                f"  [dim]{issue.kind:16}[/dim] {escape(issue.from_node)} → {escape(target)}{status}"
+            )
+            if issue.text:
+                console.print(f"    [dim]«{escape(issue.text)}»[/dim]")
+
+    console.print(
+        "\n[dim]Bu ro'yxat — nomzodlar, ziddiyat xulosasi emas. Har biri yurist yoki "
+        "professor agenti tomonidan baholanishi kerak.[/dim]"
+    )
 
 
 @app.command()

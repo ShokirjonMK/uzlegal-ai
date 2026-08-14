@@ -6,6 +6,8 @@ kesilgan chunk normani teskari talqin qilishga olib keladi.
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 from uzlegal.index.chunker import (
@@ -330,3 +332,53 @@ def test_merge_tiny_natijasi_ham_tekshiriladi() -> None:
         token_count=0,
     )
     assert all(len(c.content) <= HARD_MAX_CHARS for c in _enforce_limit([merged]))
+
+
+# --------------------------------------------------------------------------- #
+# Hujjat sanasi bo'lakka o'tadi — docs/22 § 1.1 (2-nuqson)
+#
+# Moddaning `valid_from` i faqat tahrir izohlaridan to'ladi. Izohsiz
+# hujjatda sana umuman bo'lmasdi va 48 527 bo'lakning 36 160 tasi
+# vaqt mashinasi uchun ko'rinmas edi.
+# --------------------------------------------------------------------------- #
+
+BUGUN = date(2026, 8, 14)
+
+
+def _sanali_hujjat(adopted_at: str | None, valid_from: str | None = None) -> ParsedDocument:
+    doc = make_doc(("1", "Mulkdor talab qilishga haqli. " * 5))
+    doc.adopted_at = adopted_at
+    doc.elements[0].valid_from = valid_from
+    return doc
+
+
+def test_hujjat_qabul_sanasi_bolakka_tushadi() -> None:
+    chunks = Chunker(today=BUGUN).chunk_document(_sanali_hujjat("2020-03-15"))
+    assert chunks[0].valid_from == "2020-03-15"
+
+
+def test_modda_sanasi_hujjat_sanasidan_ustun() -> None:
+    """Tahrir izohidagi sana aniqroq — u bosilmasligi kerak."""
+    chunks = Chunker(today=BUGUN).chunk_document(_sanali_hujjat("2020-03-15", "2023-11-01"))
+    assert chunks[0].valid_from == "2023-11-01"
+
+
+def test_kelajak_sana_valid_from_ga_yozilmaydi() -> None:
+    """`version_filter` da `valid_from > bugun` → bo'lak yashiriladi.
+
+    Ya'ni ko'r-ko'rona `valid_from = adopted_at` kelajak sanali hujjatni
+    barcha so'rovlardan yo'qotardi (docs/22 § 1.4).
+    """
+    chunks = Chunker(today=BUGUN).chunk_document(_sanali_hujjat("2027-01-01"))
+    assert chunks[0].valid_from is None
+
+
+def test_bugungi_sana_yoziladi() -> None:
+    """Chegara qat'iy emas: bugun kuchga kirgan norma allaqachon amalda."""
+    chunks = Chunker(today=BUGUN).chunk_document(_sanali_hujjat(BUGUN.isoformat()))
+    assert chunks[0].valid_from == BUGUN.isoformat()
+
+
+def test_sanasiz_hujjatda_bolak_ham_sanasiz() -> None:
+    chunks = Chunker(today=BUGUN).chunk_document(_sanali_hujjat(None))
+    assert chunks[0].valid_from is None

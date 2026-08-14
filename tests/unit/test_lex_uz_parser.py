@@ -344,3 +344,85 @@ def test_nomalum_tur_modda_deb_ataladi() -> None:
 
     assert unit_label(None) == "modda"
     assert unit_label("boshqa") == "modda"
+
+
+# --------------------------------------------------------------------------- #
+# Qabul sanasi — docs/22 § 1.1
+#
+# Sana sahifada FAQAT `<title>` tegida bor. `ACT_TITLE` blokida u hech
+# qachon uchramaydi, shuning uchun ilgari 863 hujjatdan hech biriga
+# `adopted_at` yozilmasdi.
+# --------------------------------------------------------------------------- #
+
+NBSP = "\u00a0"
+
+ACT_TITLE_NAMUNA = "OʻZBEKISTON RESPUBLIKASINING TEST QONUNI"
+
+
+def _sahifa(sarlavha_tegi: str, *, act_title: str | None = ACT_TITLE_NAMUNA) -> str:
+    blocks = ""
+    if act_title:
+        blocks += f'<div class="ACT_TITLE lx_elem"><div name="1" id="1">{act_title}</div></div>'
+    blocks += (
+        '<div class="CLAUSE_DEFAULT lx_elem">'
+        '<div name="2" id="2">1-modda. Asosiy tushunchalar</div></div>'
+        '<div class="ACT_TEXT lx_elem"><div name="3" id="3">'
+        "Ushbu Qonun mulk munosabatlarini tartibga soladi va boshqa "
+        "qoidalarni belgilaydi.</div></div>"
+    )
+    return f"<html><head><title>{sarlavha_tegi}</title></head><body>{blocks}</body></html>"
+
+
+def _ajrat(html: str) -> ParsedDocument:
+    raw = RawDocument(
+        source="lex.uz",
+        doc_id="-1",
+        url="https://lex.uz/docs/-1",
+        fetched_at=datetime.now(UTC),
+        content_sha256=hashlib.sha256(html.encode()).hexdigest(),
+        http_status=200,
+        content_type="text/html",
+        content=html,
+    )
+    return LexUzParser().parse(raw)
+
+
+def test_qabul_sanasi_title_tegidan_ajratiladi(parsed: ParsedDocument) -> None:
+    assert parsed.adopted_at == "1995-12-21"
+
+
+def test_sarlavhada_sana_prefiksi_yoq(parsed: ParsedDocument) -> None:
+    """`linking._code_registry()` sarlavha bo'yicha ishlaydi (docs/22 § 1.3)."""
+    assert "21.12.1995" not in parsed.title
+    assert not parsed.title[:1].isdigit()
+
+
+def test_nomdagi_boshqa_sana_qabul_sanasini_bosmaydi() -> None:
+    """Nom ichida boshqa hujjatning sanasi bo'lishi mumkin — u olinmaydi."""
+    doc = _ajrat(
+        _sahifa(
+            f"{NBSP}PF-27-сон 17.02.2026.{NBSP}Oʻzbekiston Respublikasi Prezidentining "
+            "2020-yil 22-iyundagi qaroriga oʻzgartirish kiritish toʻgʻrisida"
+        )
+    )
+    assert doc.adopted_at == "2026-02-17"
+
+
+def test_act_title_bolmasa_sarlavha_prefikssiz_olinadi() -> None:
+    doc = _ajrat(_sahifa(f"{NBSP}4-18-2307/12-сон 15.12.2023.{NBSP}Iqtisodiy ish", act_title=None))
+    assert doc.title == "Iqtisodiy ish"
+    assert doc.adopted_at == "2023-12-15"
+
+
+def test_prefikssiz_title_tegida_sana_taxmin_qilinmaydi() -> None:
+    """Ajratuvchi yo'q — format o'zgargan. Aniqlik qamrovdan muhim."""
+    doc = _ajrat(_sahifa("Prezidentning 2020-yil 22-iyundagi qarori"))
+    assert doc.adopted_at is None
+
+
+def test_title_tegidan_sana_ajratish_funksiyasi() -> None:
+    from uzlegal.ingest.parsers.lex_uz import title_tag_date
+
+    html = f"<html><head><title>{NBSP}OʻRQ-982-сон 25.10.2024.{NBSP}Nomi</title></head></html>"
+    assert title_tag_date(html) == "2024-10-25"
+    assert title_tag_date("<html><head></head></html>") is None

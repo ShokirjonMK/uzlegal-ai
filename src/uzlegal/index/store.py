@@ -319,6 +319,28 @@ class KnowledgeIndex:
         found.sort(key=lambda c: (c.part or "", c.item or "", c.chunk_id))
         return found[:limit]
 
+    def article_labels(self, doc_id: str) -> list[str]:
+        """Hujjatning indeksdagi modda yorliqlari — takrorsiz va tartiblangan.
+
+        `chunks_for_article()` **aniq tenglik** bo'yicha izlaydi, `chunker`
+        ning `_merge_tiny()` funksiyasi esa kichik moddalarni birlashtirib
+        bo'lakka «18-19» kabi oraliq yorlig'ini beradi. Ya'ni 19-modda
+        korpusda bor, lekin o'z nomi bilan topilmaydi.
+
+        Havola nazorati shu farqni ko'ra olishi uchun yorliqlar ro'yxati
+        kerak (docs/22 § 2.2): usiz mavjud modda «uzilgan havola» deb
+        belgilanardi va nomzodlar ro'yxati o'z chunkerimiz artefakti bilan
+        ifloslanardi.
+        """
+        self.load()
+        return sorted(
+            {
+                chunk.article
+                for chunk in self._chunks.values()
+                if chunk.doc_id == doc_id and chunk.article
+            }
+        )
+
     def reference_graph(self, *, rebuild: bool = False) -> ReferenceGraph | None:
         """Havola grafi — keshdan o'qiladi yoki arxivdan quriladi.
 
