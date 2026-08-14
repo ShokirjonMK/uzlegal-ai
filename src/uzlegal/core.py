@@ -30,7 +30,7 @@ from uzlegal.agents.schemas import Verdict
 from uzlegal.orchestrator.graph import ConsultState, Deps, run_consult
 from uzlegal.orchestrator.router import Mode
 from uzlegal.orchestrator.trace import Trace, new_trace_id
-from uzlegal.types import Citation, Position
+from uzlegal.types import Citation, DateCoverage, Position
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +44,14 @@ DISCLAIMER = (
 LOW_CONFIDENCE = 0.4
 LOW_CONFIDENCE_CAVEAT = (
     "Ishonch darajasi past — javobni mustaqil tekshirmasdan qaror qabul qilmang."
+)
+
+# `as_of` so'ralgan, lekin manbalarning bir qismida tahrir tarixi yo'q
+# (docs/21 § 3). Korpusning to'rtdan uch qismi shunday — buni aytmaslik
+# foydalanuvchini tarixiy holat tasdiqlangan deb o'ylashga majbur qiladi.
+DATE_COVERAGE_CAVEAT = (
+    "Manbalarning {unknown} tasida tahrir tarixi yo'q — ular uchun joriy matn "
+    "keltirildi. Tarixiy holat kafolatlanmaydi."
 )
 
 
@@ -78,6 +86,16 @@ class ConsultResult(BaseModel):
     latency_ms: int = 0
     model_version: str | None = None
     kb_version: str = ""
+    # Javob qaysi sanadagi holatga ko'ra tayyorlangani va shu sana bo'yicha
+    # manbalar qamrovi (docs/21 § 3). So'rovda `as_of` bo'lmasa ikkalasi
+    # ham `None` — «bugungi holat» degani.
+    as_of: date | None = None
+    date_coverage: DateCoverage | None = None
+    # Javob pasporti — imzolangan token (docs/21 § 4). Foydalanuvchi uni
+    # javob bilan birga saqlaydi va keyinchalik javob aynan shu tizimdan
+    # kelganini isbotlay oladi. Imzolash yiqilsa `None` — javobning o'zi
+    # baribir beriladi.
+    passport: str | None = None
     disclaimer: str = DISCLAIMER
     trace: Trace | None = None
 
@@ -138,6 +156,7 @@ def consult(
     latency_ms = int((time.perf_counter() - started) * 1000)
     result = _to_result(state, request, latency_ms, registry)
     _write_audit(request, result, state)
+    result.passport = _issue_passport(request, result, state)
     return result
 
 
@@ -165,6 +184,44 @@ def _write_audit(request: ConsultRequest, result: ConsultResult, state: ConsultS
         latency_ms=result.latency_ms,
         gate=gate.summary() if gate else {},
         retrieval={"chunks": len(state.context), "citations": len(result.citations)},
+        as_of=request.as_of.isoformat() if request.as_of else None,
+    )
+
+
+def _issue_passport(
+    request: ConsultRequest, result: ConsultResult, state: ConsultState
+) -> str | None:
+    """Javobga pasport qo'shadi (docs/21 § 4).
+
+    Audit yozuvi ichkarida qoladi va uni faqat xizmat egasi ko'rsata
+    oladi. Pasport esa javob bilan birga tashqariga chiqadi: foydalanuvchi
+    uni sudga yoki mijozga bera oladi va u yerda javobning haqiqiyligi
+    xizmatga murojaat qilmasdan tekshiriladi.
+
+    Savol va javob matni pasportga **kirmaydi** — faqat xeshi.
+
+    Xato hech qachon soʻrovni yiqitmaydi: `issue_passport` oʻzi yutadi
+    va `None` qaytaradi (docs/21 § 4.6).
+    """
+    from uzlegal.passport import issue_passport
+
+    # docs/21 § 4.4 pasportda `gate {passed, dropped}` deb belgilangan.
+    # `kept` — aynan «o'tgan» da'volar soni. `claims` ham qo'shiladi:
+    # 3 tadan 2 tasi o'tgani bilan 30 tadan 2 tasi o'tgani bir xil emas,
+    # va bu farq pasportni ko'rgan odam uchun muhim.
+    gate = state.gate
+    gate_summary = (
+        {"passed": gate.kept, "dropped": gate.dropped, "claims": gate.claims} if gate else {}
+    )
+    return issue_passport(
+        trace_id=result.trace_id,
+        question=request.question,
+        answer=result.answer,
+        citations=[f"{c.doc_id}:{c.article}" for c in result.citations],
+        kb_version=result.kb_version,
+        model_version=result.model_version,
+        as_of=request.as_of,
+        gate=gate_summary,
     )
 
 
@@ -238,6 +295,9 @@ def _to_result(
         caveats += [f"Yetishmayotgan ma'lumot: {u}" for u in state.frame.unknowns[:3]]
     if 0.0 < confidence < LOW_CONFIDENCE:
         caveats.append(LOW_CONFIDENCE_CAVEAT)
+    coverage = state.date_coverage
+    if coverage is not None and coverage.unknown:
+        caveats.append(DATE_COVERAGE_CAVEAT.format(unknown=coverage.unknown))
 
     model_version = getattr(registry, "active_id", None)
     state.trace.model_version = model_version
@@ -255,6 +315,8 @@ def _to_result(
         latency_ms=latency_ms,
         model_version=model_version,
         kb_version=_kb_version(),
+        as_of=request.as_of,
+        date_coverage=coverage,
         disclaimer=DISCLAIMER,
         trace=state.trace if request.trace else None,
     )
@@ -285,6 +347,8 @@ def _deterministic_refusal(
         latency_ms=latency_ms,
         model_version=getattr(registry, "active_id", None),
         kb_version=_kb_version(),
+        as_of=request.as_of,
+        date_coverage=state.date_coverage,
         disclaimer=DISCLAIMER,
         trace=state.trace if request.trace else None,
     )

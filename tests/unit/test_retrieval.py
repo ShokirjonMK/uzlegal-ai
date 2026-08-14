@@ -18,6 +18,7 @@ from uzlegal.retrieval.hybrid import (
     RetrievalResult,
     build_context,
     classify_query,
+    date_coverage,
     version_filter,
 )
 
@@ -177,7 +178,16 @@ def test_kelajakdagi_norma_chiqariladi() -> None:
 
 
 def test_as_of_bilan_tarixiy_holat() -> None:
-    """«2021-yilda qanday edi?» — o'sha paytda amalda bo'lgan norma."""
+    """«2021-yilda qanday edi?» — o'sha paytda amalda bo'lgan norma.
+
+    O'ZGARTIRILDI (docs/21 § 2.2). Ilgari bu test faqat `in_force`
+    bo'lakni tekshirardi va shu bilan «`as_of` berilganda status
+    umuman qaralmaydi» degan xatti-harakatni to'g'ri deb qayd etardi.
+    Endi shartnoma boshqa: `as_of` berilganda ham status qaraladi va
+    bekor qilinganlik sanasi **ma'lum** bo'lgandagina bo'lak o'sha
+    sanadagi holat sifatida qoldiriladi. Shu sababli testga bekor
+    qilingan, lekin `valid_to` si ma'lum bo'lgan bo'lak qo'shildi.
+    """
     old = ScoredChunk(
         chunk=make_chunk("2", "eski", valid_from="2019-01-01", valid_to="2022-01-01"),
         score=1.0,
@@ -185,11 +195,86 @@ def test_as_of_bilan_tarixiy_holat() -> None:
     assert version_filter([old], as_of=date(2021, 6, 1))[0]
     assert version_filter([old], as_of=None)[0] == []
 
+    # Bekor qilingan, ammo qachon bekor qilingani MA'LUM: 2021-yilda
+    # hali amalda edi, bugun esa yo'q.
+    repealed = ScoredChunk(
+        chunk=make_chunk(
+            "3", "bekor", status="repealed", valid_from="2019-01-01", valid_to="2022-01-01"
+        ),
+        score=1.0,
+    )
+    assert version_filter([repealed], as_of=date(2021, 6, 1))[0]
+    assert version_filter([repealed], as_of=None)[0] == []
+
+
+def test_bekor_qilingan_norma_as_of_bilan_ham_chiqariladi() -> None:
+    """`valid_to` bo'sh bo'lsa bekor qilingan norma `as_of` da ham chiqariladi.
+
+    Bu docs/21 § 2.1 dagi uchinchi qator: bekor qilingan sana noma'lum
+    bo'lsa, bo'lak `as_of` da amalda bo'lganini tasdiqlab bo'lmaydi.
+    `ingest/versioning.py` sanani aniqlay olmaganda `valid_to` ni
+    ataylab bo'sh qoldiradi — ya'ni bu holat faraziy emas.
+    """
+    dead = ScoredChunk(chunk=make_chunk("2", "eski", status="repealed"), score=1.0)
+
+    kept, dropped = version_filter([dead], as_of=date(2021, 6, 1))
+
+    assert kept == []
+    assert dropped == 1
+
+
+def test_bekor_qilingan_norma_faqat_valid_from_bilan_chiqariladi() -> None:
+    """`valid_from` bor, `valid_to` yo'q — baribir tasdiqlab bo'lmaydi."""
+    dead = ScoredChunk(
+        chunk=make_chunk("2", "eski", status="repealed", valid_from="2019-01-01"),
+        score=1.0,
+    )
+    assert version_filter([dead], as_of=date(2021, 6, 1)) == ([], 1)
+
+
+def test_amaldagi_norma_as_of_bilan_qoladi() -> None:
+    """`in_force` va sanalari bo'sh bo'lsa — `as_of` da qoldiriladi (§ 2.1)."""
+    live = ScoredChunk(chunk=make_chunk("1", "amaldagi"), score=1.0)
+    kept, dropped = version_filter([live], as_of=date(2021, 6, 1))
+    assert len(kept) == 1 and dropped == 0
+
 
 def test_amaldagi_norma_qoladi() -> None:
     chunk = make_chunk("1", "amalda", valid_from="2020-01-01", valid_to=None)
     kept, dropped = version_filter([ScoredChunk(chunk=chunk, score=1.0)])
     assert len(kept) == 1 and dropped == 0
+
+
+# --------------------------------------------------------------------------- #
+# Sana qamrovi — docs/21 § 3
+# --------------------------------------------------------------------------- #
+
+
+def test_sana_qamrovi_sanaydi() -> None:
+    known = ScoredChunk(chunk=make_chunk("1", "a", valid_from="2019-01-01"), score=1.0)
+    unknown = ScoredChunk(chunk=make_chunk("2", "b"), score=1.0)
+
+    coverage = date_coverage([known, unknown], date(2021, 6, 1))
+
+    assert (coverage.confirmed, coverage.unknown, coverage.total) == (1, 1, 2)
+    assert coverage.as_of == date(2021, 6, 1)
+
+
+def test_bosh_natijada_qamrov_nol() -> None:
+    coverage = date_coverage([], date(2021, 6, 1))
+    assert coverage.confirmed == 0 and coverage.unknown == 0
+
+
+def test_natijada_qamrov_yoq_bolishi_mumkin() -> None:
+    """`as_of` so'ralmagan bo'lsa qamrov ham bo'lmaydi — bu shartnoma."""
+    result = RetrievalResult(
+        results=[],
+        query_kind=QueryKind.FACTUAL,
+        vector_hits=0,
+        lexical_hits=0,
+        dropped_by_version=0,
+    )
+    assert result.as_of is None and result.coverage is None
 
 
 # --------------------------------------------------------------------------- #

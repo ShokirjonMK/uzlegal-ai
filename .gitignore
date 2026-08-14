@@ -33,6 +33,12 @@ data/audit/
 data/users.db
 data/*.db
 
+# Pasport imzo kalitlari (docs/21 § 4.3).
+# `data/keys/passport_ed25519` birinchi ishlatishda O'ZI yaratiladi.
+# U joylashtirmaning shaxsi: repoga tushsa har kim shu tizim nomidan
+# javob pasporti yasay olardi va pasportning butun ma'nosi yo'qolardi.
+data/keys/
+
 # Mashinaga xos ishlash holati.
 #
 # Bular ilgari kuzatilardi va bu chalg'itardi: `sync-state.json` toza

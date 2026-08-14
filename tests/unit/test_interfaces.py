@@ -9,6 +9,7 @@ qaysi kanal orqali so'raganiga qarab boshqa javob oladi.
 from __future__ import annotations
 
 import json
+from datetime import date
 from typing import Any
 
 import pytest
@@ -239,6 +240,29 @@ def test_bot_tez_buyrugi_simple_rejim() -> None:
     assert seen == ["simple"]
 
 
+def test_bot_sana_buyrugi_as_of_uzatadi() -> None:
+    """`/sana 2019-05-01 savol` — voqea sanasidagi qonunchilik (docs/21 W1-D)."""
+    seen: list[Any] = []
+    bot, _ = make_bot(lambda q, **kw: seen.append((q, kw.get("as_of"))) or fake_result())
+    bot.handle(message("/sana 2019-05-01 Daʼvo muddati qancha"))
+    assert seen == [("Daʼvo muddati qancha", date(2019, 5, 1))]
+
+
+def test_bot_notogri_sana_maslahat_chaqirmaydi() -> None:
+    """Sana o'qilmasa jimgina bugungi holatga o'tish — chalg'itish bo'lardi."""
+    seen: list[Any] = []
+    bot, fake = make_bot(lambda q, **kw: seen.append(q) or fake_result())
+    assert bot.handle(message("/sana kecha Daʼvo muddati qancha"))
+    assert seen == []
+    assert "YYYY-MM-DD" in fake.sent[-1]["text"]
+
+
+def test_botda_holat_sanasi_korinadi() -> None:
+    bot, fake = make_bot(lambda q, **kw: fake_result(as_of=date(2019, 5, 1)))
+    bot.handle(message("savol berish"))
+    assert "2019-05-01" in fake.sent[-1]["text"]
+
+
 def test_bot_oddiy_savol_buyruq_emas() -> None:
     """`/` siz matn har doim savol — «savol …» deb boshlangan xabar ham."""
     seen: list[str] = []
@@ -429,3 +453,99 @@ def test_sdk_sana_satri_qabul_qilinadi(patched_consult: list[ConsultRequest]) ->
     UzLegal().consult("Daʼvo muddati qancha", as_of="2021-06-01")
     request = patched_consult[0]
     assert request.as_of is not None and request.as_of.isoformat() == "2021-06-01"
+
+
+# --------------------------------------------------------------------------- #
+# /v1/search — sana bo'yicha qidiruv (docs/21 W1-B, W1-C)
+# --------------------------------------------------------------------------- #
+
+
+def _search_chunk(article: str = "150", **kw: Any) -> Any:
+    from uzlegal.index.chunker import Chunk
+
+    return Chunk(
+        chunk_id=f"fk:{article}",
+        doc_id="fk",
+        doc_title="Fuqarolik kodeksi",
+        doc_type="kodeks",
+        lang="uz",
+        article=article,
+        heading=f"[Fuqarolik kodeksi > {article}-modda]",
+        content="Daʼvo muddati uch yil",
+        token_count=10,
+        **kw,
+    )
+
+
+@pytest.fixture
+def search_calls(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    """`/v1/search` ortidagi retrieverni almashtiradi va chaqiruvni yozadi."""
+    import uzlegal.index.store as store_mod
+    import uzlegal.retrieval.hybrid as hybrid_mod
+    from uzlegal.index.store import ScoredChunk
+    from uzlegal.retrieval.hybrid import QueryKind, RetrievalResult, date_coverage
+
+    calls: list[dict[str, Any]] = []
+    chunks = [
+        _search_chunk("150", valid_from="2019-01-01"),
+        _search_chunk("151", status="superseded", valid_to="2022-01-01"),
+    ]
+
+    class FakeRetriever:
+        def __init__(self, index: Any) -> None:
+            self.index = index
+
+        def search(self, query: str, **kwargs: Any) -> RetrievalResult:
+            calls.append({"query": query, **kwargs})
+            as_of = kwargs.get("as_of")
+            items = [ScoredChunk(chunk=c, score=1.0) for c in chunks]
+            return RetrievalResult(
+                results=items,
+                query_kind=QueryKind.FACTUAL,
+                vector_hits=2,
+                lexical_hits=2,
+                dropped_by_version=3,
+                as_of=as_of,
+                coverage=date_coverage(items, as_of) if as_of else None,
+            )
+
+    monkeypatch.setattr(store_mod, "KnowledgeIndex", lambda *a, **kw: object())
+    monkeypatch.setattr(hybrid_mod, "HybridRetriever", FakeRetriever)
+    return calls
+
+
+def test_search_as_of_ni_retrieverga_uzatadi(
+    client: Any, search_calls: list[dict[str, Any]]
+) -> None:
+    response = client.post("/v1/search", json={"query": "daʼvo muddati", "as_of": "2021-06-01"})
+    assert response.status_code == 200
+    assert search_calls[0]["as_of"] == date(2021, 6, 1)
+    assert response.json()["as_of"] == "2021-06-01"
+
+
+def test_search_as_of_siz_ham_ishlaydi(client: Any, search_calls: list[dict[str, Any]]) -> None:
+    body = client.post("/v1/search", json={"query": "daʼvo muddati"}).json()
+    assert search_calls[0]["as_of"] is None
+    assert body["as_of"] is None and body["date_coverage"] is None
+
+
+def test_search_notogri_sana_422(client: Any) -> None:
+    assert client.post("/v1/search", json={"query": "x", "as_of": "kecha"}).status_code == 422
+
+
+def test_search_natijasida_versiya_maydonlari_bor(
+    client: Any, search_calls: list[dict[str, Any]]
+) -> None:
+    """Mijoz normaning qaysi tahririni ko'rayotganini bilishi kerak."""
+    body = client.post("/v1/search", json={"query": "daʼvo muddati"}).json()
+    first, second = body["results"]
+    assert first["valid_from"] == "2019-01-01"
+    assert first["status"] == "in_force"
+    assert second["valid_to"] == "2022-01-01"
+    assert second["status"] == "superseded"
+
+
+def test_search_sana_qamrovini_qaytaradi(client: Any, search_calls: list[dict[str, Any]]) -> None:
+    body = client.post("/v1/search", json={"query": "daʼvo muddati", "as_of": "2021-06-01"}).json()
+    assert body["date_coverage"] == {"confirmed": 1, "unknown": 1, "as_of": "2021-06-01"}
+    assert body["dropped_by_version"] == 3

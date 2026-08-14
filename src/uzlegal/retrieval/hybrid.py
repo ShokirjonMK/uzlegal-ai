@@ -53,6 +53,7 @@ from uzlegal.index.store import KnowledgeIndex, ScoredChunk
 from uzlegal.ingest.linking import ReferenceGraph
 from uzlegal.ingest.normalize import fold
 from uzlegal.retrieval.routing import DocumentRouter, Route
+from uzlegal.types import DateCoverage
 
 log = logging.getLogger(__name__)
 
@@ -177,6 +178,22 @@ def version_filter(
     kontekstga tushmaydi; bu texnik cheklov, model xohishiga bog'liq emas
     (docs/00 dagi «0% deprecated» talabi).
 
+    Qaror jadvali (docs/21 § 2.1):
+
+    | Holat | Qaror |
+    |---|---|
+    | `valid_to <= reference` | chiqariladi — o'sha sanada ham amal qilmagan |
+    | `valid_from > reference` | chiqariladi — hali kuchga kirmagan |
+    | `status != in_force`, `valid_to` bo'sh | chiqariladi — sana noma'lum |
+    | `status != in_force`, `valid_to` bor | `as_of` bo'yicha sanaga qaraladi |
+
+    Uchinchi qator eng muhim. Ilgari `as_of` berilganda status tekshiruvi
+    **umuman o'tkazib yuborilardi** va `valid_to` si bo'sh bekor qilingan
+    bo'lak javobga tushardi. `ingest/versioning.py` sanani aniqlay
+    olmaganda `valid_to` ni ataylab bo'sh qoldiradi, ya'ni bu teshik
+    faraziy emas edi. Tamoyil o'zgarmaydi: **tasdiqlab bo'lmaydigan narsa
+    javobga chiqmaydi.**
+
     `(qolganlar, chiqarilganlar_soni)` qaytaradi — chiqarilganlar soni
     monitoring uchun kerak.
     """
@@ -186,7 +203,10 @@ def version_filter(
 
     for item in results:
         chunk = item.chunk
-        if chunk.status != "in_force" and as_of is None:
+        # `as_of` berilmagan bo'lsa — amaldagi holat so'ralgan, bekor
+        # qilingan norma umuman chiqmaydi. `as_of` berilgan bo'lsa u
+        # faqat bekor qilingan sana MA'LUM bo'lgandagina qaraladi.
+        if chunk.status != "in_force" and (as_of is None or not chunk.valid_to):
             dropped += 1
             continue
         if chunk.valid_from and chunk.valid_from > reference:
@@ -200,6 +220,18 @@ def version_filter(
     if dropped:
         log.debug("Versiya filtri %d chunkni chiqardi", dropped)
     return kept, dropped
+
+
+def date_coverage(results: list[ScoredChunk], as_of: date) -> DateCoverage:
+    """Qaytarilgan manbalarning qanchasida tahrir tarixi bor (docs/21 § 3).
+
+    `valid_from` — yagona ishonchli belgi: u bo'lsa bo'lakning qachondan
+    amal qilishi ma'lum, ya'ni `as_of` dagi holatini **tasdiqlash**
+    mumkin. Yo'q bo'lsa joriy matn keltirilgan bo'ladi va buni javob
+    o'zi aytishi kerak.
+    """
+    confirmed = sum(1 for item in results if item.chunk.valid_from)
+    return DateCoverage(confirmed=confirmed, unknown=len(results) - confirmed, as_of=as_of)
 
 
 # --------------------------------------------------------------------------- #
@@ -220,6 +252,10 @@ class RetrievalResult:
     routed_domains: list[str] = field(default_factory=list)
     graph_hits: int = 0
     latency_ms: int = 0
+    # Qaysi sanaga ko'ra qidirilgani va shu sana bo'yicha manbalar qamrovi
+    # (docs/21 § 3). `as_of` berilmasa ikkalasi ham `None`.
+    as_of: date | None = None
+    coverage: DateCoverage | None = None
 
     @property
     def top_score(self) -> float:
@@ -388,9 +424,10 @@ class HybridRetriever:
         limit = self.graph_expand if graph_expand is None else graph_expand
         linked = self._graph_neighbours(results, limit=limit, as_of=as_of)
 
+        final = results + linked
         return RetrievalResult(
             reranked=reranked,
-            results=results + linked,
+            results=final,
             query_kind=kind,
             vector_hits=len(vector_hits),
             lexical_hits=len(lexical_hits),
@@ -400,6 +437,8 @@ class HybridRetriever:
             graph_hits=len(linked),
             dropped_by_version=dropped,
             latency_ms=int((time.time() - t0) * 1000),
+            as_of=as_of,
+            coverage=date_coverage(final, as_of) if as_of is not None else None,
         )
 
     # ------------------------------------------------------------------ #

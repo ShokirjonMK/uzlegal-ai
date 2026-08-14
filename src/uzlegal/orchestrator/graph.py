@@ -42,7 +42,7 @@ from uzlegal.orchestrator import debate as debate_mod
 from uzlegal.orchestrator.gate import GateReport, groundedness_gate
 from uzlegal.orchestrator.router import ROLES_BY_MODE, Mode, RouteDecision, route
 from uzlegal.orchestrator.trace import Trace, new_trace_id
-from uzlegal.types import Citation, Position
+from uzlegal.types import Citation, DateCoverage, Position
 
 log = logging.getLogger(__name__)
 
@@ -104,6 +104,9 @@ class ConsultState:
     missing_article: str | None = None
     # Foydalanuvchi hujjat nomini aytdi, lekin bunday hujjat indeksda yo'q.
     missing_document: str | None = None
+    # `as_of` so'ralganda kontekstga tushgan manbalarning sana qamrovi
+    # (docs/21 § 3). `as_of` berilmagan bo'lsa `None`.
+    date_coverage: DateCoverage | None = None
     trace: Trace = field(default_factory=lambda: Trace(trace_id=new_trace_id()))
 
     # Agent chaqiruvlari uchun tayyorlangan kontekst
@@ -291,7 +294,7 @@ def node_retrieve(state: ConsultState, deps: Deps) -> ConsultState:
     Prefix KV-cache shu yerda quriladi — kontekst tayyor bo'lgan zahoti va
     birinchi agent chaqirilishidan oldin (docs/06 § 6).
     """
-    from uzlegal.retrieval.hybrid import build_context
+    from uzlegal.retrieval.hybrid import build_context, date_coverage
 
     with state.trace.step("retrieve") as step:
         results: list[Any] = []
@@ -310,6 +313,13 @@ def node_retrieve(state: ConsultState, deps: Deps) -> ConsultState:
         state.context_text, used = build_context(results, budget_tokens=deps.budget_tokens)
         state.context = used
         state.citations = [to_citation(f"C{i}", item.chunk) for i, item in enumerate(used, 1)]
+
+        # Qamrov aynan kontekstga TUSHGAN bo'laklar bo'yicha hisoblanadi,
+        # retriever qaytargan hammasi bo'yicha emas: foydalanuvchi javobda
+        # ko'radigan manbalar shular (docs/21 § 3).
+        if state.as_of is not None:
+            state.date_coverage = date_coverage(used, state.as_of)
+
         step.set(
             chunks=len(used),
             top_score=round(results[0].score, 4) if results else 0.0,

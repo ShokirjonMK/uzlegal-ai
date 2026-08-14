@@ -6,6 +6,7 @@ istalgan joydan ishlatish mumkin va aylanma bog'liqlik yuzaga kelmaydi.
 
 from __future__ import annotations
 
+from datetime import date
 from enum import StrEnum
 from typing import Literal
 
@@ -124,6 +125,25 @@ class Citation(BaseModel):
     status: Literal["in_force", "superseded", "repealed"] = "in_force"
     url: str | None = None
     excerpt: str | None = None
+
+
+class DateCoverage(BaseModel):
+    """`as_of` so'ralganda manbalarning sana qamrovi (docs/21 § 3).
+
+    Korpusning to'rtdan uch qismida `valid_from` yo'q. Ya'ni «2019-yil
+    holatiga ko'ra» degan so'rovni tizim ko'p manba uchun **tasdiqlay
+    olmaydi**. Buni jimgina qilish — «buyruq muvaffaqiyat haqida xabar
+    beradi, lekin ish bajarilmaydi» naqshi. Shuning uchun qamrov
+    javobning o'zi bilan birga qaytariladi.
+    """
+
+    confirmed: int = Field(default=0, description="`valid_from` ma'lum bo'lgan manbalar")
+    unknown: int = Field(default=0, description="Tahrir tarixi noma'lum manbalar")
+    as_of: date
+
+    @property
+    def total(self) -> int:
+        return self.confirmed + self.unknown
 
 
 class Argument(BaseModel):

@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterator
+from datetime import date
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from uzlegal import signature
 from uzlegal.api.auth import access_control, auth_status
@@ -24,7 +25,7 @@ from uzlegal.court import CourtReport, review
 from uzlegal.inference.backend import BackendUnavailableError, available_backends
 from uzlegal.inference.registry import ModelSwapError
 from uzlegal.ingest.sync import SyncAlreadyRunningError, SyncManager
-from uzlegal.types import GenerationParams
+from uzlegal.types import DateCoverage, GenerationParams
 from uzlegal.users.store import UserStore
 
 log = logging.getLogger(__name__)
@@ -581,6 +582,10 @@ class SearchRequest(BaseModel):
     top_k: int = 8
     min_score: float | None = None
     documents: list[str] | None = None
+    as_of: date | None = Field(
+        default=None,
+        description="Qonunchilikning shu sanadagi holati. Ko'rsatilmasa — bugungi.",
+    )
 
 
 class SearchResult(BaseModel):
@@ -592,6 +597,11 @@ class SearchResult(BaseModel):
     score: float
     source: str = "hybrid"
     url: str | None = None
+    # Versiya maydonlari — mijoz normaning qaysi tahririni ko'rayotganini
+    # o'zi ko'rsata olishi kerak (docs/21 § 3.2).
+    valid_from: str | None = None
+    valid_to: str | None = None
+    status: str = "in_force"
 
 
 class SearchResponse(BaseModel):
@@ -600,6 +610,9 @@ class SearchResponse(BaseModel):
     total_hits: int
     latency_ms: int
     confident: bool
+    as_of: date | None = None
+    date_coverage: DateCoverage | None = None
+    dropped_by_version: int = 0
 
 
 @app.post("/v1/search", tags=["search"])
@@ -619,7 +632,7 @@ def search(req: SearchRequest) -> SearchResponse:
 
         index = KnowledgeIndex()
         retriever = HybridRetriever(index)
-        result = retriever.search(req.query, top_k=req.top_k)
+        result = retriever.search(req.query, top_k=req.top_k, as_of=req.as_of)
 
         items = [
             SearchResult(
@@ -631,6 +644,9 @@ def search(req: SearchRequest) -> SearchResponse:
                 score=round(item.score, 4),
                 source=item.source,
                 url=item.chunk.source_url,
+                valid_from=item.chunk.valid_from,
+                valid_to=item.chunk.valid_to,
+                status=item.chunk.status,
             )
             for item in result.results
         ]
@@ -644,6 +660,9 @@ def search(req: SearchRequest) -> SearchResponse:
             total_hits=len(result.results),
             latency_ms=result.latency_ms,
             confident=result.is_confident,
+            as_of=req.as_of,
+            date_coverage=result.coverage,
+            dropped_by_version=result.dropped_by_version,
         )
     except FileNotFoundError as exc:
         raise HTTPException(
@@ -673,6 +692,39 @@ def search_stats() -> dict[str, Any]:
         return {"chunks": 0, "documents": 0, "embedder": None, "status": "qurilmagan"}
     except Exception as exc:
         raise HTTPException(500, f"Statistika xatosi: {exc}") from exc
+
+
+# --------------------------------------------------------------------------- #
+# Javob pasporti (docs/21 § 4)
+# --------------------------------------------------------------------------- #
+
+
+class PassportVerifyRequest(BaseModel):
+    token: str
+
+
+@app.post("/v1/passport/verify", tags=["passport"])
+def passport_verify(req: PassportVerifyRequest) -> dict[str, Any]:
+    """Javob pasportini tekshiradi — **kalitsiz ochiq marshrut**.
+
+    Tekshirish ommaviy amal: pasportni qo'lida ushlab turgan tomon
+    (mijoz, qarshi tomon vakili, sud) uning haqiqiyligini API kalitisiz
+    aniqlay olishi kerak. Kalit talab qilinsa isbot faqat obunachiga
+    ochiq bo'lardi va pasportning butun ma'nosi yo'qolardi.
+
+    Bu yerda hech qanday maxfiy ma'lumot oshkor bo'lmaydi: pasportda
+    savol ham, javob matni ham yo'q — faqat ularning xeshi.
+
+    Yaroqsiz token 4xx emas, **200 va `valid: false`** bilan qaytadi:
+    «bu pasport soxta» — so'rovga to'liq javob, so'rovdagi xato emas.
+    """
+    from uzlegal.passport import PassportError, verify_passport
+
+    try:
+        passport = verify_passport(req.token)
+    except PassportError as exc:
+        return {"valid": False, "reason": str(exc)}
+    return {"valid": True, "passport": passport.as_dict()}
 
 
 # --------------------------------------------------------------------------- #

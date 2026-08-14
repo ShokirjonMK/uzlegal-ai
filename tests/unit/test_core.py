@@ -12,6 +12,7 @@ mijozlari bir vaqtda buziladi, shuning uchun u alohida qo'riqlanadi.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 import pytest
@@ -164,10 +165,11 @@ def run(
     mode: str = "simple",
     chunks: list[Chunk] | None = None,
     replies: tuple[str, ...] = (FRAME_JSON,),
+    as_of: date | None = None,
     **kwargs: Any,
 ) -> ConsultResult:
     return consult(
-        ConsultRequest(question=question, mode=mode, trace=True),  # type: ignore[arg-type]
+        ConsultRequest(question=question, mode=mode, trace=True, as_of=as_of),  # type: ignore[arg-type]
         retriever=FakeRetriever(chunks),
         backend=ScriptedBackend(*replies),
         registry=FakeRegistry(),
@@ -478,3 +480,51 @@ def test_kodeks_aytilmagan_savol_tekshirilmaydi() -> None:
         registry=None,
     )
     assert "bilim bazasida topilmadi" not in result.answer
+
+
+# --------------------------------------------------------------------------- #
+# Sana qamrovi — docs/21 § 3
+# --------------------------------------------------------------------------- #
+
+
+def test_as_of_natijada_qaytariladi() -> None:
+    """Javob qaysi sanadagi holat ekanini o'zi aytishi kerak."""
+    result = run(as_of=date(2021, 6, 1))
+    assert result.as_of == date(2021, 6, 1)
+
+
+def test_as_of_yoq_bolsa_qamrov_ham_yoq() -> None:
+    """Sana so'ralmagan — qamrov haqida gapirishning ma'nosi yo'q."""
+    result = run()
+    assert result.as_of is None
+    assert result.date_coverage is None
+
+
+def test_sana_qamrovi_hisoblanadi() -> None:
+    known = chunk("228")
+    known.valid_from = "2019-01-01"
+    unknown = chunk("229")
+
+    result = run(chunks=[known, unknown], as_of=date(2021, 6, 1))
+
+    assert result.date_coverage is not None
+    assert result.date_coverage.confirmed == 1
+    assert result.date_coverage.unknown == 1
+    assert result.date_coverage.as_of == date(2021, 6, 1)
+
+
+def test_tahrir_tarixi_yoq_manba_ogohlantiradi() -> None:
+    """`unknown > 0` — foydalanuvchi buni bilishi shart (docs/21 § 3.2)."""
+    result = run(chunks=[chunk("228")], as_of=date(2021, 6, 1))
+    assert any("tahrir tarixi yo'q" in c for c in result.caveats)
+    assert any("kafolatlanmaydi" in c for c in result.caveats)
+
+
+def test_hamma_manba_tasdiqlangan_bolsa_ogohlantirish_yoq() -> None:
+    known = chunk("228")
+    known.valid_from = "2019-01-01"
+
+    result = run(chunks=[known], as_of=date(2021, 6, 1))
+
+    assert result.date_coverage is not None and result.date_coverage.unknown == 0
+    assert not any("tahrir tarixi" in c for c in result.caveats)

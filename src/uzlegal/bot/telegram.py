@@ -26,6 +26,7 @@ from __future__ import annotations
 import html
 import logging
 import time
+from datetime import date
 from typing import Any, Literal
 
 import httpx
@@ -52,7 +53,8 @@ GREETING = (
     "<b>Buyruqlar</b>\n"
     "/start — shu xabar\n"
     "/holat — tizim holati\n"
-    "/tez &lt;savol&gt; — tez rejim (bitta agent)\n\n"
+    "/tez &lt;savol&gt; — tez rejim (bitta agent)\n"
+    "/sana &lt;YYYY-MM-DD&gt; &lt;savol&gt; — oʻsha sanadagi qonunchilik boʻyicha\n\n"
     "<i>Bu maʼlumot xarakteridagi javob, yuridik maslahat emas.</i>"
 )
 
@@ -178,6 +180,20 @@ class TelegramBot:
             self.send(chat_id, self._status())
             return True
 
+        # `/sana` — voqea sanasidagi qonunchilik. Nizo aynan oʻsha sanadagi
+        # norma boʻyicha hal qilinadi, shuning uchun bu botda ham kerak
+        # (docs/21 § 1.1, W1-D).
+        as_of: date | None = None
+        if command in ("sana", "asof"):
+            as_of, argument = _parse_as_of(argument)
+            if as_of is None:
+                self.send(
+                    chat_id,
+                    "Sanani <code>YYYY-MM-DD</code> koʻrinishida yozing: "
+                    "<code>/sana 2019-05-01 Daʼvo muddati qancha</code>",
+                )
+                return True
+
         question = argument.strip()
         mode: Mode = "simple" if command == "tez" else "auto"
         if not question:
@@ -186,7 +202,7 @@ class TelegramBot:
 
         self.chat_action(chat_id)
         try:
-            result = self._run_consult(question, mode)
+            result = self._run_consult(question, mode, as_of=as_of)
         except Exception as exc:
             log.exception("Maslahat bajarilmadi")
             self.send(chat_id, f"❌ Xato yuz berdi: <code>{html.escape(str(exc))}</code>")
@@ -195,12 +211,14 @@ class TelegramBot:
         self.send(chat_id, render(result), reply_to=message.get("message_id"))
         return True
 
-    def _run_consult(self, question: str, mode: Mode) -> ConsultResult:
+    def _run_consult(
+        self, question: str, mode: Mode, *, as_of: date | None = None
+    ) -> ConsultResult:
         if self._consult is not None:
-            return self._consult(question, mode=mode)  # type: ignore[no-any-return]
+            return self._consult(question, mode=mode, as_of=as_of)  # type: ignore[no-any-return]
         from uzlegal.core import consult
 
-        return consult(ConsultRequest(question=question, mode=mode))
+        return consult(ConsultRequest(question=question, mode=mode, as_of=as_of))
 
     def _status(self) -> str:
         from uzlegal.config import get_registry
@@ -252,12 +270,30 @@ def render(result: ConsultResult) -> str:
         )
 
     meta = [f"rejim: {result.mode_used}", f"{result.latency_ms / 1000:.0f} s"]
+    if result.as_of:
+        # Foydalanuvchi qaysi sanadagi holat koʻrsatilganini bilishi shart:
+        # aks holda tarixiy javobni joriy holat deb oʻqiydi.
+        meta.append(f"holat sanasi: {result.as_of.isoformat()}")
     if result.confidence:
         meta.append(f"ishonch: {result.confidence:.0%}")
     blocks.append(f"\n<i>{' · '.join(meta)}</i>")
     blocks.append(f"<i>{html.escape(result.disclaimer)}</i>")
 
     return "\n".join(blocks)
+
+
+def _parse_as_of(argument: str) -> tuple[date | None, str]:
+    """`/sana` argumentidan sanani ajratadi: «2019-05-01 savol matni».
+
+    Sana oʻqilmasa `(None, argument)` qaytadi — chaqiruvchi foydalanuvchiga
+    toʻgʻri shaklni koʻrsatadi. Jimgina «bugungi holat» ga oʻtish notoʻgʻri
+    boʻlardi: foydalanuvchi tarixiy javob soʻragan edi.
+    """
+    head, _, rest = argument.strip().partition(" ")
+    try:
+        return date.fromisoformat(head), rest.strip()
+    except ValueError:
+        return None, argument.strip()
 
 
 def _split_message(text: str, limit: int = MAX_MESSAGE) -> list[str]:

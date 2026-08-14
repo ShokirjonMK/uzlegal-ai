@@ -13,6 +13,7 @@ from rich.table import Table
 
 from uzlegal import signature as sig
 from uzlegal.cli.license import license_app
+from uzlegal.cli.passport import passport_app
 from uzlegal.config import get_registry, get_settings
 from uzlegal.core import ConsultResult
 from uzlegal.inference.backend import available_backends
@@ -28,6 +29,7 @@ app.add_typer(eval_app, name="eval")
 app.add_typer(kb_app, name="kb")
 app.add_typer(index_app, name="index")
 app.add_typer(license_app, name="license")
+app.add_typer(passport_app, name="passport")
 
 # Modul sub-applari. Har bir modul o'z faylida Typer ilovasini yaratadi va
 # faqat shu yerda ulanadi — shunda parallel ishlashda to'qnashuv bo'lmaydi.

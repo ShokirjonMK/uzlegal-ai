@@ -202,3 +202,20 @@ def test_yozib_bolmasa_sorov_yiqilmaydi(tmp_path: Path, monkeypatch: pytest.Monk
     blocker.write_text("men fayl man", encoding="utf-8")
     monkeypatch.setenv(audit.PATH_ENV, str(blocker / "consult.jsonl"))
     assert _write() is None
+
+
+# --------------------------------------------------------------------------- #
+# Holat sanasi — docs/21 W1-E
+# --------------------------------------------------------------------------- #
+
+
+def test_yozuvda_as_of_saqlanadi(_journal: Path) -> None:
+    """Javob qaysi sanadagi qonunchilikka ko'ra berilgani jurnalda qolishi shart."""
+    _write(as_of="2019-05-01")
+    assert next(iter(audit.read_all()))["as_of"] == "2019-05-01"
+
+
+def test_as_of_berilmasa_null_boladi(_journal: Path) -> None:
+    _write()
+    record = next(iter(audit.read_all()))
+    assert "as_of" in record and record["as_of"] is None

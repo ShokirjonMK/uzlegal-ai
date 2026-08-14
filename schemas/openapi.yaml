@@ -149,6 +149,13 @@ paths:
                   results: {type: array, items: {$ref: '#/components/schemas/ScoredChunk'}}
                   total: {type: integer}
                   latency_ms: {type: integer}
+                  as_of: {type: string, format: date, nullable: true}
+                  date_coverage:
+                    allOf: [{$ref: '#/components/schemas/DateCoverage'}]
+                    nullable: true
+                  dropped_by_version:
+                    type: integer
+                    description: "Versiya filtri chiqarib tashlagan bo'laklar soni"
 
   /documents/{doc_id}:
     get:
@@ -235,6 +242,57 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ConsultResult'}
         '413': {description: Fayl juda katta}
+
+  /passport/verify:
+    post:
+      tags: [passport]
+      summary: Javob pasportini tekshirish
+      description: |
+        Pasport tokeni haqiqiyligini tekshiradi. **Kalitsiz ochiq**: pasportni
+        ko'rsatgan tomon (sud, mijoz, qarshi tomon vakili) odatda tizim
+        mijozi emas.
+
+        Yaroqsiz token ham `200` qaytaradi — `valid: false` va sababi bilan.
+        «Bu pasport soxta» — so'rovga to'liq javob, so'rovdagi xato emas.
+      operationId: verifyPassport
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: {type: string, example: uzlegal-pass.v1.eyJ...}
+      responses:
+        '200':
+          description: Tekshiruv natijasi
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valid]
+                properties:
+                  valid: {type: boolean}
+                  reason: {type: string, description: "Faqat `valid: false` bo'lganda"}
+                  passport:
+                    type: object
+                    description: |
+                      Pasport mazmuni. Savol va javob MATNI yo'q — faqat
+                      `question_hash` va `answer_hash`.
+                    properties:
+                      version: {type: string, example: uzlegal-pass.v1}
+                      trace_id: {type: string}
+                      issued_at: {type: string, format: date-time}
+                      question_hash: {type: string, example: "sha256:9f2c…"}
+                      answer_hash: {type: string, example: "sha256:1ab7…"}
+                      citations: {type: array, items: {type: string}}
+                      kb_version: {type: string}
+                      model_version: {type: string, nullable: true}
+                      as_of: {type: string, format: date, nullable: true}
+                      gate: {type: object}
+                      key_fingerprint: {type: string, example: "SHA256:R4s0…"}
 
   /traces/{trace_id}:
     get:
@@ -407,9 +465,40 @@ components:
         latency_ms: {type: integer}
         model_version: {type: string}
         kb_version: {type: string}
+        as_of:
+          type: string
+          format: date
+          nullable: true
+          description: "So'rovdagi holat sanasi. `null` — bugungi holat."
+        date_coverage:
+          allOf: [{$ref: '#/components/schemas/DateCoverage'}]
+          nullable: true
+          description: "`as_of` berilganda manbalarning sana qamrovi"
+        passport:
+          type: string
+          nullable: true
+          description: |
+            Javob pasporti — imzolangan token (`uzlegal-pass.v1.<payload>.<imzo>`).
+            Uni javob bilan birga saqlang: `POST /passport/verify` orqali
+            javobning aynan shu tizimdan kelgani isbotlanadi. Tokenda savol
+            ham, javob matni ham yo'q — faqat ularning sha256 xeshi.
+            `null` — imzolash bajarilmadi (kalit yo'q); javobning o'zi
+            baribir beriladi.
+          example: uzlegal-pass.v1.eyJhbnN3ZXJfaGFzaCI6...
         disclaimer:
           type: string
           description: "MAJBURIY. Integratsiyada foydalanuvchiga ko'rsatilishi shart."
+
+    DateCoverage:
+      type: object
+      required: [confirmed, unknown, as_of]
+      description: |
+        `as_of` so'ralganda nechta manbaning tahrir tarixi ma'lum ekani.
+        `unknown > 0` bo'lsa `ConsultResult.caveats` da ogohlantirish bo'ladi.
+      properties:
+        confirmed: {type: integer, description: "`valid_from` ma'lum bo'lgan manbalar"}
+        unknown: {type: integer, description: "Tahrir tarixi noma'lum manbalar"}
+        as_of: {type: string, format: date}
 
     Citation:
       type: object

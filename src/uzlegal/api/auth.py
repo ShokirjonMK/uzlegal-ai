@@ -175,11 +175,18 @@ ADMIN_PREFIX = "/v1/admin/"
 # ma'lumot bermaydi. `/v1/plans` — narx ro'yxati, u ommaviy.
 # Hujjatlar (`/docs`, `/openapi.json`) shartnomani tasvirlaydi, ma'lumot
 # bermaydi.
+#
+# `/v1/passport/verify` — javob pasportini tekshirish (docs/21 § 4.7).
+# Pasportni ko'rsatgan tomon odatda tizim mijozi EMAS: sud, qarshi tomon
+# vakili yoki tekshiruvchi. Ularda API kaliti yo'q va bo'lmaydi ham.
+# Marshrut hech narsa oshkor qilmaydi — pasportda savol ham, javob matni
+# ham yo'q, faqat xeshi.
 PUBLIC_PATHS = frozenset(
     {
         "/v1/health",
         "/v1/meta",
         "/v1/plans",
+        "/v1/passport/verify",
         "/docs",
         "/redoc",
         "/openapi.json",

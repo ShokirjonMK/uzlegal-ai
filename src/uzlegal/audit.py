@@ -141,6 +141,7 @@ def record_consult(
     gate: dict[str, Any] | None = None,
     retrieval: dict[str, Any] | None = None,
     user_hash: str | None = None,
+    as_of: str | None = None,
 ) -> str | None:
     """Bitta maslahatni jurnalga yozadi. Yozuv xeshini qaytaradi.
 
@@ -164,6 +165,10 @@ def record_consult(
             "mode": mode,
             "kb_version": kb_version,
             "model_version": model_version,
+            # Javob qaysi sanadagi qonunchilikka ko'ra berilgani (docs/21 § 1.1).
+            # Busiz jurnal savolga qaysi holat bo'yicha javob berilganini
+            # ko'rsata olmaydi — nizoda esa aynan shu hal qiluvchi.
+            "as_of": as_of,
             "retrieval": retrieval or {},
             "gate": gate or {},
             # Javobning O'ZI emas, xeshi — modul izohiga qarang.
