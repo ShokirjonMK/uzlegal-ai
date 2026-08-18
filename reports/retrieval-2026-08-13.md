@@ -4,6 +4,13 @@
 **Indeks:** `kb/current`, `v2026.08.13` — 792 hujjat · 48 527 bo'lak
 **Oldingi o'lchov:** 20 hujjat · 8 636 bo'lak
 
+> ⚠️ **Tuzatish (2026-08-18).** Bu o'lchov paytida indeksda 48 527 emas,
+> **35 708** bo'lak qidiruvga kirar edi: takrorlangan `chunk_id` tufayli
+> 12 819 bo'lak (26.4%) yuklashda yutilardi va ularning o'rniga boshqa
+> bo'lakning matni qaytarilardi. Ya'ni quyidagi barcha metrikalar
+> **buzuq indeksda** o'lchangan. Sabab va tuzatish: `docs/23`. Yangi
+> asos: `reports/retrieval-2026-08-18.md`.
+
 Bu hisobot `B4` savoliga («qamrov hakami quraymizmi yoki korpusni
 kengaytiramizmi») javob beradi. Javob ikkalasi ham emas — va sabab
 quyida raqamlar bilan ko'rsatilgan.
@@ -160,7 +167,7 @@ o'tkazilmasin.
 
 - **Bekor qilingan norma sizishi — 0%.** Bu yuridik tizim uchun
   eng muhim xavfsizlik ko'rsatkichi va u to'liq korpusda ham saqlandi.
-- **Kechikish 264 ms median** — 48 527 bo'lakli indeksda. Foydalanuvchi
-  uchun sezilmaydi.
+- **Kechikish 264 ms median** — 35 708 bo'lakli indeksda (yuqoridagi
+  tuzatishga qarang). Foydalanuvchi uchun sezilmaydi.
 - Tirik sinovda uchala savol ham to'g'ri kodeks, to'g'ri modda va
   to'g'ri `lex.uz` havolasini qaytardi.

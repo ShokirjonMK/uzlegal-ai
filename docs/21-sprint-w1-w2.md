@@ -88,11 +88,16 @@ Korpusdagi haqiqiy holat (2026-08-14 da o'lchangan):
 
 | Ko'rsatkich | Qiymat | Ulush |
 |---|---|---|
-| Bo'laklar | 48 527 | — |
+| Bo'laklar | 48 527 \* | — |
 | `valid_from` **bor** | 12 367 | 25.5% |
 | `valid_from` **yo'q** | **36 160** | **74.5%** |
 | `status = repealed` | 24 | 0.05% |
 | Hujjatlar | 792 | — |
+
+> \* `chunks.jsonl` **satrlari**. O'sha paytda ulardan 12 819 tasi
+> takrorlangan `chunk_id` tufayli indeksga kirmasdi — ya'ni qidiruvdagi
+> haqiqiy bo'lak soni 35 708 edi. Ulushlar (25.5% / 74.5%) fayl bo'yicha
+> hisoblangan va ular to'g'ri; nuqson va tuzatish — `docs/23`.
 | Kamida bitta sanasi bor hujjat | 214 | 27% |
 
 `data/raw/lex.uz/*.meta.json` da hujjat qabul qilingan sana **yo'q** —

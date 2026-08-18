@@ -161,6 +161,12 @@ class BM25Index:
 # --------------------------------------------------------------------------- #
 
 
+def duplicate_ids(chunks: list[Chunk]) -> list[tuple[str, int]]:
+    """Takrorlangan `chunk_id` lar — kamayish tartibida `(id, nechta)`."""
+    counts = Counter(c.chunk_id for c in chunks)
+    return sorted(((cid, n) for cid, n in counts.items() if n > 1), key=lambda x: -x[1])
+
+
 class KnowledgeIndex:
     """Vektor (LanceDB) + leksik (BM25) indeks va chunk saqlagichi."""
 
@@ -172,6 +178,9 @@ class KnowledgeIndex:
         self._bm25: BM25Index | None = None
         self._chunks: dict[str, Chunk] = {}
         self._graph: ReferenceGraph | None = None
+        # `read_chunks()` da to'ldiriladi: takrorlangan identifikator
+        # tufayli yutilgan satrlar soni. Tuzatilgan indeksda — 0.
+        self.duplicate_rows = 0
 
     # ------------------------------------------------------------------ #
 
@@ -211,6 +220,21 @@ class KnowledgeIndex:
     ) -> None:
         if len(chunks) != len(vectors):
             raise ValueError(f"chunk ({len(chunks)}) va vektor ({len(vectors)}) soni mos emas")
+
+        # Takrorlangan identifikator bilan indeks qurish — jimgina
+        # korpus yo'qotish. Vektor jadvali va BM25 hamma satr uchun
+        # quriladi, lekin `load()` lug'atida oxirgisi g'olib chiqadi
+        # va qidiruv boshqa normaning matnini qaytaradi (docs/23).
+        # `chunker._enforce_unique_ids()` buni oldini oladi; bu
+        # yerdagi tekshiruv — kafolat buzilganda ish davom etmasligi
+        # uchun.
+        duplicates = duplicate_ids(chunks)
+        if duplicates:
+            worst = ", ".join(f"{cid} (×{n})" for cid, n in duplicates[:3])
+            raise ValueError(
+                f"takrorlangan chunk_id: {len(duplicates)} ta identifikator, "
+                f"{sum(n - 1 for _, n in duplicates)} satr yo'qolardi. Masalan: {worst}"
+            )
 
         import lancedb
 
@@ -273,15 +297,47 @@ class KnowledgeIndex:
 
         import lancedb
 
-        self._chunks = {}
-        for line in self.chunks_path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                chunk = Chunk(**json.loads(line))
-                self._chunks[chunk.chunk_id] = chunk
-
+        self.read_chunks()
         self._bm25 = BM25Index.load(self.bm25_path)
         self._db = lancedb.connect(str(self.vectors_path))
         self._table = self._db.open_table(TABLE_NAME)
+
+    def read_chunks(self) -> None:
+        """`chunks.jsonl` ni lug'atga o'qiydi va **yutilgan satrni sanaydi**.
+
+        Lug'atga yig'ishda takrorlangan identifikator ustiga yoziladi.
+        Ilgari bu jimgina sodir bo'lardi: 2026-08-14 da 48 527 satrdan
+        12 819 tasi (26.4%) shu yo'l bilan yo'qolgan va buni hech bir
+        vosita ko'rsatmagan — barcha hisobotlar 48 527 raqamini
+        keltirgan (docs/23).
+
+        Yo'qotishning o'zi ham yomon, lekin zarar kattaroq: vektor
+        jadvali va BM25 **hamma** satr uchun quriladi, ya'ni qidiruv
+        yutilgan bo'lakning matniga ball beradi, keyin lug'atdan
+        **boshqa** bo'lakning matnini oladi va uni haqiqiy
+        `source_url` bilan ko'rsatadi.
+
+        `load()` dan alohida turadi: bu yerda LanceDB ham, BM25 ham
+        kerak emas — faqat bo'lak metama'lumoti kerak.
+        """
+        self._chunks = {}
+        rows = 0
+        for line in self.chunks_path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                chunk = Chunk(**json.loads(line))
+                rows += 1
+                self._chunks[chunk.chunk_id] = chunk
+
+        self.duplicate_rows = rows - len(self._chunks)
+        if self.duplicate_rows:
+            log.warning(
+                "chunks.jsonl da takrorlangan chunk_id: %d satr yutildi "
+                "(%d satrdan %d noyob). Qidiruv boshqa normaning matnini "
+                "qaytarishi mumkin — indeksni qayta quring: uzlegal index build",
+                self.duplicate_rows,
+                rows,
+                len(self._chunks),
+            )
 
     def doc_titles(self) -> set[str]:
         """Indeksdagi hujjat sarlavhalari (normallashtirilgan).

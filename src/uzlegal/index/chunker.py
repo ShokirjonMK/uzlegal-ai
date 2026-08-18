@@ -230,6 +230,88 @@ def _enforce_limit(chunks: list[Chunk]) -> list[Chunk]:
     return out
 
 
+DUP_SUFFIX = "#"
+
+
+def _enforce_unique_ids(chunks: list[Chunk]) -> list[Chunk]:
+    """`chunk_id` noyobligini **chiqish nuqtasida** kafolatlaydi.
+
+    ## Nima uchun kerak edi
+
+    `store.load()` bo'laklarni `chunk_id` bo'yicha lug'atga yig'adi —
+    takrorlangan identifikator ustiga jimgina yoziladi. Amalda
+    o'lchandi (2026-08-14, 792 hujjat): 48 527 satrdan noyob
+    identifikator atigi **35 708** ta, ya'ni 4 484 identifikator
+    12 819 satrni bosib ketardi.
+
+    Yo'qotishning o'zi ham yomon, lekin asosiy zarar boshqa joyda.
+    Vektor jadvali ham, BM25 ham **hamma** 48 527 satr uchun
+    quriladi. Qidiruv birinchi nusxaning matniga ball beradi, keyin
+    `store.py:411` va `:472` o'sha identifikatorni lug'atdan
+    qidiradi va **oxirgi nusxaning matnini** qaytaradi. Foydalanuvchi
+    haqiqiy `source_url` bilan **boshqa normaning matnini** ko'radi.
+    Iqtibosga asoslangan tizimda bu yo'qotishdan og'irroq.
+
+    ## Nima uchun bu yerda, tarmoqlarda emas
+
+    `_enforce_limit()` bilan bir xil sabab. Identifikator yasaydigan
+    yo'l **oltita** va ularning har biri o'zicha to'qnashadi:
+
+    1. kichik modda — `{doc}:{num}`. Ikki element bir xil
+       `article_number` olsa to'qnashadi: «244-3-modda» dan parser
+       `3` ni ajratadi va u haqiqiy 3-modda bilan urishadi (3 794 satr)
+    2. qismlarga bo'lish — `{doc}:{num}:{mark}`. Bitta modda ichida
+       `1.` `2.` raqamlash qayta-qayta boshlanadi: davlat dasturida
+       `-6811936:35:2` **187 marta** uchradi (8 668 satr)
+    3. band — `{doc}:{num}:{mark}:{item}`. Bir qismda `a) b) … a)`
+       ro'yxati qaytadan boshlanadi (225 satr)
+    5. `_merge_tiny()` — `{first}+{n}`, to'qnashuvni birinchi
+       bo'lakdan meros oladi (132 satr)
+
+    Qolgan ikkitasi — `_split_oversized()` va `_enforce_limit()` —
+    tayyor identifikatorga `:{piece_no}` qo'shadi. Ular o'z-o'zicha
+    to'qnashuv yasagani korpusda **o'lchanmagan**, lekin ular
+    yuqoridagilardan **keyin** ishlaydi va bo'lingan har bir parcha
+    to'qnashuvni meros oladi. Shuning uchun kafolat ham eng oxirida
+    turadi: undan keyin identifikatorga hech kim tegmaydi.
+
+    Har tarmoqqa alohida tekshiruv qo'yish — unutib bo'ladigan
+    yondashuv. Shuning uchun kafolat `_enforce_limit()` dan **keyin**
+    turadi: undan keyin hech kim identifikatorga tegmaydi.
+
+    ## Nima uchun aynan tartib raqami
+
+    Birinchi uchragan bo'lak identifikatorini **o'zgarishsiz**
+    saqlaydi, keyingilariga `#2`, `#3` qo'shiladi. Ya'ni to'qnashmagan
+    35 708 identifikator (korpusning 92%) o'z qiymatida qoladi —
+    audit jurnalidagi va imzolangan pasportlardagi eski havolalar
+    ishlashda davom etadi. `#` belgisi korpusda umuman uchramaydi
+    (o'lchandi: 0 ta identifikator).
+
+    Tartib hujjat ichidagi bo'lak tartibiga bog'liq, u esa parser
+    chiqishi bilan bir xil — bir xil kirishdan bir xil identifikator
+    chiqadi.
+
+    ## Nima QILINMAYDI
+
+    Bu funksiya to'qnashuvning **sababini** tuzatmaydi. «244-3-modda»
+    dan `3` ajratilishi parserning alohida nuqsoni va u metama'lumot
+    sifatiga ta'sir qiladi (`chunks_for_article()` noto'g'ri modda
+    qaytaradi). U alohida ish sifatida qayd etilgan — bu yerda faqat
+    **jimgina yo'qotish** to'xtatiladi.
+    """
+    seen: dict[str, int] = {}
+    out: list[Chunk] = []
+    for chunk in chunks:
+        count = seen.get(chunk.chunk_id, 0) + 1
+        seen[chunk.chunk_id] = count
+        if count == 1:
+            out.append(chunk)
+            continue
+        out.append(chunk.model_copy(update={"chunk_id": f"{chunk.chunk_id}{DUP_SUFFIX}{count}"}))
+    return out
+
+
 def split_by(pattern: re.Pattern[str], text: str) -> list[tuple[str | None, str]]:
     """Matnni belgilangan raqamlash bo'yicha bo'ladi.
 
@@ -335,7 +417,7 @@ class Chunker:
         chunks: list[Chunk] = []
         for article in doc.articles:
             chunks.extend(self._chunk_article(doc, article))
-        return _enforce_limit(self._merge_tiny(chunks))
+        return _enforce_unique_ids(_enforce_limit(self._merge_tiny(chunks)))
 
     # ------------------------------------------------------------------ #
 

@@ -845,7 +845,7 @@ def index_build(
     """
     from uzlegal.index.chunker import Chunker
     from uzlegal.index.embedder import Embedder
-    from uzlegal.index.store import KnowledgeIndex
+    from uzlegal.index.store import KnowledgeIndex, duplicate_ids
     from uzlegal.ingest.connectors.lex_uz import LexUzConnector
     from uzlegal.ingest.parsers.lex_uz import LexUzParser
     from uzlegal.ingest.sync import SyncManager
@@ -886,6 +886,25 @@ def index_build(
         console.print("[red]✕[/red] Chunk yaratilmadi")
         raise typer.Exit(1)
 
+    # Noyoblik embeddingdan OLDIN tekshiriladi. `store.build()` ham
+    # tekshiradi, lekin u o'n daqiqalik embeddingdan keyin turadi —
+    # xatoni o'sha yerda ko'rish kutishning eng qimmat usuli.
+    #
+    # `chunker._enforce_unique_ids()` hujjat ichida kafolat beradi.
+    # Bu yerdagi tekshiruv hujjatlar **orasidagi** to'qnashuvni
+    # ushlaydi: ikki hujjat bir xil `doc_id` olsa (arxivda takror
+    # nusxa), kafolat ishlamaydi.
+    duplicates = duplicate_ids(chunks)
+    if duplicates:
+        lost = sum(n - 1 for _, n in duplicates)
+        console.print(
+            f"[red]✕[/red] Takrorlangan chunk_id: {len(duplicates)} ta identifikator, "
+            f"{lost} satr yo'qolardi"
+        )
+        for cid, n in duplicates[:5]:
+            console.print(f"    [dim]{cid}  ×{n}[/dim]")
+        raise typer.Exit(1)
+
     # Vaqt bahosi bo'laklar SONIGA emas, UZUNLIGIGA bog'liq: e'tibor
     # mexanizmi O(n²), ya'ni bitta 5000 tokenlik bo'lak o'n ikkita
     # 400 tokenlikdan qimmatroq. Shuning uchun baho belgilar bo'yicha
@@ -897,8 +916,8 @@ def index_build(
     # bo'lishilgan bo'lsa tezlik tushadi.
     rate = 90_000 if embedder.device != "cpu" else 400  # belgi/s, o'lchangan
     console.print(
-        f"\nJami [bold]{len(chunks)}[/bold] chunk · {total_chars / 1e6:.1f} mln belgi · "
-        f"qurilma {embedder.device}"
+        f"\nJami [bold]{len(chunks)}[/bold] noyob chunk · {total_chars / 1e6:.1f} mln belgi · "
+        f"{len({c.doc_id for c in chunks})} hujjat · qurilma {embedder.device}"
     )
     console.print(f"[dim]Taxminiy vaqt: ~{total_chars / rate / 60:.0f} daqiqa[/dim]\n")
 
@@ -965,6 +984,17 @@ def index_stats(path: Path = typer.Option(Path("kb/current"), "--path")) -> None
         raise typer.Exit(4)
     for key, value in index.meta.items():
         console.print(f"  {key:12} {value}")
+
+    # `chunks.jsonl` dagi satr soni bilan haqiqiy noyob bo'lak sonini
+    # taqqoslash. Ular farq qilsa metadagi raqam ham, hisobotlardagi
+    # raqam ham haqiqatdan katta bo'ladi (docs/23).
+    index.read_chunks()
+    console.print(f"  {'noyob':12} {len(index._chunks)}")
+    if index.duplicate_rows:
+        console.print(
+            f"  [red]{'takror':12} {index.duplicate_rows} satr yutildi[/red]\n"
+            "  [yellow]Indeksni qayta quring: uzlegal index build[/yellow]"
+        )
 
 
 @index_app.command("refcheck")

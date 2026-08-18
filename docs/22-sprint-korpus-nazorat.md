@@ -623,3 +623,8 @@ bajarilmaydi.
 Bu sprintga **kiritilmadi**: u `chunk_id` sxemasini o'zgartiradi,
 ya'ni to'liq qayta indekslashni talab qiladi va alohida rejalashtirilishi
 kerak.
+
+> ✅ **Hal qilindi (2026-08-18)** — `docs/23`. Tekshiruvda nuqsonning
+> ta'siri yana bir pog'ona og'irroq ekani aniqlandi: yo'qotish emas,
+> **noto'g'ri iqtibos**. To'rtala tavsiya bajarildi va korpus qayta
+> indekslandi.
