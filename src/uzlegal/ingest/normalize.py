@@ -231,12 +231,28 @@ def fold(text: str) -> str:
 # Yuridik atamalar
 # --------------------------------------------------------------------------- #
 
+# Prim moddada tire OLDIDAN bo'sh joy bo'lishi mumkin, KEYINDAN yo'q.
+#
+# Manbada bir xil modda ikki ko'rinishda keladi: «244-3-modda» va
+# «244 -3 -modda». Ilgari ichki guruh `[-–]\d+` bo'sh joydan o'ta
+# olmasdi va ikkinchi ko'rinishdan butun raqam emas, **oxirgi bo'lagi**
+# ajralardi:
+#
+#     «244-3-modda»    → 244-3   ✓
+#     «244 -3 -modda»  → 3       ✗   ← 244-3-modda «3-modda» deb iqtibos qilinardi
+#
+# Tire KEYINDAN bo'sh joy talab qilinmasligi ataylab: ikki tomonida
+# ham bo'sh joy bo'lgan tire — bu diapazon ajratuvchisi, prim
+# qo'shimchasi emas. `_RUN_RANGE` xuddi shu farqqa tayanadi, ya'ni
+# «24 — 35-moddalari» hamon 35 beradi, «24-35» emas.
+_PRIM = r"(?:\s*[-–]\d+)?"
+
 # "234-modda", "234 modda", "Статья 234", "234-м." → "234"
 _ARTICLE_PATTERNS = [
-    re.compile(r"(\d+(?:[-–]\d+)?)\s*[-–]?\s*modda", re.IGNORECASE),
-    re.compile(r"(\d+(?:[-–]\d+)?)\s*[-–]?\s*модда", re.IGNORECASE),
+    re.compile(rf"(\d+{_PRIM})\s*[-–]?\s*modda", re.IGNORECASE),
+    re.compile(rf"(\d+{_PRIM})\s*[-–]?\s*модда", re.IGNORECASE),
     re.compile(r"стать[яи]\s+(\d+(?:[-–.]\d+)?)", re.IGNORECASE),
-    re.compile(r"^\s*(\d+(?:[-–]\d+)?)\s*[-–.]", re.IGNORECASE),
+    re.compile(rf"^\s*(\d+{_PRIM})\s*[-–.]", re.IGNORECASE),
 ]
 
 
@@ -245,7 +261,7 @@ def extract_article_number(text: str) -> str | None:
     for pattern in _ARTICLE_PATTERNS:
         m = pattern.search(text)
         if m:
-            return m.group(1).replace("–", "-")
+            return _WS_RE.sub("", m.group(1)).replace("–", "-")
     return None
 
 

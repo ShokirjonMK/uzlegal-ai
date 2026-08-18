@@ -1,0 +1,60 @@
+# Retrieval baholash — gibrid
+
+**Sana:** 2026-08-18 (kech) — `docs/24` sprintidan keyin
+**Indeks:** `kb/current` — 792 hujjat · 48 527 noyob bo'lak
+**Oldingi:** `reports/retrieval-2026-08-18.md`
+
+> **Sifat o'zgarmadi va bu kutilgan.** BM25 teskari indeksga
+> o'tkazildi, natija esa **bayt-bayt bir xil**: 36 so'rovning
+> hammasida top-10 tartibi aynan, eng katta ball farqi 0.0
+> (`docs/24 § 4.3`). Parser tuzatishi (P1a) 4 ta bo'lakka tegadi
+> va ularning hech biri bu to'plamda yo'q.
+>
+> **Kechikish:** 473 → 126 ms median, 740 → 152 ms p95.
+> Ammo 473 ms toza asos emas — u indeks qurishdan darhol keyin,
+> GPU band holatda olingan. BM25 ning haqiqiy ulushi ~55 ms.
+> Taqqoslash uchun yaroqli asos — 13-avgustdagi 264 ms; unga
+> nisbatan **2.1× tezroq**, ustiga indeks 36% kattaroq
+> (`docs/24 § 5.1`).
+
+Holatlar: 36 · reranker: yo‘q
+
+| Metrika | Natija | Maqsad | |
+|---------|-------:|-------:|--|
+| recall@1 | 42% | 60% | ❌ |
+| recall@3 | 64% | 80% | ❌ |
+| recall@10 | 86% | 90% | ❌ |
+| mrr | 54% | 75% | ❌ |
+| deprecated leak | 0% | 0% | ✅ |
+| kechikish (median) | 126 ms | — | |
+| kechikish (p95) | 152 ms | 600 ms | ✅ |
+
+## Kategoriya bo'yicha (Recall@3)
+
+| Kategoriya | Recall@3 |
+|------------|---------:|
+| jinoyat | 67% |
+| korporativ | 100% |
+| majburiyat | 50% |
+| mehnat | 50% |
+| meros | 100% |
+| modda-lookup | 100% |
+| muddat | 67% |
+| mulk | 50% |
+| protsessual | 25% |
+| shartnoma | 33% |
+| shaxs | 100% |
+| zarar | 100% |
+
+## Topilmagan (5)
+
+- `dm-03` — "Sud muddat o'tganini o'zi hisobga oladimi yoki tomon aytishi kerakmi"
+  - kutilgan: ['153'], olindi: ['FUQAROLIK KODEKSI:145', 'JINOYAT-PROTSESSUAL KO:314', 'JINOYAT-PROTSESSUAL KO:317']
+- `ish-haqi-01` — "Maoshni to'lash tartibi va muddatlari"
+  - kutilgan: ['333'], olindi: ['Bojxona kodeksi:333', 'Bojxona kodeksi:327', 'Bojxona kodeksi:329']
+- `mshart-01` — 'Ish beruvchi mehnat shartnomasini rasmiylashtirishga majburmi'
+  - kutilgan: ['32'], olindi: ['Mehnat kodeksi:25', 'Mehnat kodeksi:125', 'Mehnat kodeksi:128']
+- `fpk-01` — "Er-xotinni ajratish to'g'risidagi ishni sud qanday ko'radi"
+  - kutilgan: ['185'], olindi: ['OILA KODEKSI:40', 'OILA KODEKSI:44', 'OILA KODEKSI:28']
+- `fpk-03` — "Sudga murojaat qilishda qanday to'lovlar bo'ladi"
+  - kutilgan: ['127'], olindi: ['Iqtisodiy protsessual:116', 'Fuqarolik protsessual:4', 'Maʼmuriy sud ishlarini:113']

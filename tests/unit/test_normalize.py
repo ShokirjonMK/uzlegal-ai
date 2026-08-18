@@ -130,6 +130,19 @@ def test_rus_matni_transliteratsiya_qilinmaydi() -> None:
         ("статьи 53 внесены", "53"),
         ("234-1-modda", "234-1"),
         ("Umumiy qoidalar", None),
+        # Prim moddada tire OLDIDAN bo'sh joy bo'lishi mumkin. Ilgari
+        # bunday sarlavhadan butun raqam emas, oxirgi bo'lagi ajralardi
+        # va 244-3-modda «3-modda» deb iqtibos qilinardi (docs/23 § 2.2.2).
+        ("244 -3 -modda. Diniy mazmundagi materiallar", "244-3"),
+        ("56 -2-modda. Giyohvandlik vositalari", "56-2"),
+        ("24 -5 -modda. Qishloq xo'jaligi yeri", "24-5"),
+        # Ikki tomonida ham bo'sh joy bo'lgan tire — diapazon
+        # ajratuvchisi, prim qo'shimchasi emas. Bu farq saqlanishi shart,
+        # aks holda «24 — 35-moddalari» dan «24-35» degan mavjud bo'lmagan
+        # modda chiqardi.
+        ("24 — 35-moddalari", "35"),
+        ("173-1 - 173-7-moddalar", "173-7"),
+        ("65 va 66-moddalar", "66"),
     ],
 )
 def test_modda_raqami(text: str, expected: str | None) -> None:

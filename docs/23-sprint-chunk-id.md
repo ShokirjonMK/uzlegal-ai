@@ -100,12 +100,63 @@ Bu **parser xatosi emas**: matn haqiqatan shunday raqamlangan.
 Identifikator sxemasi «bir moddada bir marta `2.` qism bo'ladi» deb
 faraz qilgan, dastur turidagi hujjatda esa bu faraz o'rinli emas.
 
-### 2.2 `article` — parser nuqsoni ham bor
+### 2.2 `article` — bir hujjatda bir raqam bir necha marta
+
+> **Tuzatish (2026-08-18, keyinroq).** Bu bo'limning birinchi
+> tahririda `article` turidagi 3 794 satr **parser nuqsoniga**
+> (`«244 -3 -modda»` dan `3` ajratilishi) bog'langan edi. U bitta
+> namunadan umumlashtirilgan xulosa edi va **noto'g'ri**. Quyida
+> to'liq tasnif keltirilgan; parser nuqsoni atigi 4 ta guruhga
+> tegadi.
+
+2 310 ta `article` guruh (6 104 satr, ortiqchasi 3 794) sabab
+bo'yicha tasniflandi:
+
+| Sabab | Guruh | Ulush |
+|---|---:|---:|
+| Bir hujjatning **boshqa bobida** o'sha raqam | **1 745** | **75.5%** |
+| Sarlavha ham bir xil (`«1.»`, `«2.»` — raqamlangan bandlar) | 549 | 23.8% |
+| Qo'shtirnoqli sarlavha (tahrir matni ichidagi modda) | 10 | 0.4% |
+| **Prim raqam** — `«244 -3 -modda»` | **4** | 0.2% |
+| `«Qarang:»` izohi element sifatida ajralgan | 2 | 0.1% |
+
+### 2.2.1 Asosiy sabab — sxemada bob yo'q
+
+Ustunlikdagi holat parser xatosi emas. O'zbek qonunchiligida
+bitta hujjat bir nechta ilovadan iborat bo'ladi va **har ilova
+moddani 1 dan qayta sanaydi**:
+
+```
+-8262661  «Intellektual mulk sohasidagi ayrim davlat xizmatlari…»
+          1-ilova   →  1-modda, 2-modda, …
+          2-ilova   →  1-modda, 2-modda, …   ← o'sha raqamlar
+```
+
+`{doc_id}:{article_number}` sxemasida bob/ilova komponenti yo'q,
+shuning uchun bunday hujjatda to'qnashuv **muqarrar**.
+
+Ta'sirlangan 348 hujjatning turi:
+
+| `doc_type` | Guruh |
+|---|---:|
+| `boshqa` (nizom, tartib, ilova) | 2 197 |
+| `qonun` | 35 |
+| `plenum` | 30 |
+| `VMQ` | 30 |
+| `PF` | 12 |
+| **`kodeks`** | **6** |
+
+Ya'ni kodekslar — savol-javob yo'lining asosiy nishoni — deyarli
+toza. Muammo ko'proq me'yoriy-tartib hujjatlarida.
+
+`_enforce_unique_ids()` identifikator to'qnashuvini yopadi, lekin
+**`chunks_for_article()` hamon aralashtiradi**: u `doc_id` va
+`article` bo'yicha filtrlaydi, bob esa hisobga olinmaydi. Bu
+alohida ish sifatida `§ 6, P1b` da qayd etilgan.
+
+### 2.2.2 Prim raqam — kichik, lekin haqiqiy
 
 `-111453:3` — Jinoyat kodeksining 3-moddasi va **244-3-moddasi**.
-Sarlavha `244 -3 -modda` ko'rinishida kelgan va `article_number` ga
-`3` yozilgan.
-
 Sabab `normalize.py:236` dagi naqshda va u aniq:
 
 ```python
@@ -121,11 +172,10 @@ raqamni emas, oxirgi bo'lagini oladi:
 «244 -3 -modda»  → 3       ✗
 ```
 
-Bu chunker emas, parser nuqsoni va u faqat identifikatorga emas,
-**metama'lumotga** ta'sir qiladi: `chunks_for_article("−111453", "3")`
-ikkala moddani ham qaytaradi. Bu sprintda tuzatilmadi — u
-`ingest/parsers/lex_uz.py` ni o'zgartiradi va o'z o'lchoviga muhtoj.
-Qayd etildi: **§ 6**.
+Atigi 4 ta bo'lak, lekin oqibati identifikatordan kattaroq:
+iqtibos `«3-modda»` deb ko'rsatiladi, matn esa 244-3-moddaniki.
+Iqtibos to'g'riligiga tegadigan nuqson — shuning uchun tuzatiladi
+(`§ 7`).
 
 ### 2.3 Yechim — chiqish nuqtasida kafolat
 
@@ -298,14 +348,28 @@ bajarilmoqda.
 Lekin p95 740 ms maqsad (600 ms) dan yuqori va buni yopish kerak.
 Bu alohida ish: `§ 6, P4`.
 
+> ⚠️ **Tuzatish (2026-08-18, keyinroq).** Yuqoridagi izoh — 264 →
+> 473 ms o'sishini bo'lak sonining ortishiga bog'lash — **to'liq
+> to'g'ri emas**. Taqsimot o'lchanganda BM25 ning ulushi atigi ~55 ms
+> chiqdi. 473 ms o'n besh daqiqalik indeks qurishdan darhol keyin,
+> GPU hali bo'shamagan holda olingan va **toza asos emas**.
+> Teskari indeksdan keyin ayni to'plamda 126 ms median / 152 ms p95.
+> Batafsil: `docs/24 § 5.1`.
+
 ---
 
 ## 6. Bu sprintga kirmaydi
 
-| # | Nima | Nega qoldirildi |
+| # | Nima | Holat |
 |---|---|---|
-| **P1** | `article_number` parseri `244-3-modda` dan `3` ajratadi | `ingest/parsers/lex_uz.py` o'zgaradi, o'z o'lchoviga muhtoj (§ 2.2) |
-| **P2** | `chunks_for_article()` bir xil raqamli ikki moddani aralashtiradi | P1 ning oqibati, u bilan birga hal bo'ladi |
-| **P3** | `heading` da qism belgisi takrorlanganda ham bir xil ko'rinadi | Identifikator emas, ko'rinish masalasi |
-| **P4** | Kechikish p95 740 ms, maqsad 600 ms | Tuzatish natijasida paydo bo'ldi (§ 5.4). BM25 ni tezlashtirish alohida ish |
-| **P5** | `retrieval-gold-v1` matn to'g'riligini o'lchamaydi | § 5.3. Gold set kengaytirilishi kerak — A3 doirasidagi ish |
+| **P1a** | `article_number` parseri `«244 -3 -modda»` dan `3` ajratadi | ✅ `docs/24 § 2` — 4 ta bo'lak tuzatildi |
+| **P1b** | `chunks_for_article()` bir xil raqamli moddalarni aralashtiradi | ✅ `docs/24 § 3` — `element_id` bo'yicha ajratildi |
+| **P2** | — | P1b bilan birlashtirildi |
+| **P3** | `heading` da qism belgisi takrorlanganda ham bir xil ko'rinadi | ⏸ ochiq — identifikator emas, ko'rinish masalasi |
+| **P4** | Kechikish p95 740 ms, maqsad 600 ms | ✅ `docs/24 § 4` — BM25 teskari indeksga o'tdi (8.9×) |
+| **P5** | `retrieval-gold-v1` matn to'g'riligini o'lchamaydi | ⏸ ochiq — A3 (yurist ekspert) doirasida |
+
+> **Diqqat:** `§ 2.2` ning birinchi tahriri P1 ni to'qnashuvlarning
+> **asosiy sababi** deb ko'rsatgan edi. To'liq tasnif buni rad etdi —
+> parser nuqsoni 2 310 guruhdan atigi 4 tasiga tegadi. Tuzatilgan
+> tahlil `§ 2.2` da, sabab esa `docs/24 § 1` da.

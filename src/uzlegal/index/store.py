@@ -85,44 +85,71 @@ class BM25Index:
         self.k1 = k1
         self.b = b
         self.doc_ids: list[str] = []
-        self.doc_freqs: list[Counter[str]] = []
         self.doc_lens: list[int] = []
         self.df: Counter[str] = Counter()
         self.avg_len: float = 0.0
+        # atama -> [(hujjat indeksi, chastota), ...]
+        self.postings: dict[str, list[tuple[int, int]]] = {}
+        # har hujjat uchun `1 - b + b * len/avg` — qidiruvda qayta
+        # hisoblanmasin (bir so'rovda o'n minglab marta kerak bo'lardi)
+        self.norms: list[float] = []
 
     def build(self, chunks: list[Chunk]) -> None:
         self.doc_ids = [c.chunk_id for c in chunks]
-        self.doc_freqs = []
         self.doc_lens = []
         self.df = Counter()
+        self.postings = {}
 
-        for chunk in chunks:
+        for i, chunk in enumerate(chunks):
             tokens = tokenize(chunk.indexed_text)
             freqs = Counter(tokens)
-            self.doc_freqs.append(freqs)
             self.doc_lens.append(len(tokens))
             self.df.update(freqs.keys())
+            for term, tf in freqs.items():
+                self.postings.setdefault(term, []).append((i, tf))
 
         self.avg_len = sum(self.doc_lens) / len(self.doc_lens) if self.doc_lens else 0.0
+        self._build_norms()
+
+    def _build_norms(self) -> None:
+        avg = self.avg_len or 1.0
+        self.norms = [1 - self.b + self.b * (length / avg) for length in self.doc_lens]
 
     def search(self, query: str, top_k: int = 50) -> list[tuple[str, float]]:
+        """Okapi BM25 — teskari indeks bo'yicha.
+
+        ## Nima uchun teskari indeks
+
+        Ilgari bu yerda har atama uchun **butun korpus** aylanardi:
+
+            for i, freqs in enumerate(self.doc_freqs):   # 48 527 marta
+                tf = freqs.get(term, 0)
+
+        Ya'ni ish hajmi korpus kattaligiga bog'liq edi, so'rovga emas.
+        Yuridik atama esa korpusning kichik qismida uchraydi:
+        «vindikatsiya» o'n martacha, «modda» o'n minglab marta.
+        Birinchisi uchun 48 527 ta lug'at qidiruvining 48 517 tasi
+        behuda edi.
+
+        Teskari indeksda faqat atamani **haqiqatan tashiydigan**
+        bo'laklar aylanadi. `docs/23 § 5.4` da qayd etilgan kechikish
+        o'sishi (264 → 473 ms) shu bilan yopildi.
+        """
         if not self.doc_ids:
             return []
         terms = tokenize(query)
         n = len(self.doc_ids)
         scores: dict[int, float] = {}
+        k1 = self.k1
+        norms = self.norms or [1.0] * n
 
         for term in terms:
-            df = self.df.get(term, 0)
-            if df == 0:
+            postings = self.postings.get(term)
+            if not postings:
                 continue
-            idf = math.log(1 + (n - df + 0.5) / (df + 0.5))
-            for i, freqs in enumerate(self.doc_freqs):
-                tf = freqs.get(term, 0)
-                if tf == 0:
-                    continue
-                norm = 1 - self.b + self.b * (self.doc_lens[i] / (self.avg_len or 1))
-                scores[i] = scores.get(i, 0.0) + idf * (tf * (self.k1 + 1)) / (tf + self.k1 * norm)
+            idf = math.log(1 + (n - len(postings) + 0.5) / (len(postings) + 0.5))
+            for i, tf in postings:
+                scores[i] = scores.get(i, 0.0) + idf * (tf * (k1 + 1)) / (tf + k1 * norms[i])
 
         ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)[:top_k]
         return [(self.doc_ids[i], s) for i, s in ranked]
@@ -135,7 +162,7 @@ class BM25Index:
                     "k1": self.k1,
                     "b": self.b,
                     "doc_ids": self.doc_ids,
-                    "doc_freqs": self.doc_freqs,
+                    "postings": self.postings,
                     "doc_lens": self.doc_lens,
                     "df": self.df,
                     "avg_len": self.avg_len,
@@ -149,10 +176,22 @@ class BM25Index:
             data = pickle.load(fh)
         index = cls(k1=data["k1"], b=data["b"])
         index.doc_ids = data["doc_ids"]
-        index.doc_freqs = data["doc_freqs"]
         index.doc_lens = data["doc_lens"]
         index.df = data["df"]
         index.avg_len = data["avg_len"]
+
+        if "postings" in data:
+            index.postings = data["postings"]
+        else:
+            # Tuzatishdan oldingi pikel: `doc_freqs` saqlangan. Uni
+            # tashlab yubormaymiz — teskari indeks o'sha yerdan
+            # yig'iladi, ya'ni eski indeks qayta qurilmasdan ishlaydi.
+            log.info("bm25.pkl eski formatda — teskari indeks yig'ilmoqda")
+            for i, freqs in enumerate(data.get("doc_freqs", [])):
+                for term, tf in freqs.items():
+                    index.postings.setdefault(term, []).append((i, tf))
+
+        index._build_norms()
         return index
 
 
@@ -365,6 +404,24 @@ class KnowledgeIndex:
         Uzun modda bir nechta chunkka bo'lingan bo'lishi mumkin, shuning
         uchun ro'yxat qaytadi. Tartib — qism/band raqami bo'yicha, ya'ni
         birinchi chunk moddaning boshi bo'ladi.
+
+        ## Nima uchun `element_id` bo'yicha ham filtrlanadi
+
+        Modda raqami hujjat ichida noyob **emas**. O'zbek qonunchiligida
+        bitta hujjat bir nechta ilovadan iborat bo'ladi va har ilova
+        moddani 1 dan qayta sanaydi. Korpusda o'lchandi (docs/23 § 2.2):
+        348 hujjatda 1 745 ta shunday holat bor.
+
+        Ilgari bu yerda faqat `doc_id` va `article` taqqoslanardi, ya'ni
+        **turli ilovalardagi turli moddalar** bitta moddaning bo'laklari
+        sifatida qaytarilardi. Chaqiruvchi buni sezmasdi: `collisions.py`
+        `chunks[0].status` ni oladi, ya'ni boshqa ilovadagi moddaning
+        holati asosida havola «bekor qilingan» deb belgilanishi mumkin
+        edi.
+
+        Endi hujjat tartibida **birinchi** modda tanlanadi va faqat
+        o'shanikilari qaytadi. Noaniqlikni ko'rish uchun —
+        `article_variants()`.
         """
         self.load()
         found = [
@@ -372,8 +429,47 @@ class KnowledgeIndex:
             for chunk in self._chunks.values()
             if chunk.doc_id == doc_id and chunk.article == article
         ]
-        found.sort(key=lambda c: (c.part or "", c.item or "", c.chunk_id))
-        return found[:limit]
+        if not found:
+            return []
+
+        # `self._chunks` fayl tartibida to'ldiriladi, u esa hujjat
+        # tartibi — ya'ni birinchi topilgani hujjatdagi birinchi modda.
+        first = found[0].element_id
+        same = [chunk for chunk in found if chunk.element_id == first]
+        same.sort(key=lambda c: (c.part or "", c.item or "", c.chunk_id))
+        return same[:limit]
+
+    def article_variants(self, doc_id: str, article: str) -> list[list[str]]:
+        """Shu raqamni tashiydigan **alohida** moddalarning bob yo'llari.
+
+        Bittadan ko'p bo'lsa — raqam hujjat ichida noaniq (docs/23 § 2.2).
+        `chunks_for_article()` bunday holatda birinchisini tanlaydi;
+        chaqiruvchi tanlov borligini shu yerdan biladi.
+        """
+        self.load()
+        seen: dict[str, list[str]] = {}
+        for chunk in self._chunks.values():
+            if chunk.doc_id == doc_id and chunk.article == article:
+                seen.setdefault(str(chunk.element_id), list(chunk.hierarchy))
+        return list(seen.values())
+
+    def ambiguous_articles(self) -> dict[str, int]:
+        """Hujjat → ichida bir necha moddaga tegishli raqamlar soni.
+
+        Diagnostika uchun: bu raqam nolga teng bo'lmasa
+        `chunks_for_article()` va iqtibos qidiruvi tanlov qilishga
+        majbur bo'ladi.
+        """
+        self.load()
+        elements: dict[tuple[str, str], set[str]] = {}
+        for chunk in self._chunks.values():
+            if chunk.article:
+                elements.setdefault((chunk.doc_id, chunk.article), set()).add(str(chunk.element_id))
+        out: dict[str, int] = {}
+        for (doc_id, _), els in elements.items():
+            if len(els) > 1:
+                out[doc_id] = out.get(doc_id, 0) + 1
+        return out
 
     def article_labels(self, doc_id: str) -> list[str]:
         """Hujjatning indeksdagi modda yorliqlari — takrorsiz va tartiblangan.
