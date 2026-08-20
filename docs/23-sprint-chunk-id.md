@@ -365,7 +365,7 @@ Bu alohida ish: `§ 6, P4`.
 | **P1a** | `article_number` parseri `«244 -3 -modda»` dan `3` ajratadi | ✅ `docs/24 § 2` — 4 ta bo'lak tuzatildi |
 | **P1b** | `chunks_for_article()` bir xil raqamli moddalarni aralashtiradi | ✅ `docs/24 § 3` — `element_id` bo'yicha ajratildi |
 | **P2** | — | P1b bilan birlashtirildi |
-| **P3** | `heading` da qism belgisi takrorlanganda ham bir xil ko'rinadi | ⏸ ochiq — identifikator emas, ko'rinish masalasi |
+| **P3** | Yorliq qism belgisi takrorlanganda ham bir xil ko'rinadi | ✅ `docs/25 § 3` — 19 024 bo'lak (39.2%) ta'sirlangan ekan; `citation_label` da tartib raqami qo'shildi (`heading` da emas — `docs/25 § 4`) |
 | **P4** | Kechikish p95 740 ms, maqsad 600 ms | ✅ `docs/24 § 4` — BM25 teskari indeksga o'tdi (8.9×) |
 | **P5** | `retrieval-gold-v1` matn to'g'riligini o'lchamaydi | ⏸ ochiq — A3 (yurist ekspert) doirasida |
 

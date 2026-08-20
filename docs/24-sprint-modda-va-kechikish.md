@@ -235,6 +235,17 @@ to'plam qayta o'lchandi.
 
 Maqsad (600 ms p95) yopildi.
 
+> ⚠️ **Tuzatish (2026-08-18, keyinroq).** Yuqoridagi 126 / 152 ms
+> ham **barqaror raqam emas**. Bir necha soatdan keyin, o'sha kod va
+> o'sha indeksda, mashina bandroq holatda — ~270 ms median.
+> Ya'ni «600 ms maqsadi yopildi» degan xulosa bu mashinadagi
+> o'lchovga tayanib chiqarilmaydi.
+>
+> Tezlanishning o'zi haqiqiy: ayni sessiyada eski BM25 qayta
+> o'lchanganda 131 → 16 ms (8.0×) chiqdi, quyidagi 8.9× bilan mos.
+> **Nisbat takrorlanadi, mutlaq raqam yo'q.** Batafsil:
+> `docs/25 § 6.4`.
+
 ### 5.1 473 ms raqami ishonchsiz — buni aytish kerak
 
 `docs/23 § 5.4` da 264 → 473 ms o'sishi **bo'lak sonining 36% ga
@@ -291,5 +302,5 @@ sprintdagidek izohlanishi kerak bo'lgan hodisa emas.
 | # | Nima | Nega |
 |---|---|---|
 | **P5** | `retrieval-gold-v1` matn to'g'riligini o'lchamaydi | A3 — yurist ekspert kerak |
-| **P6** | Noaniq modda raqamida foydalanuvchiga tanlov ko'rsatilsin | Interfeys qarori (§ 3.3) |
-| **P7** | `«1.»` sarlavhali 549 element modda emas, band | Parser tuzilma masalasi, o'z o'lchoviga muhtoj |
+| **P6** | Noaniq modda raqamida foydalanuvchiga tanlov ko'rsatilsin | ⏸ ochiq — interfeys qarori (§ 3.3) |
+| **P7** | `«1.»` sarlavhali element modda emas, band | ✅ `docs/25 § 2` — 549 emas, **17 304** ta ekan; birlik element sarlavhasidan aniqlanadigan bo'ldi |

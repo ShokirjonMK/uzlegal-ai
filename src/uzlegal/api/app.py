@@ -592,6 +592,11 @@ class SearchResult(BaseModel):
     chunk_id: str
     document: str
     article: str | None = None
+    # Iqtibosning to'liq nomi — birlik («modda»/«band») va bir yorliqqa
+    # bir nechta bo'lak tushganda tartib raqami bilan (docs/25).
+    citation: str | None = None
+    unit: str = "modda"
+    occurrence: int = 1
     heading: str | None = None
     text: str
     score: float
@@ -639,6 +644,9 @@ def search(req: SearchRequest) -> SearchResponse:
                 chunk_id=item.chunk.chunk_id,
                 document=item.chunk.doc_title or item.chunk.doc_id,
                 article=item.chunk.article,
+                citation=item.chunk.citation_label,
+                unit=item.chunk.unit,
+                occurrence=item.chunk.occurrence,
                 heading=item.chunk.heading,
                 text=item.chunk.content,
                 score=round(item.score, 4),

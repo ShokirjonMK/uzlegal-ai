@@ -232,6 +232,84 @@ def _enforce_limit(chunks: list[Chunk]) -> list[Chunk]:
 
 DUP_SUFFIX = "#"
 
+# Sarlavha faqat raqamdan iborat: «1.», «12)», «7-1.» — bu MODDA emas,
+# farmon yoki nizomning raqamlangan **bandi**.
+_BARE_NUMBER_TITLE = re.compile(r"^\s*\d{1,3}(?:[-–]\d+)?\s*[.)]\s*$")
+
+# Sarlavhada «modda» so'zi bor: «244-modda. …» — bu modda.
+_ARTICLE_TITLE = re.compile(r"\d+\s*[-–]?\s*(?:modda|модда)", re.IGNORECASE)
+
+
+def unit_for(doc_type: str, element_title: str | None) -> str:
+    """Strukturaviy birlik nomi — element **sarlavhasi** shaklidan.
+
+    `ingest.types.unit_label()` hujjat turiga qaraydi va u xarita
+    to'liq bo'lgan hollarda to'g'ri ishlaydi. Lekin korpusda hujjatlarning
+    katta qismi `doc_type = "boshqa"` (nizom, tartib, ilova) va u yerda
+    standart qiymat «modda» edi.
+
+    Natijada o'lchandi (2026-08-18, 48 527 bo'lak): **16 877 bo'lak
+    (34.8%)** noto'g'ri birlik bilan iqtibos qilinardi — asosan
+    farmon va nizomning `1.` bandi «1-modda» deb.
+
+    `unit_label()` ning o'z izohi buni allaqachon aytgan:
+
+        «Farmonning 3-moddasi» degan havolani yurist izlab topa
+        olmaydi — u yerda modda yo'q, band bor.
+
+    Elementning o'z sarlavhasi hujjat turidan **aniqroq** dalil:
+    sarlavha `1.` bo'lsa bu band, `244-modda.` bo'lsa modda — hujjat
+    qanday turkumlangani ahamiyatsiz. Shuning uchun sarlavha birinchi
+    o'rinda, tur esa zaxira sifatida ishlatiladi.
+    """
+    title = (element_title or "").strip()
+    if _BARE_NUMBER_TITLE.match(title):
+        return "band"
+    if _ARTICLE_TITLE.search(title):
+        return "modda"
+    return unit_label(doc_type)
+
+
+def _number_occurrences(chunks: list[Chunk]) -> list[Chunk]:
+    """Bir xil iqtibos yorlig'iga tushgan bo'laklarni raqamlaydi.
+
+    ## Nima uchun kerak
+
+    `_enforce_unique_ids()` **identifikator** to'qnashuvini yopdi, lekin
+    foydalanuvchi va model identifikatorni ko'rmaydi — ular
+    `citation_label` ni ko'radi. U esa hamon takrorlanardi:
+
+        «Davlat dasturi, 35-modda, 2-qism»   ← 187 xil matn uchun
+
+    `retrieval/hybrid.py:564` kontekst bloklarini aynan shu nom bilan
+    belgilaydi, ya'ni **model bir xil nom ostida 187 xil matnni oladi**
+    va iqtibosni ham shu nom bilan qaytaradi.
+
+    O'lchandi: 19 024 bo'lak (39.2%) kamida bitta boshqa bo'lak bilan
+    yorliqni bo'lishadi.
+
+    ## Nima uchun `#` tartib raqamidan alohida
+
+    Sabablar ikkita va ular ustma-ust tushmaydi:
+
+    * takrorlangan raqamlash — bunday bo'laklar `chunk_id` da `#N`
+      oladi (12 815 ta);
+    * o'lchamga ko'ra bo'linish — `_split_oversized()` va
+      `_enforce_limit()` bir moddaning matnini bo'ladi, natijada
+      `chunk_id` har xil (`:2`, `:3`), yorliq esa bir xil qoladi.
+
+    Shuning uchun raqamlash `chunk_id` dan emas, **yorliq kalitidan**
+    yuritiladi.
+    """
+    counts: dict[tuple[str | None, ...], int] = {}
+    out: list[Chunk] = []
+    for chunk in chunks:
+        key = chunk.citation_key
+        number = counts.get(key, 0) + 1
+        counts[key] = number
+        out.append(chunk if number == 1 else chunk.model_copy(update={"occurrence": number}))
+    return out
+
 
 def _enforce_unique_ids(chunks: list[Chunk]) -> list[Chunk]:
     """`chunk_id` noyobligini **chiqish nuqtasida** kafolatlaydi.
@@ -363,6 +441,16 @@ class Chunk(BaseModel):
     source_url: str | None = None
     kind: Literal["article", "part", "item", "merged", "text"] = "article"
 
+    # Strukturaviy birlik nomi — «modda» yoki «band» (docs/25 § 2).
+    # `unit_label(doc_type)` dan aniqroq: u hujjat turiga qaraydi, bu esa
+    # elementning O'Z sarlavhasiga. Standart qiymat eski `chunks.jsonl`
+    # fayllari uchun — ular bu maydonsiz yozilgan.
+    unit: str = "modda"
+
+    # Bir xil iqtibos yorlig'iga tushgan bo'laklarning tartib raqami
+    # (docs/25 § 3). Birinchisi — 1, keyingilari 2, 3, …
+    occurrence: int = 1
+
     # Versiyalash — Faza 1 ning versioning moduli to'ldiradi
     valid_from: str | None = None
     valid_to: str | None = None
@@ -384,14 +472,37 @@ class Chunk(BaseModel):
 
     @property
     def citation_label(self) -> str:
+        """Foydalanuvchiga va **modelga** ko'rsatiladigan iqtibos nomi.
+
+        `hybrid.py` kontekst bloklarini shu nom bilan belgilaydi, ya'ni
+        model iqtibosni aynan shu ko'rinishda takrorlaydi. Nom noaniq
+        bo'lsa iqtibos ham noaniq bo'ladi.
+
+        Ikkita aniqlik shu yerda ta'minlanadi:
+
+        * **birlik** `unit` dan olinadi, `doc_type` dan emas —
+          farmonning `1.` bandi «1-modda» deb atalmaydi (docs/25 § 2);
+        * bir yorliqqa bir nechta bo'lak tushsa **tartib raqami**
+          qo'shiladi — korpusda 19 024 bo'lak (39.2%) shunday
+          (docs/25 § 3).
+        """
         bits = [self.doc_title]
         if self.article:
-            bits.append(f"{self.article}-{unit_label(self.doc_type)}")
+            bits.append(f"{self.article}-{self.unit}")
         if self.part:
             bits.append(f"{self.part}-qism")
         if self.item:
             bits.append(f'"{self.item}" bandi')
-        return ", ".join(bits)
+        label = ", ".join(bits)
+        return f"{label} ({self.occurrence}-bo'lak)" if self.occurrence > 1 else label
+
+    @property
+    def citation_key(self) -> tuple[str | None, ...]:
+        """Yorliqni aniqlaydigan kalit — tartib raqamisiz.
+
+        `_number_occurrences()` shu kalit bo'yicha guruhlaydi.
+        """
+        return (self.doc_id, self.article, self.part, self.item)
 
 
 # --------------------------------------------------------------------------- #
@@ -417,7 +528,7 @@ class Chunker:
         chunks: list[Chunk] = []
         for article in doc.articles:
             chunks.extend(self._chunk_article(doc, article))
-        return _enforce_unique_ids(_enforce_limit(self._merge_tiny(chunks)))
+        return _number_occurrences(_enforce_unique_ids(_enforce_limit(self._merge_tiny(chunks))))
 
     # ------------------------------------------------------------------ #
 
@@ -463,6 +574,8 @@ class Chunker:
             "valid_from": article.valid_from or self._document_valid_from(doc),
             "valid_to": article.valid_to,
             "status": article.status,
+            # Birlik elementning O'Z sarlavhasidan aniqlanadi (docs/25 § 2).
+            "unit": unit_for(doc.doc_type, article.title),
         }
 
     def _chunk_article(self, doc: ParsedDocument, article: Element) -> list[Chunk]:
@@ -606,6 +719,7 @@ class Chunker:
                     element_id=first.element_id,
                     source_url=first.source_url,
                     kind="merged",
+                    unit=first.unit,
                     valid_from=first.valid_from,
                     valid_to=first.valid_to,
                     status=first.status,
