@@ -1,6 +1,6 @@
 # ADR-001: Baza modelni tanlash
 
-**Holat:** ✅ Qabul qilindi
+**Holat:** ♻️ Qayta ko'rildi — 2026-08-20 (§ «Qayta ko'rish»)
 **Sana:** 2026-08-11 (o'lchov natijasi bilan)
 **Qaror qabul qiluvchi:** ML muhandis
 
@@ -39,7 +39,7 @@ Kategoriya bo'yicha (to'g'ri javoblar):
 | qwen3-14b | 3/12 | 10/10 | 4/6 | 1/6 | **4/4** | 3/4 |
 | qwen3-8b | 7/12 | 8/10 | 4/6 | 1/6 | 1/4 | 3/4 |
 
-## Qaror
+## Qaror (2026-08-11 — keyinchalik almashtirildi)
 
 **Gemma-3-12B-it (4-bit) tanlandi.**
 
@@ -110,3 +110,68 @@ deyarli bepul** — qaror to'g'ri vaqtda qabul qilindi.
 
 `configs/models.yaml` da `selected: gemma3-12b`. Barcha rol adapterlari shu
 baza ustiga o'qitiladi.
+
+
+---
+
+## Qayta ko'rish — 2026-08-20
+
+**Yangi qaror: Qwen3-14B (4-bit).** Gemma-3-12B rad etildi.
+
+### Nima uchun o'zgardi
+
+O'lchov natijalari **o'zgarmadi** — Gemma hamon 0.49 ball ustun.
+O'zgargan narsa qaror mezoni: `docs/10 § 8` da qayd etilgan
+huquqiy savol ochiq turardi va u endi hal qilindi.
+
+| | Gemma-3-12B | Qwen3-14B |
+|---|---|---|
+| Umumiy ball | **3.77** | 3.28 |
+| Litsenziya | Gemma ToU — foydalanish siyosati va hosila modellarga cheklov | **Apache-2.0** |
+| Tijoriy foydalanish | Tekshirilishi shart edi | Ochiq |
+| Hosila (adapter) tarqatish | Cheklovga tobe | Ochiq |
+| O'zbek tili | 4.82 / 5 | **4.89 / 5** |
+| Xotira | 6.7 GB | 7.7 GB |
+
+### Asos
+
+1. **Huquqiy tozalik balldan ustun.** Bu mahsulot yuristlarga
+   qonun bo'yicha javob beradi. Uning o'z baza modeli litsenziyasi
+   noaniq bo'lsa — mahsulotning butun asosi noaniq. Iqtibosga
+   asoslangan tizimda bu qabul qilib bo'lmaydigan ziddiyat.
+
+2. **Kechiktirish narxi assimetrik.** Adapterlarni Gemma ustida
+   o'qitib, keyin litsenziya to'sib qo'ysa — **hamma adapter
+   qaytadan o'qitiladi** va u yurist soatini emas, GPU soatini
+   emas, **kalendarni** yoqadi. Qaror ilgari qabul qilingani ma'qul.
+
+3. **0.49 ball qayerdan kelgani muhim.** Farq asosan `reasoning`
+   (8/12 vs 3/12) dan. Lekin `§ Kutilmagan topilma` da yozilgani
+   kabi, ikkala model ham **terminologiyada teng darajada zaif**
+   (2/6 va 1/6) — ya'ni fine-tuning aynan shu bo'shliqni yopadi.
+   Rol adapterlaridan keyin bu farqning qancha qolishi
+   **o'lchanmagan** va uni oldindan aytib bo'lmaydi.
+
+4. **O'zbek tilida Qwen3 hatto ustunroq** (4.89 vs 4.82) —
+   farq shovqin ichida, lekin hech bo'lmaganda yo'qotish emas.
+
+### Nima qilinadi
+
+| Qadam | Holat |
+|---|---|
+| `configs/models.yaml` → `selected: qwen3-14b` | ✅ |
+| `docs/10 § 8` dagi 6-savol yopildi | ✅ |
+| `configs/training/role-lora.yaml` baza modeli | tekshirilsin |
+| Adapterlar | hali o'qitilmagan — **yo'qotish yo'q** |
+
+### Xavf — ochiq aytiladi
+
+Mulohaza balli pastroq modelga o'tilmoqda va bu **sifatga ta'sir
+qilishi mumkin**. Ta'sir hajmi hozir noma'lum: `bench-uz-legal-v0`
+to'plami bo'sh (0 holat), ya'ni qayta o'lchash uchun avval u
+tiklanishi kerak. Qayd etildi: bu o'lchov R1 bosqichida
+takrorlanadi va natija shu ADR ga qo'shiladi.
+
+Agar farq amalda sezilarli chiqsa — qaror qayta ko'riladi,
+lekin **litsenziya mezoni saqlanadi**: muqobil sifatida boshqa
+Apache-2.0 yoki MIT modeli qidiriladi, Gemma emas.

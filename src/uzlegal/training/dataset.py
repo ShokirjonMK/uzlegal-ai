@@ -70,9 +70,42 @@ class TrainingSample(BaseModel):
     legal_area: str | None = None
     rejection_reason: str | None = None
 
+    # Senior yurist kengashining xulosasi (`uzlegal.panel`, docs/26).
+    #
+    # DIQQAT: bu maydon `verified` ni **almashtirmaydi** va unga ta'sir
+    # qilmaydi. Kengash — mashina, `verified` esa odam imzosi.
+    # `is_trainable` quyida ataylab faqat `verified` ni tekshiradi:
+    # kengash ma'qullagan, lekin odam ko'rmagan namuna treningga
+    # tushmaydi (`docs/05 § 3`).
+    panel: dict[str, object] | None = None
+
     @property
     def is_trainable(self) -> bool:
         return self.verified and self.rejection_reason is None
+
+    @property
+    def panel_outcome(self) -> str | None:
+        """Kengash yo'nalishi: `rad` · `noaniq` · `kengash-ma'qulladi`."""
+        if not self.panel:
+            return None
+        value = self.panel.get("outcome")
+        return str(value) if value is not None else None
+
+    @property
+    def awaits_human(self) -> bool:
+        """Yurist navbatiga tushadimi.
+
+        Kengash rad etganlar navbatga **tushmaydi** — ular yuristga
+        ko'rsatilmaydi. Aynan shu odam vaqtini tejaydi.
+        """
+        if self.verified or self.rejection_reason:
+            return False
+        outcome = self.panel_outcome
+        if outcome is None:
+            return True
+        if outcome == "rad":
+            return False
+        return outcome == "noaniq" or bool(self.panel and self.panel.get("spot_check"))
 
 
 # --------------------------------------------------------------------------- #
@@ -259,6 +292,9 @@ class Dataset:
             "jami": len(samples),
             "tekshirilgan": sum(1 for s in samples if s.verified),
             "rad_etilgan": sum(1 for s in samples if s.rejection_reason),
+            "kengashdan_otgan": sum(1 for s in samples if s.panel_outcome),
+            "kengash_rad_etdi": sum(1 for s in samples if s.panel_outcome == "rad"),
+            "yurist_navbatida": sum(1 for s in samples if s.awaits_human),
             "rollar": by_role,
         }
 

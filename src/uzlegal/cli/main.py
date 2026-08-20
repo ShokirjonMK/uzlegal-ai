@@ -37,6 +37,7 @@ for _module, _attr, _name in (
     ("uzlegal.cli.pipeline", "pipeline_app", "pipeline"),
     ("uzlegal.cli.train", "train_app", "train"),
     ("uzlegal.cli.nazorat", "nazorat_app", "nazorat"),
+    ("uzlegal.cli.panel", "panel_app", "panel"),
 ):
     try:
         app.add_typer(getattr(__import__(_module, fromlist=[_attr]), _attr), name=_name)
