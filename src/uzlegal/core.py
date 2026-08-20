@@ -245,6 +245,13 @@ NO_SUCH_ARTICLE = (
     "keltirilgan — lekin ular so'ralgan modda **emas**."
 )
 
+OUT_OF_COVERAGE = (
+    "Bu savol bilim bazasining qamrovidan tashqarida.\n\n"
+    "{detail}\n\n"
+    "Taxmin qilib javob bermayman: yaqin mavzudagi normalarni "
+    "ko'rsatish so'ralgan savolga javob **emas**."
+)
+
 NO_SUCH_DOCUMENT = (
     "«{document}» bilim bazasida topilmadi.\n\n"
     "Bunday hujjat mavjud bo'lmasligi yoki bilim bazasiga hali "
@@ -267,6 +274,20 @@ def _to_result(
     #
     # Hujjat moddadan oldin tekshiriladi: hujjatning o'zi yo'q bo'lsa,
     # undagi modda haqida gapirish ma'nosiz.
+    # Qamrov birinchi tekshiriladi: savol boshqa yurisdiksiya yoki
+    # korpusda umuman yo'q manba turi haqida bo'lsa, undagi hujjat yoki
+    # modda haqida gapirish ma'nosiz (docs/27).
+    gap = state.coverage_gap
+    if gap is not None:
+        return _deterministic_refusal(
+            state,
+            request,
+            latency_ms,
+            registry,
+            answer=OUT_OF_COVERAGE.format(detail=gap.detail),
+            caveat=f"Qamrovdan tashqarida: {gap.subject}",
+        )
+
     if state.missing_document:
         return _deterministic_refusal(
             state,

@@ -104,6 +104,9 @@ class ConsultState:
     missing_article: str | None = None
     # Foydalanuvchi hujjat nomini aytdi, lekin bunday hujjat indeksda yo'q.
     missing_document: str | None = None
+    # Savol butunlay korpus qamrovidan tashqarida: boshqa yurisdiksiya yoki
+    # korpusda umuman yo'q manba turi (docs/27).
+    coverage_gap: Any = None
     # `as_of` so'ralganda kontekstga tushgan manbalarning sana qamrovi
     # (docs/21 § 3). `as_of` berilmagan bo'lsa `None`.
     date_coverage: DateCoverage | None = None
@@ -288,6 +291,23 @@ def _missing_document(question: str, retriever: Any) -> str | None:
     return None
 
 
+def _coverage_gap(question: str, retriever: Any) -> Any:
+    """Savol korpus qamrovidan tashqarimi (docs/27).
+
+    `_missing_document()` ning kengaytmasi: u faqat **nomi aytilgan
+    kodeks** ni tekshiradi, bu esa yurisdiksiya va manba turini ham.
+    Ikkalasi ham deterministik va modelsiz ishlaydi.
+    """
+    from uzlegal.retrieval.coverage import check_coverage
+
+    index = getattr(retriever, "index", None)
+    try:
+        return check_coverage(question, index)
+    except Exception as exc:  # pragma: no cover — indeks o'qilmasa to'smaymiz
+        log.warning("Qamrov tekshiruvi bajarilmadi: %s", exc)
+        return None
+
+
 def node_retrieve(state: ConsultState, deps: Deps) -> ConsultState:
     """Gibrid qidiruv va agentlar uchun umumiy kontekst.
 
@@ -309,6 +329,7 @@ def node_retrieve(state: ConsultState, deps: Deps) -> ConsultState:
 
         state.missing_article = _missing_article(state.question, found)
         state.missing_document = _missing_document(state.question, deps.retriever)
+        state.coverage_gap = _coverage_gap(state.question, deps.retriever)
 
         state.context_text, used = build_context(results, budget_tokens=deps.budget_tokens)
         state.context = used
