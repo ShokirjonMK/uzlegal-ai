@@ -262,6 +262,19 @@ export const config = {
   },
 
   /**
+   * Superadmin foydalanuvchi nomi. Sozlanmagan bo'lsa kirish faqat parol
+   * bilan ishlaydi — eski sozlamalar buzilmasligi uchun.
+   *
+   * Sozlangan bo'lsa nom ham tekshiriladi. Bu parolning o'zini
+   * kuchaytirmaydi, lekin ikkita amaliy foyda beradi: jurnalda kim
+   * kirganini ko'rsatadi va tasodifan boshqa muhitning paroli bilan
+   * kirib qolishning oldini oladi.
+   */
+  get adminUsername(): string | undefined {
+    return env("ADMIN_USERNAME");
+  },
+
+  /**
    * Sessiya cookie'sini imzolash siri. `.env.local` da turishi shart:
    * jarayon xotirasida yaratilsa, server qayta ishga tushganda barcha
    * sessiyalar uziladi va bir nechta nusxa bir-birining cookie'sini tanimaydi.

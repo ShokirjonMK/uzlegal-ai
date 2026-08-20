@@ -45,7 +45,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  let body: { parol?: unknown; kod?: unknown; urinish?: unknown };
+  let body: { parol?: unknown; kod?: unknown; urinish?: unknown; foydalanuvchi?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -64,7 +64,8 @@ export async function POST(request: Request): Promise<Response> {
     return errorJson("Parol kiritilmagan.");
   }
 
-  const res = await checkAdminPassword(body.parol, clientIp(request));
+  const foydalanuvchi = typeof body.foydalanuvchi === "string" ? body.foydalanuvchi : "";
+  const res = await checkAdminPassword(body.parol, clientIp(request), foydalanuvchi);
   if (!res.ok) return errorJson(res.error, 401);
 
   if (res.step === "kirdi") {

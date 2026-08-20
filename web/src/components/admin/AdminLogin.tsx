@@ -30,6 +30,7 @@ interface KirishJavobi {
 export function AdminLogin({ setup }: { setup: Setup }) {
   const router = useRouter();
   const [bosqich, setBosqich] = useState<"parol" | "kod">("parol");
+  const [foydalanuvchi, setFoydalanuvchi] = useState("");
   const [parol, setParol] = useState("");
   const [kod, setKod] = useState("");
   const [urinish, setUrinish] = useState("");
@@ -75,7 +76,9 @@ export function AdminLogin({ setup }: { setup: Setup }) {
 
     try {
       const tana =
-        bosqich === "parol" ? { parol } : { urinish, kod: kod.trim() };
+        bosqich === "parol"
+          ? { foydalanuvchi: foydalanuvchi.trim(), parol }
+          : { urinish, kod: kod.trim() };
 
       const javob = await apiJson<KirishJavobi>("/api/admin/kirish", {
         method: "POST",
@@ -117,12 +120,24 @@ export function AdminLogin({ setup }: { setup: Setup }) {
           <form onSubmit={yubor} noValidate>
             {bosqich === "parol" ? (
               <>
-                <Label htmlFor="parol">Parol</Label>
+                <Label htmlFor="foydalanuvchi">Foydalanuvchi nomi</Label>
+                <Input
+                  id="foydalanuvchi"
+                  type="text"
+                  autoComplete="username"
+                  autoFocus
+                  spellCheck={false}
+                  value={foydalanuvchi}
+                  disabled={band}
+                  onChange={(e) => setFoydalanuvchi(e.target.value)}
+                />
+                <Label htmlFor="parol" className="mt-3">
+                  Parol
+                </Label>
                 <Input
                   id="parol"
                   type="password"
                   autoComplete="current-password"
-                  autoFocus
                   value={parol}
                   disabled={band}
                   onChange={(e) => setParol(e.target.value)}
@@ -162,7 +177,10 @@ export function AdminLogin({ setup }: { setup: Setup }) {
             <Button
               type="submit"
               className="w-full mt-4"
-              disabled={band || (bosqich === "parol" ? !parol : kod.length < 6)}
+              disabled={
+                band ||
+                (bosqich === "parol" ? !parol || !foydalanuvchi.trim() : kod.length < 6)
+              }
             >
               {band && <Loader2 className="animate-spin" />}
               {band ? "Tekshirilmoqda…" : bosqich === "parol" ? "Kirish" : "Tasdiqlash"}

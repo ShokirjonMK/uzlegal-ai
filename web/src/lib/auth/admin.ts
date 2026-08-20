@@ -170,6 +170,7 @@ export type PasswordStep =
 export async function checkAdminPassword(
   password: string,
   ip: string,
+  username?: string,
 ): Promise<PasswordStep> {
   const setup = adminSetup();
   if (!setup.ready) {
@@ -186,9 +187,24 @@ export async function checkAdminPassword(
     };
   }
 
-  if (!equal(password, config.adminPassword ?? "")) {
+  /*
+   * Foydalanuvchi nomi va parol BIRGA tekshiriladi va xato xabari
+   * ikkalasi uchun bir xil. Alohida xabar («nom notoʻgʻri» va «parol
+   * notoʻgʻri») hujumchiga toʻgʻri nomni topish imkonini berardi.
+   *
+   * Nom sozlanmagan boʻlsa tekshiruv oʻtkazib yuboriladi — eski
+   * sozlamalar buzilmaydi.
+   */
+  const expectedUser = config.adminUsername;
+  const userOk =
+    !expectedUser || equal((username ?? "").trim().toLowerCase(), expectedUser.toLowerCase());
+
+  if (!userOk || !equal(password, config.adminPassword ?? "")) {
     registerFail(ip);
-    return { ok: false, error: "Parol notoʻgʻri." };
+    return {
+      ok: false,
+      error: expectedUser ? "Foydalanuvchi nomi yoki parol notoʻgʻri." : "Parol notoʻgʻri.",
+    };
   }
 
   clearFails(ip);
