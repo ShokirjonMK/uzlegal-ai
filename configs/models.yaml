@@ -93,6 +93,40 @@ models:
   # u ham bo'lmasa http://localhost:11434/v1 ishlatiladi.
   # ------------------------------------------------------------------ #
 
+  # ADR-001 qayta ko'rilgandan keyingi TANLANGAN model (2026-08-20).
+  #
+  # MLX yozuvi (`qwen3-14b`) faqat Apple Silicon da ishlaydi. Windows va
+  # Linux da ayni model Ollama orqali chaqiriladi — vaznlar bir xil,
+  # faqat ishga tushirish yo'li boshqa. Ikkalasi bir xil litsenziyada
+  # (Apache-2.0), ya'ni platformaga qarab huquqiy holat o'zgarmaydi.
+  ollama-qwen3-14b:
+    display_name: "Qwen3 14B (Ollama)"
+    backend: openai
+    hf_id: qwen3:14b
+    params: "14B"
+    quant_bits: 4
+    size_gb: 0.0
+    context_length: 40960
+    license: Apache-2.0
+    default_temperature: 0.3
+    strengths: [multilingual, apache_license, long_context]
+    note: "ADR-001 (qayta ko'rilgan) da tanlangan model. Litsenziya toza."
+
+  # Tez tekshiruv uchun — sifat past, lekin quvurni sinash uchun yetarli.
+  ollama-qwen3-8b:
+    display_name: "Qwen3 8B (Ollama — tez)"
+    backend: openai
+    hf_id: qwen3:8b
+    params: "8B"
+    quant_bits: 4
+    size_gb: 0.0
+    context_length: 40960
+    license: Apache-2.0
+    default_temperature: 0.3
+    strengths: [speed, apache_license]
+    risks: [past_sifat]
+    note: "Faqat quvurni sinash uchun. Sifat o'lchovlari bu modelda olinmaydi."
+
   ollama-gemma3-12b:
     display_name: "Gemma 3 12B (Ollama)"
     backend: openai
