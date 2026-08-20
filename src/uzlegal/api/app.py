@@ -430,6 +430,19 @@ def health() -> dict[str, Any]:
     }
 
 
+@app.get("/v1/status", tags=["system"])
+def status() -> dict[str, Any]:
+    """Yadroning to'liq holati — admin paneli uchun (docs/28).
+
+    `/v1/health` dan farqi: u «tirikmi» degan savolga tez javob beradi,
+    bu esa «mahsulot qanday holatda» degan savolga o'lchov bilan javob
+    beradi. Og'irroq (indeksni ochadi), lekin monitoring uchun emas.
+    """
+    from uzlegal.api.status import build_status
+
+    return build_status(_sync)
+
+
 @app.get("/v1/meta", tags=["system"])
 def meta() -> dict[str, Any]:
     settings = get_settings()

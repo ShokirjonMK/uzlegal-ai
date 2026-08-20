@@ -1,0 +1,324 @@
+/*
+ * Admin konsoli uslublari.
+ *
+ * NEGA ALOHIDA FAYL. `legacy.css` — foydalanuvchi sahifalari uchun:
+ * bo'sh joy ko'p, kartalar yumshoq, o'qish uchun qulay. Admin konsoli
+ * boshqa vazifani bajaradi — u O'QILMAYDI, KO'RIB CHIQILADI. Shuning
+ * uchun bu yerda zichlik yuqori, raqamlar bir chiziqda tekislanadi va
+ * holat rangda emas, SHAKLDA ham ko'rinadi.
+ *
+ * Ranglar mavjud tokenlardan olinadi (`--bg`, `--text`, `--accent`…),
+ * ya'ni yorug' va qorong'i mavzu o'z-o'zidan ishlaydi va bu yerda
+ * qayta ta'riflanmaydi.
+ */
+
+.konsol {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* Raqamlar ustunda tekislansin — ko'z bir vertikalda yuguradi. */
+.konsol :where(.son, .qiymat, code) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Sarlavha qatori ─────────────────────────────────────────────────── */
+
+.konsol-bosh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.konsol-yorliq {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Raqamlar to'plami ───────────────────────────────────────────────── */
+
+.konsol-raqamlar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.konsol-raqam {
+  background: var(--bg-raised);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  /*
+   * Holat chap chekkadagi chiziq bilan beriladi, fon rangi bilan emas.
+   * Rangli fon jadval bo'ylab shovqin qiladi va rangni ajrata olmaydigan
+   * foydalanuvchi uchun umuman ishlamaydi. Chiziq esa shakl — u har
+   * doim ko'rinadi.
+   */
+  border-left: 3px solid transparent;
+}
+
+.konsol-raqam.yaxshi {
+  border-left-color: color-mix(in srgb, var(--accent) 55%, green);
+}
+.konsol-raqam.ogoh {
+  border-left-color: #b8860b;
+}
+.konsol-raqam.xato {
+  border-left-color: #b3453a;
+}
+
+.konsol-raqam .nom {
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.konsol-raqam .qiymat {
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.konsol-raqam .izoh {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ── Bloklar ─────────────────────────────────────────────────────────── */
+
+.konsol-blok {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.konsol-blok h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.konsol-izoh {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  max-width: 70ch;
+}
+
+.konsol-jadval-juft {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 22px;
+}
+
+/* ── Jadval ──────────────────────────────────────────────────────────── */
+
+.konsol-jadval {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.konsol-jadval th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--text-faint);
+  padding: 0 12px 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.konsol-jadval td {
+  padding: 9px 12px 9px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.konsol-jadval td:first-child {
+  color: var(--text);
+}
+
+.konsol-jadval tr:last-child td {
+  border-bottom: 0;
+}
+
+.konsol-jadval .son {
+  text-align: right;
+  padding-right: 18px;
+}
+
+/* ── Ulush chizig'i ──────────────────────────────────────────────────── */
+
+.konsol-ulush {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.konsol-ulush li {
+  display: grid;
+  grid-template-columns: minmax(70px, auto) 1fr minmax(48px, auto);
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.konsol-ulush .kalit {
+  color: var(--text);
+}
+
+.konsol-ulush .qiymat {
+  text-align: right;
+  color: var(--text-dim);
+}
+
+.konsol-ulush .chiziq {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  overflow: hidden;
+}
+
+.konsol-ulush .chiziq > i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+/* ── Holat belgilari ─────────────────────────────────────────────────── */
+
+.belgi {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.belgi.yaxshi {
+  color: color-mix(in srgb, var(--text) 25%, green);
+}
+.belgi.ogoh {
+  color: #8a6410;
+}
+
+@media (prefers-color-scheme: dark) {
+  .belgi.ogoh {
+    color: #d6a850;
+  }
+  .konsol-raqam.ogoh {
+    border-left-color: #d6a850;
+  }
+  .konsol-raqam.xato {
+    border-left-color: #d9776b;
+  }
+}
+
+/* ── Ogohlantirish va uzilish ────────────────────────────────────────── */
+
+.konsol-ogoh,
+.konsol-uzilgan {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-left: 3px solid #b8860b;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.konsol-uzilgan {
+  border-left-color: #b3453a;
+  align-items: center;
+}
+
+.konsol-uzilgan h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.konsol-uzilgan p {
+  margin: 0;
+}
+
+.konsol-uzilgan > div {
+  flex: 1;
+}
+
+.konsol-maslahat {
+  margin-top: 6px !important;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+/* ── Yuklanish ───────────────────────────────────────────────────────── */
+
+.konsol-skelet {
+  height: 220px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: linear-gradient(
+    100deg,
+    var(--bg-soft) 30%,
+    var(--bg-raised) 50%,
+    var(--bg-soft) 70%
+  );
+  background-size: 220% 100%;
+  animation: konsol-nur 1.4s ease-in-out infinite;
+}
+
+@keyframes konsol-nur {
+  from {
+    background-position: 140% 0;
+  }
+  to {
+    background-position: -40% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .konsol-skelet {
+    animation: none;
+  }
+}

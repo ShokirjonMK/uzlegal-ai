@@ -6,6 +6,7 @@ import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HolatBolimi } from "./HolatBolimi";
+import { YadroBolimi } from "./YadroBolimi";
 import { BazaBolimi } from "./BazaBolimi";
 import { YozishmalarBolimi } from "./YozishmalarBolimi";
 import { XabarBolimi } from "./XabarBolimi";
@@ -45,13 +46,18 @@ export function AdminPanel() {
         </Button>
       </div>
 
-      <Tabs defaultValue="holat">
+      <Tabs defaultValue="yadro">
         <TabsList>
+          <TabsTrigger value="yadro">Yadro</TabsTrigger>
           <TabsTrigger value="holat">Umumiy holat</TabsTrigger>
           <TabsTrigger value="baza">Qonun bazasi</TabsTrigger>
           <TabsTrigger value="yozishmalar">Yozishmalar</TabsTrigger>
           <TabsTrigger value="xabar">Ommaviy xabar</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="yadro">
+          <YadroBolimi />
+        </TabsContent>
 
         <TabsContent value="holat">
           <HolatBolimi />

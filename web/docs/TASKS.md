@@ -387,6 +387,85 @@ toza (95 fayl), `npm run build` toza. Korpus qayta yuklandi.
 korpusida va xesh embedderda olingan. Haqiqiy qonun matnlari yuklangach
 yoki Voyage ga oʻtilgach chegara QAYTA oʻlchanishi shart.
 
+
+---
+
+## #71 — Admin panel: foydalanuvchi nomi va yadro holati
+
+**Holat:** yopildi · 2026-08-20
+
+### Nima uchun
+
+Panel ikki kamchilik bilan ishlardi. Birinchisi: kirish faqat **parol**
+bilan edi, foydalanuvchi nomi tushunchasi umuman yoʻq edi. Ikkinchisi:
+panel faqat **veb ilovaning** holatini koʻrsatardi — qaysi model
+tanlangan, Mongo ulanganmi, nechta soʻrov boʻldi. Bular kerak, lekin
+ular MAHSULOT qanday holatda ekanini aytmaydi.
+
+### #71.1 Foydalanuvchi nomi
+
+`ADMIN_USERNAME` sozlansa nom ham tekshiriladi; sozlanmasa eski holicha
+ishlaydi — mavjud oʻrnatmalar buzilmaydi.
+
+Nom va parol **birga** tekshiriladi va xato xabari ikkalasi uchun bir
+xil. Alohida xabar («nom notoʻgʻri» / «parol notoʻgʻri») hujumchiga
+toʻgʻri nomni topish imkonini berardi.
+
+Formaga nom maydoni qoʻshildi (`autoComplete="username"` — parol
+menejerlari juftlikni toʻgʻri saqlashi uchun).
+
+### #71.2 Yadro holati boʻlimi
+
+Yadroda yangi `GET /v1/status` endpointi. `/v1/health` dan farqi:
+u «tirikmi» degan savolga tez javob beradi, bu esa «mahsulot qanday
+holatda» degan savolga **oʻlchov bilan** javob beradi.
+
+Panelda yangi «Yadro» boʻlimi (birinchi tab):
+
+| Nima koʻrsatiladi | Nega |
+|---|---|
+| Hujjat, boʻlak, takror satr | Indeks sogʻligʻi |
+| Metadagi raqam vs oʻlchangan raqam | Farq boʻlsa — ogohlantirish |
+| Hujjat turlari va strukturaviy birlik | Korpus tarkibi |
+| Qamrov darvozasi jadvali | Qaysi manba turi rad etiladi |
+| Sinxronizatsiya yoshi | Korpus eskirganmi |
+
+Har raqam yadroda **oʻlchanadi**, metafayldan koʻchirilmaydi. Bu
+loyihada qayta-qayta ushlangan naqsh: eʻlon qilingan raqam amaldagi
+raqam emas. Panel shu naqshni takrorlamasligi kerak — aks holda u
+nosozlikni koʻrsatish oʻrniga yashiradi.
+
+### #71.3 Konsol uslublari
+
+`src/app/admin.css` — alohida qatlam. `legacy.css` foydalanuvchi
+sahifalari uchun: boʻsh joy koʻp, kartalar yumshoq. Admin konsoli
+boshqa vazifani bajaradi — u OʻQILMAYDI, KOʻRIB CHIQILADI.
+
+Shuning uchun: zichlik yuqori, raqamlar bir vertikalda tekislanadi
+(`tabular-nums`), holat esa **rangda emas, shaklda ham** beriladi —
+chap chekkadagi chiziq bilan. Rangli fon jadval boʻylab shovqin
+qiladi va rangni ajrata olmaydigan foydalanuvchi uchun ishlamaydi.
+
+Ranglar mavjud tokenlardan olinadi, yaʻni yorugʻ va qorongʻi mavzu
+oʻz-oʻzidan ishlaydi.
+
+### QA
+
+```
+npm run check   ✅  typecheck + oʻzbek matni linteri (103 fayl)
+npm run build   ✅  buzilmadi
+/admin          ✅  200
+kirish          ✅  toʻgʻri juftlik oʻtdi
+kirish          ✅  notoʻgʻri nom rad etildi
+/api/admin/yadro ✅ yadrodan haqiqiy maʻlumot keldi
+```
+
+### Ochiq qolgani
+
+Yadro oʻchiq boʻlsa boʻlim buni **ochiq aytadi** («Yadroni ishga
+tushiring: uzlegal serve»), jim qolmaydi. Lekin panel yadroni oʻzi
+ishga tushira olmaydi — bu alohida topshiriq.
+
 ---
 
 ## Yopilmagan qarzlar
