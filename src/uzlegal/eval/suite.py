@@ -66,6 +66,18 @@ REFUSAL_MARKERS = (
     "ishonchli javob shakllantirilmadi",
     "javob bera olmayman",
     "murojaat qiling",
+    # Qamrov darvozasi (docs/27). Bu ikkitasi 2026-08-20 da qo'shildi va
+    # sabab qayd etilishga arziydi: darvoza ishlar edi, `traps-30` esa
+    # uni **ko'rmasdi**. Yurisdiksiya rad javobida yuqoridagi iboralarning
+    # hech biri yo'q edi, manba-turi javobida esa «javob bera olmayman»
+    # tasodifan bor edi — natijada bir xil mexanizmning ikki tarmog'i
+    # baholashda turlicha ko'rinardi.
+    #
+    # Umumiy saboq: rad etishni MATN bo'yicha aniqlash mo'rt. To'g'ri
+    # signal — `confidence == 0` va deterministik rad etish yo'li.
+    # Qayd etildi: `docs/27 § 5, Q4`.
+    "qamrovidan tashqarida",
+    "taxmin qilib javob bermayman",
 )
 
 

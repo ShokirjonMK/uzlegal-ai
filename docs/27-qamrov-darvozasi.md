@@ -140,14 +140,57 @@ Taxmin qilib javob bermayman: yaqin mavzudagi normalarni
 ko'rsatish so'ralgan savolga javob emas.
 ```
 
-### 4.1 O'lchov chegarasi — ochiq aytiladi
+### 4.1 Uchdan-uchgacha o'lchov — va u baholashdagi nuqsonni ochdi
 
-Yuqoridagi raqamlar **darvozaning o'zini** o'lchaydi: savol
-to'sildimi yoki yo'q. To'liq `traps-30` baholashi model talab
-qiladi va u bu mashinada yugurtirilmagan (baza model yuklanmagan).
-Ya'ni «qamrov toifasi 40% → 100%» degan da'vo hali **tasdiqlanmagan**;
-tasdiqlangani — darvoza beshala savolni to'sishi va 61 ta ishlaydigan
-savolni to'smasligi.
+Yuqoridagi raqamlar darvozaning **o'zini** o'lchaydi. To'liq `traps-30`
+baholashi keyinroq (2026-08-20) yugurtirildi va natija kutilmagan
+narsani ko'rsatdi.
+
+Birinchi yurish: **90% (27/30)**. Yiqilgan uchtadan **ikkitasi** —
+`bazada-yoq-02` (AQSh Konstitutsiyasi) va `bazada-yoq-03` (GDPR) —
+«rad etish kutilgan edi, javob berildi» degan tashxis oldi.
+
+Lekin darvoza ularni to'sar edi. Haqiqiy chaqiruv tekshirildi:
+
+```
+JAVOB:   Bu savol bilim bazasining qamrovidan tashqarida.
+         Bilim bazasi faqat O'zbekiston Respublikasi qonunchiligidan
+         iborat. AQSh huquqi bo'yicha manba yo'q.
+CAVEATS: ['Qamrovdan tashqarida: AQSh']
+ISHONCH: 0.0
+```
+
+Ya'ni tizim **to'g'ri rad etgan**, baholash esa buni **ko'rmagan**.
+
+#### Sabab
+
+`eval/suite.py` rad etishni **matn bo'yicha** aniqlaydi — oldindan
+belgilangan iboralar ro'yxati bilan. Yangi rad javobida ularning
+hech biri yo'q edi.
+
+Eng qiziq tafsilot: `manba-turi` tarmog'i **o'tdi**, chunki uning
+xabarida «ishonchli javob bera olmayman» iborasi **tasodifan** bor
+edi. Bitta mexanizmning ikki tarmog'i baholashda turlicha ko'rindi —
+sabab mantiqda emas, so'z tanlashda.
+
+#### Nima qilindi
+
+`REFUSAL_MARKERS` ga ikkita ibora qo'shildi. Lekin asosiy saboq
+boshqa: **rad etishni matn bo'yicha aniqlash mo'rt**. To'g'ri signal
+allaqachon mavjud va u tuzilmaviy — `confidence == 0.0` va
+deterministik rad etish yo'li. Qayd etildi: `§ 5, Q4`.
+
+#### Uchinchi yiqilgan holat — darvozaga tegishli emas
+
+`yoq-05`: «kriptovalyuta bo'yicha qaysi modda javobgarlik
+belgilaydi». Bu O'zbekiston huquqi savoli, ya'ni yurisdiksiya
+tekshiruvi qo'llanmaydi. Korpus tekshirildi: «kripto» o'zagi
+**63 marta** uchraydi — mavzu korpusda bor, faqat javobgarlik
+moddasi yo'q.
+
+Bu **mazmun** darajasidagi rad etish va u iqtibos darvozasining
+ishi. Uni qamrov darvozasiga tiqish noto'g'ri rad etishlarga olib
+kelardi: «kripto» bor bo'lgan har qanday savol to'silardi.
 
 ---
 
@@ -155,6 +198,7 @@ savolni to'smasligi.
 
 | # | Nima | Nega |
 |---|---|---|
-| **Q1** | To'liq `traps-30` o'lchovi | Baza model kerak (Qwen3-14B yuklanmagan) |
+| ~~Q1~~ | ~~To'liq `traps-30` o'lchovi~~ | ✅ Bajarildi (§ 4.1). Diqqat: o'lchov `qwen3:8b` bilan — 14B bu mashinaning 8 GB VRAM iga sig'maydi (GPU 93% yuklama, 41 W — to'kilish belgisi) |
 | **Q2** | Foydalanuvchiga «qamrov xaritasi» ko'rsatish | Interfeys ishi — nima qoplangani ochiq ro'yxat sifatida |
 | **Q3** | Mavzu darajasidagi qamrov (soha bo'yicha) | Hozir manba darajasida; soha darajasi gold set kengayganda o'lchanadi |
+| **Q4** | Rad etishni matn bo'yicha emas, **tuzilma** bo'yicha aniqlash | `confidence == 0` va deterministik yo'l allaqachon bor — baholash ularni o'qishi kerak (§ 4.1) |
