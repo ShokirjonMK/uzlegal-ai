@@ -192,6 +192,27 @@ Bu **mazmun** darajasidagi rad etish va u iqtibos darvozasining
 ishi. Uni qamrov darvozasiga tiqish noto'g'ri rad etishlarga olib
 kelardi: «kripto» bor bo'lgan har qanday savol to'silardi.
 
+#### Tuzatishdan keyingi natija
+
+`REFUSAL_MARKERS` tuzatilgach `traps-30` qayta yugurtirildi:
+
+| | Oldingi asos | Birinchi yurish | Tuzatishdan keyin |
+|---|---:|---:|---:|
+| Umumiy | 87% | 90% | **93%** |
+| **Qamrov toifasi** | **40%** | — | **100% (5/5)** |
+| Bekor qilingan norma sizishi | 0% | 0% | **0%** |
+
+Qolgan ikki nosozlik darvozaga tegishli emas:
+
+* `yoq-05` — mazmun darajasidagi rad etish (yuqorida);
+* `aniqlik-01` — model taqiqlangan so'zni ishlatgan. Bu holat
+  **birinchi yurishda o'tgan edi**, ya'ni u regressiya emas,
+  modelning nobarqarorligi. Kichik model (`qwen3:8b`) da bu
+  kutiladigan narsa.
+
+Ya'ni `§ 4` dagi «5/5» da'vosi endi **uchdan-uchgacha tasdiqlangan**,
+birlik testda emas.
+
 ---
 
 ## 5. Bu ishga kirmaydi

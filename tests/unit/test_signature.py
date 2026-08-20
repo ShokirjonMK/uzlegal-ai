@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import base64
 import json
-from datetime import date, timedelta
+from datetime import UTC, datetime, timedelta
+from datetime import date as date_type
 from pathlib import Path
 
 import pytest
@@ -38,6 +39,20 @@ def keypair(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     )
     monkeypatch.setattr(sig, "PUBLIC_KEY_SSH", public.decode())
     return path
+
+
+def bugun() -> date_type:
+    """Litsenziya soati — **UTC**, mahalliy sana emas.
+
+    `signature.py` muddatni `datetime.now(UTC).date()` bilan
+    taqqoslaydi. Test mahalliy sanani ishlatsa, UTC+5 mintaqasida
+    (Toshkent) har kuni besh soat davomida ikkalasi kelishmaydi va
+    to'plam sababsiz yiqiladi — aynan shunday bo'ldi 2026-08-21 da.
+
+    Soat bitta bo'lishi kerak; qaysi biri emas, MUVOFIQLIGI muhim.
+    UTC tanlangan: u mashinaning sozlamasiga bog'liq emas.
+    """
+    return datetime.now(UTC).date()
 
 
 def _issue(keypair: Path, **kwargs: object) -> str:
@@ -98,7 +113,7 @@ def test_banner_asosiy_nomlarni_ozida_saqlaydi() -> None:
 
 
 def test_berilgan_litsenziya_tekshiruvdan_otadi(keypair: Path) -> None:
-    token = _issue(keypair, expires=date.today() + timedelta(days=30))
+    token = _issue(keypair, expires=bugun() + timedelta(days=30))
     license_ = sig.parse_license(token)
     assert license_.licensee == "Sinov MChJ"
     assert license_.days_left == 30
@@ -158,7 +173,7 @@ def test_nomni_ozgartirish_ushlanadi(keypair: Path) -> None:
 
 
 def test_muddatni_chozish_ushlanadi(keypair: Path) -> None:
-    token = _issue(keypair, expires=date.today() + timedelta(days=1))
+    token = _issue(keypair, expires=bugun() + timedelta(days=1))
     payload = _payload(token)
     payload["expires"] = "2099-01-01"
     with pytest.raises(sig.LicenseError, match="Imzo noto'g'ri"):
@@ -174,7 +189,7 @@ def test_scope_kengaytirish_ushlanadi(keypair: Path) -> None:
 
 
 def test_muddati_otgan_litsenziya_rad_etiladi(keypair: Path) -> None:
-    token = _issue(keypair, expires=date.today() - timedelta(days=1))
+    token = _issue(keypair, expires=bugun() - timedelta(days=1))
     with pytest.raises(sig.LicenseError, match="muddati tugagan"):
         sig.parse_license(token)
 

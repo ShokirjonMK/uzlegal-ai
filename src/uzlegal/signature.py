@@ -131,6 +131,20 @@ class License:
 
     @property
     def is_expired(self) -> bool:
+        """Muddat **UTC** sanasi bo'yicha tekshiriladi.
+
+        Soat tanlovi ataylab qayd etiladi: mahalliy sana mashinaning
+        vaqt mintaqasiga bog'liq va bir xil litsenziya ikki serverda
+        turlicha baholanardi. UTC esa hamma joyda bir xil.
+
+        Amaliy oqibat: UTC+5 da (Toshkent) litsenziya e'lon qilingan
+        sanadan besh soat ko'proq amal qiladi. Bu mijoz foydasiga va
+        zarari yo'q — teskarisi (erta o'chib qolish) zararli bo'lardi.
+
+        Testlar ham shu soatni ishlatishi shart (`tests/unit/
+        test_signature.py::bugun`). 2026-08-21 da ular mahalliy sanani
+        ishlatgani uchun to'plam sababsiz yiqildi.
+        """
         return self.expires is not None and datetime.now(UTC).date() > self.expires
 
     @property
