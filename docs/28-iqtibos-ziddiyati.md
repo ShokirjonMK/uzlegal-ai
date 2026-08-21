@@ -187,7 +187,7 @@ narsa boshqa:
 
 | # | Nima | Bog'liq |
 |---|---|---|
-| **Z1** | Sifatni haqiqiy modelda o'lchash | 16–24 GB GPU (14B 8 GB ga sig'maydi) |
+| ~~Z1~~ | ~~Sifatni haqiqiy modelda o'lchash~~ | ⚠️ Qisman. Shu mashinada 100% GPU da ishlaydigan yagona model — `qwen3:8b` (o'lchandi: `ollama ps` → 6.0 GB, 100% GPU). qwen3.5 diskda 6.6 GB, xotirada 8.8 GB va 28% CPU ga to'kiladi; 14B umuman sig'maydi. Ya'ni **ishlab chiqarish sifati hamon o'lchanmagan** — lekin quvur endi to'liq ishlaydi |
 | **Z2** | Rol adapterlari | A3 — yurist, 70 → 300 soat |
 | **Z3** | Zid da'volar **chastotasi** | Gold set (36 → ~200) |
 | **Z4** | Belgilangan da'vo chiqarilsinmi | Z3 dan keyin — chegara qarori |

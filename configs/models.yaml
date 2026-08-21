@@ -128,19 +128,25 @@ models:
     default_temperature: 0.3
     strengths: [speed, apache_license]
     risks: [past_sifat]
-    note: "Faqat quvurni sinash uchun. Sifat o'lchovlari bu modelda olinmaydi."
+    note: "8 GB kartada 100% GPU da ishlaydigan YAGONA nomzod (o'lchandi: xotirada 6.0 GB). Shu mashinada amaldagi tanlov."
     disable_thinking: true
 
-  # 8 GB VRAM uchun eng yaxshi variant (2026-08-21 da o'lchandi).
+  # DIQQAT: bu model 8 GB kartaga TO'LIQ SIG'MAYDI (2026-08-21 o'lchovi).
   #
   # NEGA MUHIM. `ollama-qwen3-14b` — e'lon qilingan ishlab chiqarish
   # modeli, lekin uning vaznlari 9.3 GB va 8 GB kartaga SIG'MAYDI:
   # xotira PCIe orqali tizimga to'kiladi va tezlik o'nlab barobar
   # tushadi (o'lchandi: GPU 93% yuklama, atigi 41 W quvvat).
   #
-  # qwen3.5 esa 6.6 GB — to'liq kartaga sig'adi, yangiroq avlod va
-  # litsenziyasi bir xil (Apache-2.0), ya'ni ADR-001 ning qayta
-  # ko'rilgan qarori buzilmaydi.
+  # qwen3.5 diskda 6.6 GB, LEKIN xotirada 8.8 GB bo'ladi (KV-kesh va
+  # qo'shimchalar bilan) va `ollama ps` uni 28% CPU / 72% GPU deb
+  # ko'rsatadi — hatto `num_ctx 4096` da ham.
+  #
+  # SABOQ: fayl hajmi sig'ishni bashorat qilmaydi. O'lchash yagona yo'l:
+  #     ollama ps   →   PROCESSOR ustuni
+  #
+  # Shu kartada 100% GPU da ishlaydigan yagona nomzod — `qwen3:8b`
+  # (xotirada 6.0 GB). Sifat pastroq, lekin u haqiqatan ishlaydi.
   ollama-qwen35:
     display_name: "Qwen3.5 9.7B (Ollama)"
     backend: openai
@@ -151,8 +157,9 @@ models:
     context_length: 262144
     license: Apache-2.0
     default_temperature: 0.3
-    strengths: [fits_8gb_vram, apache_license, long_context, multilingual]
-    note: "8 GB kartada to'liq GPU da ishlaydi. 14B sig'maganda shu ishlatiladi."
+    strengths: [apache_license, long_context, multilingual]
+    risks: [8gb_vram_ga_sigmaydi]
+    note: "8 GB kartada 28% CPU ga to'kiladi. Kattaroq karta bo'lsa yaxshi tanlov."
     disable_thinking: true
 
   ollama-gemma3-12b:

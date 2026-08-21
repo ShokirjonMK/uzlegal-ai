@@ -213,6 +213,20 @@ Qolgan ikki nosozlik darvozaga tegishli emas:
 Ya'ni `§ 4` dagi «5/5» da'vosi endi **uchdan-uchgacha tasdiqlangan**,
 birlik testda emas.
 
+#### Uchinchi o'lchov — 2026-08-21, kech
+
+Fikrlash rejimi tuzatilgach (`docs/28`) va model 100% GPU da
+ishlaganda o'lchov qaytarildi:
+
+| | Asos | 2-o'lchov | **3-o'lchov** |
+|---|---:|---:|---:|
+| Umumiy | 87% | 93% | **97%** |
+| Qamrov toifasi | 40% | 100% | **100%** |
+| Kechikish (median) | — | 60.2 s | **31.4 s** |
+
+Yagona yiqilgan holat — `yoq-05` (kriptovalyuta), u yuqorida
+tushuntirilgan mazmun darajasidagi holat va darvozaga tegishli emas.
+
 ---
 
 ## 5. Bu ishga kirmaydi
