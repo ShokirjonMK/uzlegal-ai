@@ -52,6 +52,16 @@ class EvalCase:
     category: str = "general"
     note: str | None = None
 
+    # Holatni kim tekshirgan: `expert` (malakali yurist), `machine`
+    # (avtomatik tekshiruvdan o'tgan) yoki `noma'lum` (eski holatlar).
+    #
+    # NEGA HISOBOTGA CHIQADI. Ikki darajani bir xil deb ko'rsatish
+    # ma'lumot qiymatini yo'qotadi: «R@10 86%» raqami holatlarning
+    # qanchasi yurist ko'rgan holatdan kelganiga qarab boshqa-boshqa
+    # ma'no beradi (docs/29).
+    verified_by: str = "noma'lum"
+    verified_at: str | None = None
+
     def matches(self, chunk: Any) -> bool:
         """Chunk kutilgan moddalardan biriga tegishlimi.
 
