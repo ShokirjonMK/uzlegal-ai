@@ -31,6 +31,7 @@ bayonlar. Mantiqiy bog'lovchi va protsessual maslahat — qolaveradi.
 
 from __future__ import annotations
 
+import logging
 import re
 from enum import StrEnum
 
@@ -38,8 +39,11 @@ from pydantic import BaseModel, Field
 
 from uzlegal.ingest.normalize import fold
 from uzlegal.ingest.types import unit_label
+from uzlegal.orchestrator import document, quantity
 from uzlegal.orchestrator.text import content_words
 from uzlegal.types import Citation
+
+log = logging.getLogger(__name__)
 
 # Iqtibos matni da'voni qo'llab-quvvatlaydimi — leksik qoplama chegarasi.
 # Past qo'yilgan (0.2): bu bosqichning vazifasi mutlaqo boshqa mavzudagi
@@ -95,6 +99,8 @@ class DropReason(StrEnum):
     UNKNOWN_CITATION = "iqtibos indeksda topilmadi"
     UNSUPPORTED = "iqtibos matni da'voni qo'llab-quvvatlamaydi"
     WRONG_ARTICLE = "da'vodagi modda raqami iqtibosga mos kelmaydi"
+    WRONG_QUANTITY = "da'vodagi miqdor iqtibos matniga zid"
+    WRONG_DOCUMENT = "da'voda boshqa hujjat nomlangan"
 
 
 class ClaimCheck(BaseModel):
@@ -417,6 +423,36 @@ def _check_claim(
             tags=tags,
             reason=DropReason.UNKNOWN_CITATION,
         )
+
+    if kind is ClaimKind.LEGAL:
+        # Miqdor ziddiyati — modda raqami bilan bir xil darajadagi aniq
+        # tekshiruv (docs/28). Leksik qoplamadan OLDIN turadi, chunki
+        # «10 yil» va «uch yil» jumlalari ko'p so'zni bo'lishadi va
+        # qoplama yuqori chiqadi — farq esa aynan sonda.
+        clash = quantity.contradicts(text, [c.excerpt or "" for c in resolved])
+        if clash is not None:
+            log.debug(
+                "miqdor ziddiyati: da'vo %s %s, manba %s %s", clash[0], clash[2], clash[1], clash[2]
+            )
+            return ClaimCheck(
+                text=text,
+                kind=kind,
+                status=ClaimStatus.DROPPED,
+                tags=tags,
+                reason=DropReason.WRONG_QUANTITY,
+            )
+
+    if kind is ClaimKind.LEGAL:
+        clash_doc = document.contradicts(text, resolved)
+        if clash_doc is not None:
+            log.debug("hujjat ziddiyati: da'vo %s, iqtibos %s", clash_doc[0], clash_doc[1])
+            return ClaimCheck(
+                text=text,
+                kind=kind,
+                status=ClaimStatus.DROPPED,
+                tags=tags,
+                reason=DropReason.WRONG_DOCUMENT,
+            )
 
     if kind is ClaimKind.LEGAL and has_invented_article(text, resolved):
         # Leksik qoplamadan OLDIN: bu tekshiruv aniq, u esa taxminiy.
