@@ -466,6 +466,75 @@ Yadro oʻchiq boʻlsa boʻlim buni **ochiq aytadi** («Yadroni ishga
 tushiring: uzlegal serve»), jim qolmaydi. Lekin panel yadroni oʻzi
 ishga tushira olmaydi — bu alohida topshiriq.
 
+
+---
+
+## #72 — Norma topuvchi (`/norma`)
+
+**Holat:** yopildi · 2026-08-21
+
+### Nima uchun
+
+2026-08-21 da mahsulot birinchi marta javob sifati boʻyicha oʻlchandi:
+sakkiz savoldan model **ikkitasiga** foydali javob berdi, qidiruv esa
+**sakkizalasida ham** toʻgʻri moddani topdi.
+
+Yaʻni ishlaydigan qatlam va rejalashtirilgan qatlam — ikki xil narsa.
+Ishlaydiganini alohida mahsulot sifatida ochamiz.
+
+### #72.1 Marshrut
+
+`GET /api/norma?q=...&k=8` — yadroning `POST /v1/search` iga proksi.
+
+`/api/search` dan farqi: u veb ilovaning **oʻz** SQLite bazasidan
+qidiradi, bu esa **yadro indeksidan** — 808 hujjat, versiya filtri,
+qamrov darvozasi va iqtibos yorliqlari oʻsha yerda.
+
+Model chaqirilmaydi. Sahifaning butun mohiyati shu: u qonun matnini
+koʻrsatadi, oʻzidan hech narsa yozmaydi — shuning uchun
+**gallyutsinatsiya qila olmaydi**.
+
+Yadro oʻchiq boʻlsa marshrut buni **aytadi** (503 va buyruq bilan),
+boʻsh roʻyxat qaytarmaydi: boʻsh roʻyxat «hech narsa topilmadi» degan
+notoʻgʻri taassurot qoldirardi.
+
+### #72.2 Sahifa
+
+`/norma` — savol → normalar roʻyxati. Har biri: toʻliq matn, iqtibos
+nomi, amaldagi holat, kuchga kirgan sana, lex.uz havolasi.
+
+**Dizayn qoidasi:** «bu javob emas, bu norma» degani KOʻRINISHDA
+boʻlsin — matn ostidagi mayda izohda emas. Shuning uchun har norma
+chap chekkasida qalin chiziq bilan, hujjatdan koʻchirma shaklida
+koʻrsatiladi va sahifa oxirida ochiq ogohlantirish turadi: matnni
+**talqin qilish** yuristning ishi.
+
+Qamrovdan tashqaridagi savol rad etiladi va sabab aytiladi. Yaqin
+normalar **koʻrsatilmaydi** — bu aynan tuzatilgan xato edi.
+
+### #72.3 Uslublar
+
+`legacy.css` ga qoʻshildi, faqat mavjud tokenlar bilan (`--accent`,
+`--warn-soft`, `--danger`, `--radius`) — yaʻni qorongʻi rejim
+oʻz-oʻzidan ishlaydi. Yangi rang qoʻshilmadi.
+
+### QA
+
+```
+npm run check    ✅  typecheck + oʻzbek linteri (105 fayl)
+npm run build    ✅  /norma 2.19 kB, /api/norma 169 B
+/norma           ✅  200
+/api/norma       ✅  Oila kodeksi 15-modda qaytardi
+qamrov           ✅  GDPR savoli rad etildi, results boʻsh
+```
+
+### Yoʻl-yoʻlakay topilgan va tuzatilgan nuqson
+
+Qamrov darvozasi **faqat maslahat yoʻlida** ishlardi. `/v1/search`
+GDPR savoliga eng yaqin Oʻzbekiston normalarini qaytarardi — yaʻni
+darvoza mahsulotning bir yuzida ishlab, ikkinchisida ishlamasdi.
+Endi u qidiruvda ham turadi.
+
 ---
 
 ## Yopilmagan qarzlar

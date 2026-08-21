@@ -622,8 +622,22 @@ class SearchResult(BaseModel):
     status: str = "in_force"
 
 
+class CoverageInfo(BaseModel):
+    """Savol qamrovdan tashqarida bo'lsa — nima va nima uchun (docs/27)."""
+
+    kind: str
+    subject: str
+    detail: str
+
+
 class SearchResponse(BaseModel):
     results: list[SearchResult]
+    # To'ldirilgan bo'lsa — savol qamrovdan tashqarida va `results` BO'SH.
+    #
+    # NEGA BO'SH. Qamrovdan tashqaridagi savolga «yaqin» normalarni
+    # ko'rsatish — aynan tuzatilgan xato (docs/27 § 1): foydalanuvchi
+    # savoliga emas, boshqa savolga javob oladi va u ishonchli ko'rinadi.
+    coverage: CoverageInfo | None = None
     query_kind: str
     total_hits: int
     latency_ms: int
@@ -643,6 +657,32 @@ def search(req: SearchRequest) -> SearchResponse:
     """
     if not req.query.strip():
         raise HTTPException(400, "`query` boʻsh")
+
+    # Qamrov darvozasi qidiruvda ham ishlaydi (docs/27).
+    #
+    # Ilgari u faqat maslahat yo'lida (`orchestrator/graph.py`) turardi.
+    # Natijada `/v1/search` GDPR yoki AQSh Konstitutsiyasi haqidagi
+    # savolga eng yaqin O'zbekiston normalarini qaytarardi — ya'ni
+    # darvoza mahsulotning bir yuzida ishlab, ikkinchisida ishlamasdi.
+    from uzlegal.index.store import KnowledgeIndex as _Index
+    from uzlegal.retrieval.coverage import check_coverage
+
+    _gap = None
+    try:
+        _gap = check_coverage(req.query, _Index())
+    except Exception as exc:  # pragma: no cover — indeks o'qilmasa to'smaymiz
+        log.warning("Qamrov tekshiruvi bajarilmadi: %s", exc)
+
+    if _gap is not None:
+        return SearchResponse(
+            results=[],
+            coverage=CoverageInfo(kind=_gap.kind, subject=_gap.subject, detail=_gap.detail),
+            query_kind="qamrovdan-tashqari",
+            total_hits=0,
+            latency_ms=0,
+            confident=False,
+            as_of=req.as_of,
+        )
 
     try:
         from uzlegal.index.store import KnowledgeIndex

@@ -7,6 +7,7 @@ const TABS = [
   { href: "/", label: "Savol-javob" },
   { href: "/tahlil", label: "Hujjat tahlili" },
   { href: "/hujjat", label: "Hujjat tayyorlash" },
+  { href: "/norma", label: "Norma topuvchi" },
   { href: "/qonunlar", label: "Qonun bazasi" },
   { href: "/kabinet", label: "Kabinet" },
 ];
