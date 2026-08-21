@@ -150,3 +150,31 @@ def test_miqdor_tekshiruvi_modda_tekshiruvidan_oldin() -> None:
     javob = "Kodeksning 999-moddasiga ko'ra muddat 10 yil [C1]."
     hisobot = groundedness_gate(javob, [_citation("Umumiy da'vo muddati - uch yil.")])
     assert hisobot.checks[0].reason is DropReason.WRONG_QUANTITY
+
+
+# --------------------------------------------------------------------------- #
+# Mazmunsiz da'vo — docs/28 § 5 dagi kuzatuv
+# --------------------------------------------------------------------------- #
+
+
+def test_faqat_iqtibos_belgisi_davo_emas() -> None:
+    """Model ba'zan da'vo o'rniga faqat belgini yozadi.
+
+    O'lchandi 2026-08-21: sinov muddati savoliga javob so'zma-so'z
+    «[C1]» bo'ldi. Bu hech narsa tasdiqlamaydi, lekin javobda qolib
+    foydalanuvchini chalg'itadi — qolgan tekshiruvlarning hech biri
+    uni ushlamaydi.
+    """
+    hisobot = groundedness_gate("XULOSA\n[C1]", [_citation("Umumiy da'vo muddati - uch yil.")])
+
+    assert hisobot.dropped == 1
+    assert hisobot.checks[0].reason is DropReason.EMPTY_CLAIM
+    assert hisobot.refused, "mazmunli da'vo qolmasa tizim rad etishi kerak"
+
+
+def test_mazmunli_davo_tegilmaydi() -> None:
+    """Chegara past: bitta mazmunli so'z yetarli."""
+    hisobot = groundedness_gate(
+        "Da'vo muddati uch yil [C1].", [_citation("Umumiy da'vo muddati - uch yil.")]
+    )
+    assert hisobot.dropped == 0

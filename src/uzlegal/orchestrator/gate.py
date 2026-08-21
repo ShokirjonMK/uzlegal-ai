@@ -101,6 +101,7 @@ class DropReason(StrEnum):
     WRONG_ARTICLE = "da'vodagi modda raqami iqtibosga mos kelmaydi"
     WRONG_QUANTITY = "da'vodagi miqdor iqtibos matniga zid"
     WRONG_DOCUMENT = "da'voda boshqa hujjat nomlangan"
+    EMPTY_CLAIM = "da'voda mazmun yo'q, faqat iqtibos belgisi"
 
 
 class ClaimCheck(BaseModel):
@@ -410,6 +411,22 @@ def _check_claim(
             return ClaimCheck(text=text, kind=kind, status=ClaimStatus.KEPT)
         return ClaimCheck(
             text=text, kind=kind, status=ClaimStatus.DROPPED, reason=DropReason.NO_CITATION
+        )
+
+    if not content_words(text):
+        # Model ba'zan da'vo o'rniga faqat belgini yozadi: javob so'zma-so'z
+        # «[C1]» bo'ladi (o'lchandi 2026-08-21, sinov muddati savolida).
+        #
+        # Bu da'vo emas — u hech narsa tasdiqlamaydi, lekin javobda
+        # QOLADI va foydalanuvchi uni mazmun deb o'qishi mumkin. Qolgan
+        # tekshiruvlar uni o'tkazib yuboradi: iqtibos bor, modda raqami
+        # yo'q, miqdor yo'q, leksik qoplama esa bo'sh to'plamda hisoblanmaydi.
+        return ClaimCheck(
+            text=text,
+            kind=kind,
+            status=ClaimStatus.DROPPED,
+            tags=tags,
+            reason=DropReason.EMPTY_CLAIM,
         )
 
     resolved = [known[t] for t in tags if t in known]
