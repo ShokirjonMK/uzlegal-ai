@@ -48,6 +48,21 @@ class ModelSpec(BaseModel):
     context_length: int = 8192
     license: str | None = None
 
+    # Fikrlash rejimi (`thinking`) o'chirilsinmi.
+    #
+    # NEGA KERAK. Qwen3 va Qwen3.5 kabi modellar javobdan oldin uzun
+    # ichki mulohaza yozadi. OpenAI ga mos API da u `reasoning` maydoniga
+    # tushadi, `content` esa BO'SH qoladi — va butun token byudjeti
+    # mulohazaga ketadi (`finish_reason: length`).
+    #
+    # O'lchandi (2026-08-21, qwen3.5): agent so'rovi 0 belgilik javob
+    # qaytardi va uchala urinish ham yiqildi. `reasoning_effort: "none"`
+    # bilan o'sha so'rov to'g'ri JSON qaytardi.
+    #
+    # Agentlarga tuzilgan chiqish kerak, mulohaza zanjiri emas — shuning
+    # uchun fikrlash rejimi ular uchun foyda emas, to'siq.
+    disable_thinking: bool = False
+
     # Faza 0 baholash uchun
     strengths: list[str] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)

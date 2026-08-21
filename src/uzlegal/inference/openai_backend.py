@@ -248,6 +248,11 @@ class OpenAIBackend(InferenceBackend):
             payload["stop"] = params.stop
         if params.seed is not None:
             payload["seed"] = params.seed
+        if self.spec.disable_thinking:
+            # `types.ModelSpec.disable_thinking` izohiga qarang: bu bo'lmasa
+            # fikrlaydigan model butun byudjetni mulohazaga sarflaydi va
+            # `content` bo'sh qaytadi.
+            payload["reasoning_effort"] = "none"
         return payload
 
     @staticmethod
@@ -255,7 +260,18 @@ class OpenAIBackend(InferenceBackend):
         choices = data.get("choices") or []
         if not choices:
             raise RuntimeError(f"Server bo'sh javob qaytardi: {data}")
-        content = (choices[0].get("message") or {}).get("content")
+        message = choices[0].get("message") or {}
+        content = message.get("content")
+        if not content and message.get("reasoning"):
+            # Model butun byudjetni mulohazaga sarfladi. Bu sozlama
+            # xatosi va uni JIMGINA bo'sh javob sifatida o'tkazib
+            # yuborish eng yomon variant: chaqiruvchi «model javob
+            # bermadi» deb o'ylaydi va sababni bilmaydi.
+            log.warning(
+                "Model faqat mulohaza qaytardi, javob bo'sh. "
+                "`configs/models.yaml` da shu model uchun "
+                "`disable_thinking: true` qo'ying."
+            )
         return str(content or "")
 
     @staticmethod

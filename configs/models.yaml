@@ -38,6 +38,7 @@ models:
     default_temperature: 0.3
     strengths: [reasoning, tool_calling, structured_output]
     risks: [uzbek_moderate]
+    disable_thinking: true
 
   gemma3-12b:
     display_name: "Gemma 3 12B IT (4-bit)"
@@ -66,6 +67,7 @@ models:
     strengths: [fast, cheap_training, headroom]
     risks: [complex_legal_reasoning_weak]
     note: "Tez iteratsiya va hybrid profilidagi 'tez rejim' uchun"
+    disable_thinking: true
 
   mistral-small-24b:
     display_name: "Mistral Small 3.2 24B (4-bit)"
@@ -111,6 +113,7 @@ models:
     default_temperature: 0.3
     strengths: [multilingual, apache_license, long_context]
     note: "ADR-001 (qayta ko'rilgan) da tanlangan model. Litsenziya toza."
+    disable_thinking: true
 
   # Tez tekshiruv uchun — sifat past, lekin quvurni sinash uchun yetarli.
   ollama-qwen3-8b:
@@ -126,6 +129,31 @@ models:
     strengths: [speed, apache_license]
     risks: [past_sifat]
     note: "Faqat quvurni sinash uchun. Sifat o'lchovlari bu modelda olinmaydi."
+    disable_thinking: true
+
+  # 8 GB VRAM uchun eng yaxshi variant (2026-08-21 da o'lchandi).
+  #
+  # NEGA MUHIM. `ollama-qwen3-14b` — e'lon qilingan ishlab chiqarish
+  # modeli, lekin uning vaznlari 9.3 GB va 8 GB kartaga SIG'MAYDI:
+  # xotira PCIe orqali tizimga to'kiladi va tezlik o'nlab barobar
+  # tushadi (o'lchandi: GPU 93% yuklama, atigi 41 W quvvat).
+  #
+  # qwen3.5 esa 6.6 GB — to'liq kartaga sig'adi, yangiroq avlod va
+  # litsenziyasi bir xil (Apache-2.0), ya'ni ADR-001 ning qayta
+  # ko'rilgan qarori buzilmaydi.
+  ollama-qwen35:
+    display_name: "Qwen3.5 9.7B (Ollama)"
+    backend: openai
+    hf_id: qwen3.5:latest
+    params: "9.7B"
+    quant_bits: 4
+    size_gb: 6.6
+    context_length: 262144
+    license: Apache-2.0
+    default_temperature: 0.3
+    strengths: [fits_8gb_vram, apache_license, long_context, multilingual]
+    note: "8 GB kartada to'liq GPU da ishlaydi. 14B sig'maganda shu ishlatiladi."
+    disable_thinking: true
 
   ollama-gemma3-12b:
     display_name: "Gemma 3 12B (Ollama)"
