@@ -22,6 +22,7 @@ interface Holat {
     apiProtected: boolean;
     embedding: { provider: string; model: string };
     admin: { twoFactor: boolean };
+    yuzalar?: { nom: string; ochiq: boolean; sabab: string | null }[];
     mongo: { sozlangan: boolean; ok: boolean; error?: string };
   };
   korpus: { chunks?: number; documents?: Array<{ document: string }>; xato?: string };
@@ -192,6 +193,30 @@ export function HolatBolimi() {
           </dl>
         </CardContent>
       </Card>
+
+      {!!t.yuzalar?.length && (
+        <Card className="mb-3">
+          <CardHeader>
+            <CardTitle>Mahsulot yuzalari</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/*
+              Yopiq yuza — NOSOZLIK EMAS, qaror. Panel buni aniq
+              aytishi kerak, aks holda «/tahlil ochilmayapti» degan
+              savol har safar kod ichida qidirishga olib borardi.
+            */}
+            <ul className="konsol-yuzalar">
+              {t.yuzalar.map((y) => (
+                <li key={y.nom} className={y.ochiq ? "ochiq" : "yopiq"}>
+                  <span className="nom">/{y.nom}</span>
+                  <span className="holat">{y.ochiq ? "ochiq" : "yopiq"}</span>
+                  {y.sabab && <span className="sabab">{y.sabab}</span>}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {data.baza && (
         <Card>

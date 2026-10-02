@@ -1,0 +1,109 @@
+# tsulai — TSUL AI server (ai-cam-server), 4 x RTX 6000 Ada 48 GB
+#
+# ## Nega bu profil alohida
+#
+# `server.yaml` boʻsh klasterni nazarda tutadi: oʻzining vLLM si, Qdrant,
+# Elasticsearch, Postgres. Bu mashinada esa **allaqachon** toʻrtta ishlab
+# turgan vLLM xizmati bor va ular boshqa jamoalarning ishlab chiqarish
+# yuklamasini koʻtaradi:
+#
+#   port 8201  qwen3-embedding   (Qwen3-Embedding-4B, 2560 oʻlchov)
+#   port 8202  qwen3-reranker    (Qwen3-Reranker-4B)
+#   port 8204  gemma4-31b        (tensor-parallel 2 — GPU 1 va 2)
+#   port 8410  qwen3.8-27b       (AWQ, GPU 3)
+#
+# Shu sababli bu profil **yangi GPU band qilmaydi va hech qanday mavjud
+# xizmatga tegmaydi**. Generatsiya uchun tayyor turgan `qwen3.8-27b`
+# endpointi ishlatiladi.
+#
+# ## Nega serverdagi qwen3-embedding ISHLATILMAYDI
+#
+# Indeks BGE-M3 bilan qurilgan: `kb/current/index-meta.json` da
+# `"dim": 1024`. Serverdagi `qwen3-embedding` esa 2560 oʻlchovli.
+# Boshqa embedder bilan soʻrov qilish — indeksni buzish demak: vektorlar
+# bir fazoda emas, qidiruv maʼnosiz natija qaytaradi. Ikkita yoʻl bor
+# edi — 48 932 boʻlakni qayta indekslash (soatlab GPU) yoki soʻrov
+# tomonida oʻsha BGE-M3 ni ishlatish. Ikkinchisi tanlandi: model 2.3 GB,
+# GPU 0 da 26 GB boʻsh joy bor, soʻrov embeddingi ~20 ms.
+
+profile: tsulai
+
+hardware:
+  platform: linux-cuda
+  gpus: 4
+
+inference:
+  # Mashinada ishlab turgan vLLM — OpenAI-mos. Yangi jarayon
+  # koʻtarilmaydi, GPU band qilinmaydi.
+  backend: openai
+  endpoint: http://127.0.0.1:8410/v1
+  model: qwen3.8-27b
+  api_key: EMPTY
+  max_context: 16384          # vLLM `--max-model-len 16384` bilan ishga tushirilgan
+  default_max_tokens: 2000
+  kv_cache_prefix: true
+
+retrieval:
+  vector_store:
+    type: lancedb
+    path: ./kb/current/vectors
+  lexical:
+    type: tantivy
+    path: ./kb/current/lexical
+  graph:
+    type: sqlite
+    path: ./kb/current/graph.db
+  embedder: BAAI/bge-m3
+
+  # Reranker oʻchirilgan — `local-dev.yaml` dagi oʻlchov izohi shu yerda
+  # ham amal qiladi: 20 kodeksli korpusda Recall@10 ni 89% dan 81% ga
+  # tushirgan. Serverda `qwen3-reranker` (8202) turibdi va uni sinash
+  # mumkin, LEKIN avval `uzlegal eval retrieval --rerank` bilan
+  # oʻlchansin. Oʻlchovsiz yoqilmaydi.
+  use_reranker: false
+  top_k_retrieve: 50
+  top_k_rerank: 8
+  confidence_threshold: 0.35
+  context_budget_tokens: 6000
+
+orchestration:
+  # Rol adapterlari hali oʻqitilmagan (F4 yurist tasdiqlagan datasetni
+  # kutmoqda), shuning uchun agentlar bitta baza modelning turli
+  # promptlari sifatida ishlaydi — parallel emas, ketma-ket.
+  parallel_agents: false
+  max_debate_rounds: 2
+  disagreement_threshold: 0.4
+  timeout_per_agent_s: 60
+  timeout_total_s: 180
+
+gate:
+  enabled: true
+  require_citation_for_legal_claims: true
+  nli_check: true
+  drop_unsupported: true
+
+api:
+  host: 0.0.0.0
+  port: 8510                  # 8500-8530 oraligʻi boʻsh — tekshirilgan
+  auth: api_key
+  cors_origins: ["*"]
+  rate_limit:
+    per_key_daily: 1000
+    per_ip_minute: 60
+    # Mashina boshqa jamoalar bilan boʻlishiladi. Bir vaqtda ikkitadan
+    # ortiq qimmat soʻrov qoʻyilmaydi — vLLM navbati boshqalarni ham
+    # kutishga majbur qilmasin.
+    max_concurrent: 2
+  max_upload_mb: 20
+
+observability:
+  metrics: prometheus
+  metrics_port: 9510
+  log_level: INFO
+  log_format: json
+
+privacy:
+  store_raw_questions: false
+  mask_pii_in_logs: true
+  audit_retention_days: 2555
+  data_residency: UZ

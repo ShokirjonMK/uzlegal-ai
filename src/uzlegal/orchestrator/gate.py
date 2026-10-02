@@ -34,6 +34,7 @@ from __future__ import annotations
 import logging
 import re
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -159,8 +160,37 @@ class GateReport(BaseModel):
                 seen.append(check.reason.value)
         return seen
 
-    def summary(self) -> dict[str, int]:
-        return {"claims": self.claims, "kept": self.kept, "dropped": self.dropped}
+    def summary(self) -> dict[str, Any]:
+        """Audit jurnaliga tushadigan qisqacha hisobot.
+
+        ## Nima uchun SABABLAR ham yoziladi
+
+        Ilgari bu yerda faqat uchta son bor edi: `claims`, `kept`,
+        `dropped`. 2 803 ta yozuv yigʻildi va ular quyidagini koʻrsatdi:
+        daʼvolarning 24.8% i (standart rejimda 32%) oʻchirilgan.
+
+        Lekin **nima uchun** oʻchirilgani jurnalda yoʻq edi. Ya'ni
+        raqam muammo borligini aytardi, uni tuzatish uchun esa yetarli
+        emasdi: iqtibos yoʻqmi, iqtibos matni qoʻllab-quvvatlamadimi,
+        modda raqami xatomi — bularning har biri **boshqa** tuzatishni
+        talab qiladi.
+
+        `flagged` ham qoʻshildi: u «shubhali, lekin oʻchirilmagan»
+        holat va oʻsishi darvoza chegarasi surilayotganini koʻrsatadi.
+        """
+        reasons: dict[str, int] = {}
+        for check in self.checks:
+            if check.status is ClaimStatus.DROPPED and check.reason:
+                reasons[check.reason.value] = reasons.get(check.reason.value, 0) + 1
+
+        return {
+            "claims": self.claims,
+            "kept": self.kept,
+            "dropped": self.dropped,
+            "flagged": self.flagged,
+            "refused": self.refused,
+            "reasons": reasons,
+        }
 
 
 # --------------------------------------------------------------------------- #

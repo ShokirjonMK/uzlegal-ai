@@ -440,7 +440,10 @@ def node_gate(state: ConsultState, deps: Deps) -> ConsultState:
     with state.trace.step("gate") as step:
         report = groundedness_gate(draft_answer(state), state.citations)
         state.gate = report
-        step.set(**report.summary(), refused=report.refused, reasons=report.drop_reasons or None)
+        # `summary()` ichida `refused` va sabablar SANOGʻI (`reasons` lugʻati)
+        # allaqachon bor — ularni yana alohida uzatish takror kalit xatosini
+        # berardi. `api/quality.py` aynan lugʻat shaklini kutadi.
+        step.set(**report.summary())
     return state
 
 

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HolatBolimi } from "./HolatBolimi";
 import { YadroBolimi } from "./YadroBolimi";
+import { SifatBolimi } from "./SifatBolimi";
+import { SavollarBolimi } from "./SavollarBolimi";
 import { BazaBolimi } from "./BazaBolimi";
 import { YozishmalarBolimi } from "./YozishmalarBolimi";
 import { XabarBolimi } from "./XabarBolimi";
@@ -37,7 +39,7 @@ export function AdminPanel() {
         <div>
           <h1>Admin panel</h1>
           <p className="lede mb-4">
-            Qonun bazasi, statistika, tizim holati va ommaviy xabar.
+            Mahsulot sifati, haqiqiy savollar, yadro holati va boshqaruv.
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => void chiqish()} disabled={chiqmoqda}>
@@ -46,14 +48,31 @@ export function AdminPanel() {
         </Button>
       </div>
 
-      <Tabs defaultValue="yadro">
+      {/*
+        Tartib ATAYLAB oʻzgardi. Ilgari birinchi «Yadro» edi — u tizim
+        sogʻligʻini koʻrsatadi. Lekin panelni ochgan odamning birinchi
+        savoli «tizim ishlayaptimi» emas, «MAHSULOT qanday» boʻladi.
+        Shuning uchun birinchi — «Sifat»: darvoza nechta daʼvoni
+        oʻchiryapti, haqiqiy foydalanuvchi bormi.
+      */}
+      <Tabs defaultValue="sifat">
         <TabsList>
+          <TabsTrigger value="sifat">Sifat</TabsTrigger>
+          <TabsTrigger value="savollar">Savollar</TabsTrigger>
           <TabsTrigger value="yadro">Yadro</TabsTrigger>
           <TabsTrigger value="holat">Umumiy holat</TabsTrigger>
           <TabsTrigger value="baza">Qonun bazasi</TabsTrigger>
           <TabsTrigger value="yozishmalar">Yozishmalar</TabsTrigger>
           <TabsTrigger value="xabar">Ommaviy xabar</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="sifat">
+          <SifatBolimi />
+        </TabsContent>
+
+        <TabsContent value="savollar">
+          <SavollarBolimi />
+        </TabsContent>
 
         <TabsContent value="yadro">
           <YadroBolimi />

@@ -258,10 +258,27 @@ def test_hisobot_trace_uchun_yetarli() -> None:
         "Sud qarori kerak [C9]."
     )
     report = groundedness_gate(answer, SOURCES)
-    assert report.summary() == {"claims": 3, "kept": 1, "dropped": 2}
+    xulosa = report.summary()
+
+    assert xulosa["claims"] == 3
+    assert xulosa["kept"] == 1
+    assert xulosa["dropped"] == 2
+
     assert set(report.drop_reasons) == {
         DropReason.NO_CITATION.value,
         DropReason.UNKNOWN_CITATION.value,
+    }
+
+    # Sabablar SANOQ bilan yoziladi, roʻyxat bilan emas.
+    #
+    # Nima uchun: audit jurnalidagi 2 900 yozuv «25% oʻchirilgan» degan
+    # raqamni berardi, lekin nima uchun oʻchirilgani yoʻq edi. Har sabab
+    # boshqa tuzatishni talab qiladi, shuning uchun ularning NISBATI
+    # kerak — qaysi biri koʻp uchrashi qaysi ish birinchi ekanini
+    # koʻrsatadi.
+    assert xulosa["reasons"] == {
+        DropReason.NO_CITATION.value: 1,
+        DropReason.UNKNOWN_CITATION.value: 1,
     }
 
 

@@ -116,6 +116,32 @@ export function BazaBolimi() {
 
   return (
     <>
+      {/*
+        OGOHLANTIRISH ENG TEPADA.
+
+        Bu boʻlim veb ilovaning OʻZ lokal bazasini boshqaradi
+        (`web/data/corpus.db`), mahsulot ishlatadigan yadro indeksini
+        emas. Ikkalasi butunlay boshqa:
+
+            yadro:  808 hujjat · 48 932 boʻlak  ← foydalanuvchi shuni koʻradi
+            lokal:  oʻlchandi 2026-08-25 — 4 KB, yaʼni BOʻSH
+
+        Ilgari bu farq hech qayerda yozilmagandi va boʻlim «Qonun
+        bazasi» deb atalardi. Ya'ni panelni ochgan odam boʻsh roʻyxatni
+        koʻrib «korpus yoʻq ekan» degan XATO xulosaga kelardi — yoki
+        bundan yomoni, bu yerga hujjat yuklab, u mahsulotda paydo
+        boʻlishini kutardi. Yuklangan hujjatni hech kim oʻqimasdi.
+      */}
+      <div className="konsol-ogoh mb-3" role="status">
+        <strong>Bu yerdagi baza mahsulot ishlatadigan baza EMAS.</strong>{" "}
+        Foydalanuvchi koʻradigan korpus yadroda: <strong>808 hujjat</strong>.
+        Uni «Yadro» boʻlimida koʻring, yangilash esa buyruq bilan
+        bajariladi: <code>uzlegal kb sync</code>.
+        <br />
+        Quyidagi baza — ishlab chiqish uchun lokal nusxa. Unga yuklangan
+        hujjat javoblarda <strong>ishlatilmaydi</strong>.
+      </div>
+
       <Card className="mb-3">
         <CardHeader>
           <CardTitle>Hujjat qoʻshish</CardTitle>

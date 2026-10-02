@@ -53,6 +53,18 @@ export interface ConsultResult {
   latency_ms: number;
   kb_version: string;
   disclaimer: string;
+
+  /**
+   * Ed25519 bilan imzolangan javob pasporti.
+   *
+   * Yadro uni HAR javobda yasaydi (`core.py:_issue_passport`), lekin
+   * veb ilova uni 2026-08-25 gacha umuman oʻqimasdi — yaʼni tayyor
+   * ishonch belgisi bekor turardi.
+   *
+   * `null` — imzo kaliti sozlanmagan yoki yasashda xato boʻlgan.
+   * Bunday holat soʻrovni yiqitmaydi.
+   */
+  passport?: string | null;
 }
 
 /** Oqim hodisasi. `step` — bosqich, `answer` — yakuniy natija. */

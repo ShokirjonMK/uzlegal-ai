@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import subprocess
 import sys
@@ -43,6 +44,24 @@ for _module, _attr, _name in (
         app.add_typer(getattr(__import__(_module, fromlist=[_attr]), _attr), name=_name)
     except ImportError as _exc:  # pragma: no cover — modul hali qo'shilmagan
         logging.getLogger(__name__).debug("'%s' sub-app ulanmadi: %s", _name, _exc)
+
+# Windows konsoli standart holda cp1251 da ishlaydi va o'zbekcha
+# apostroflarni (ʻ ʼ) ham, `✕`/`⚠` belgilarini ham chiqara olmaydi.
+#
+# O'LCHANDI (2026-08-25): litsenziyasiz `uzlegal serve` chaqirilganda
+# tushunarli xato o'rniga `UnicodeEncodeError` traceback chiqardi —
+# ya'ni XATONI KO'RSATMOQCHI BO'LGAN KOD o'zi yiqildi. Foydalanuvchi
+# nima qilish kerakligini bilmay qoldi.
+#
+# `errors="replace"` ataylab qo'shilgan: agar oqimni UTF-8 ga o'tkazib
+# bo'lmasa ham (masalan qayta yo'naltirilgan quvurda), dastur yiqilmasin
+# — belgi `?` bo'lib chiqsin. Xabarning o'zi muhimroq.
+if sys.platform == "win32":  # pragma: no cover — platformaga bog'liq
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            # Yopiq yoki almashtirilgan oqimda o'tkazib yuboriladi.
+            with contextlib.suppress(OSError, ValueError):
+                _stream.reconfigure(encoding="utf-8", errors="replace")
 
 console = Console()
 

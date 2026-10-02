@@ -212,3 +212,91 @@ def test_bosh_admin_kaliti_none_hisoblanadi(monkeypatch: pytest.MonkeyPatch) -> 
     """Bo'sh satr kalit EMAS — aks holda `UZLEGAL_ADMIN_KEY=` himoyani ochardi."""
     monkeypatch.setenv(auth_mod.ADMIN_KEY_ENV, "   ")
     assert auth_mod._admin_key() is None
+
+
+# --------------------------------------------------------------------------- #
+# Bir vaqtdagi ish chegarasi
+#
+# Chastota cheklovidan ALOHIDA sinaladi, chunki u boshqa narsani himoya
+# qiladi: chastota so'rovlarni sanaydi, bu esa ular qancha turishini
+# hisobga oladi. Audit jurnalida `/v1/consult` ning p95 i 149 soniya —
+# ya'ni ruxsat etilgan 60 so'rov/daqiqa ham mashinani o'ldirishi mumkin.
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture(autouse=True)
+def _bosh_darvoza() -> None:
+    """Har test darvozani bo'sh holatdan boshlaydi."""
+    auth_mod._gate._active = 0
+
+
+def test_arzon_marshrut_cheklanmaydi() -> None:
+    """`/v1/search` modelsiz ishlaydi — uni cheklash sababsiz sekinlashtirardi."""
+    assert not auth_mod.is_expensive("/v1/search")
+    assert not auth_mod.is_expensive("/v1/health")
+
+
+def test_qimmat_marshrutlar_tanib_olinadi() -> None:
+    for path in ("/v1/consult", "/v1/consult/stream", "/v1/generate", "/v1/court/analyze"):
+        assert auth_mod.is_expensive(path), path
+
+
+def test_darvoza_chegaraga_yetganda_rad_etadi() -> None:
+    gate = auth_mod._ConcurrencyGate()
+    assert gate.acquire(2)
+    assert gate.acquire(2)
+    assert not gate.acquire(2)  # uchinchisi — to'la
+    gate.release(2)
+    assert gate.acquire(2)  # joy bo'shadi
+
+
+def test_darvoza_nol_chegarada_ochiq() -> None:
+    """`max_concurrent: 0` — cheklov yo'q (masalan katta serverda)."""
+    gate = auth_mod._ConcurrencyGate()
+    assert all(gate.acquire(0) for _ in range(100))
+    assert gate.active == 0  # hisoblanmaydi ham
+
+
+def test_release_nolga_tushib_ketmaydi() -> None:
+    """Ortiqcha `release` hisobni manfiy qilmasin — aks holda darvoza
+    keyinchalik chegaradan ko'proq so'rov o'tkazib yuborardi."""
+    gate = auth_mod._ConcurrencyGate()
+    gate.release(2)
+    gate.release(2)
+    assert gate.active == 0
+    assert gate.acquire(1)
+    assert not gate.acquire(1)
+
+
+def test_tola_darvoza_503_va_retry_after(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "rate_limit", {"max_concurrent": 1})
+    auth_mod._gate._active = 1  # bitta ish allaqachon ketmoqda
+
+    response = client.post("/v1/generate", json={"prompt": "salom"})
+    assert response.status_code == 503
+    assert int(response.headers["Retry-After"]) > 0
+
+
+def test_rad_etilgan_sorov_joy_band_qilmaydi(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """503 qaytgandan keyin hisob o'sib qolmasligi kerak.
+
+    Aks holda har rad etilgan so'rov darvozani yanada torlashtirardi va
+    xizmat o'zini o'zi butunlay yopib qo'yardi."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "rate_limit", {"max_concurrent": 1})
+    auth_mod._gate._active = 1
+
+    for _ in range(5):
+        client.post("/v1/generate", json={"prompt": "salom"})
+    assert auth_mod._gate.active == 1
+
+
+def test_holat_chegarani_korsatadi(client: TestClient) -> None:
+    """`rate_limit: null` bo'lsa ham himoya borligi ko'rinsin."""
+    body = client.get("/v1/health").json()
+    assert body["auth"]["max_concurrent"] >= 1

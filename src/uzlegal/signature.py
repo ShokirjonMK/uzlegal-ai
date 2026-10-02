@@ -68,8 +68,19 @@ AUTHOR_KEYS: tuple[str, ...] = ("ShokirjonMK", "MKdev", "mk", "@ceoNeuron")
 
 # Muallifning Ed25519 ochiq kaliti (`SIGNATURE.md` dagi bilan bir xil).
 # Ochiq kalit — ataylab ommaviy; u bilan faqat TEKSHIRISH mumkin.
-PUBLIC_KEY_SSH = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICW+kZ5h4kDz2z7a9FyWgoAnf5Yx3SnuTg4yKDrzz6iD"
-PUBLIC_KEY_FINGERPRINT = "SHA256:R4s0AF7cVC018xjK1s3jLusb67r/JoLXFqYKo2WlHkI"
+# ## Kalit rotatsiyasi — 2026-09-04
+#
+# Avvalgi kalit (SHA256:R4s0AF7cVC018xjK1s3jLusb67r/JoLXFqYKo2WlHkI)
+# ga mos MAXFIY kalit hech bir ish mashinasida topilmadi: `~/.ssh/id_ed25519`,
+# `~/.ssh/madami_deploy` va `~/.ollama/id_ed25519` ning barmoq izlari boshqa.
+# Ya'ni litsenziya berish imkonsiz edi — MUALLIF UCHUN HAM. Kalit 2026-08-12
+# dagi `3782c2a` commitida kiritilgan va bir marta ham ishlatilmagan.
+#
+# Hech qanday litsenziya berilmagani uchun rotatsiya hech kimni sindirmaydi.
+# Yangi maxfiy kalit: `~/.ssh/uzlegal_signing_ed25519` (parolsiz, rejim 600).
+# Eski barmoq izi tarix uchun yuqorida qoldirildi — u endi ISHONCHSIZ.
+PUBLIC_KEY_SSH = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINT0Dzb7SrZOP5Z/Tqz4VA3qVRSTSCwbLTzB6P/3wrmz"
+PUBLIC_KEY_FINGERPRINT = "SHA256:mwL9hmF/G8XF84g4ewAwlHbrAokdTzWVKixP+L8dwH0"
 
 LICENSE_ENV = "UZLEGAL_LICENSE"
 LICENSE_FILE_ENV = "UZLEGAL_LICENSE_FILE"

@@ -2,6 +2,7 @@ import { config } from "@/lib/config";
 import { activeModel, pingOllama } from "@/lib/llm";
 import { adminGuard, adminSetup } from "@/lib/auth/admin";
 import { stats } from "@/lib/rag/store";
+import { ochiqYuzalar, yopiqSababi, type Feature } from "@/lib/features";
 import { lifetime, summary } from "@/lib/analytics";
 import { pingMongo, isMongoConfigured } from "@/lib/db/mongo";
 import { aiCalls, users } from "@/lib/db/collections";
@@ -38,6 +39,19 @@ export async function GET(request: Request): Promise<Response> {
       anthropicKey: Boolean(config.anthropicApiKey),
       telegram: Boolean(config.telegramToken),
       apiProtected: Boolean(config.apiKey),
+      /*
+       * Qaysi mahsulot yuzasi ochiq.
+       *
+       * NEGA PANELDA KERAK. `/tahlil` va `/hujjat` 2026-08-25 da
+       * yopildi — ular javobni iqtibos nazoratidan oʻtkazmasdi.
+       * Bu qaror KODDA (`lib/features.ts`), yaʼni uni koʻrish uchun
+       * faylni ochish kerak edi. Panelga qaragan odam «nega
+       * /tahlil ochilmayapti» degan savolga javobni shu yerda
+       * topsin — nosozlik deb oʻylamasin.
+       */
+      yuzalar: (["savol", "norma", "qonunlar", "tahlil", "hujjat", "kabinet"] as Feature[]).map(
+        (f) => ({ nom: f, ochiq: ochiqYuzalar().includes(f), sabab: yopiqSababi(f) }),
+      ),
       embedding: {
         provider: config.embeddingProvider,
         model:

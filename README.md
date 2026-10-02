@@ -170,20 +170,29 @@ uzlegal serve --profile local-dev
 munozarasi → sudya xulosasi → iqtibos nazorati → javob. Barcha
 interfeyslar (CLI, REST+SSE, MCP, Telegram bot, SDK, Web) ulangan.
 
-**Nima tayyor:**
+**Nima tayyor** (o'lchangan, 2026-08-25):
 
-- 20 ta kodeks (7 090 modda) indekslangan, versiyalash bilan
-- Uchala platformada model ishlaydi (`openai` backend orqali)
-- `/v1/admin/*` kalitsiz ochilmaydi; rate-limit va reja chegaralari amalda
-- 800+ test, `mypy --strict` toza, CI har push da yuguradi
+- **808 hujjat · 48 932 bo'lak** indekslangan — 20 kodeks, qonunlar, PF/PQ
+- **Norma topuvchi** (`/norma`) — modelsiz qidiruv, gallyutsinatsiya
+  qila olmaydi; isitilgan holatda ~270 ms
+- Qamrov darvozasi: qamrovdan tashqari savol **rad etiladi**, yaqin
+  mavzudagi norma ko'rsatilmaydi
+- Iqtibos nazorati: tasdiqlanmagan huquqiy da'vo javobdan chiqariladi
+- `/v1/admin/*` kalitsiz ochilmaydi; chastota, reja va **bir vaqtdagi
+  ish** chegaralari amalda
+- 1 200+ test, `mypy --strict` toza, CI har push da yuguradi
+- Qayta yuklashdan keyin xizmat **o'zi ko'tariladi** (`scripts/xizmat.ps1`)
 
 **Nima yo'q — ochiq aytiladi:**
 
 | Cheklov | Nima uchun |
 |---------|-----------|
-| Korpus 20 kodeks bilan cheklangan | Qonunosti hujjatlari va sud amaliyoti hali yig'ilmagan (40k hujjat ≈ 17 kun, `robots.txt` Crawl-delay 20) |
-| Rol adapterlari o'qitilmagan | Rollar farqi promptdan keladi; LoRA uchun yurist tekshiruvidan o'tgan dataset kerak |
-| Huquqiy hujjatlar yo'q | Foydalanuvchi shartnomasi va maxfiylik siyosati yurist tasdig'ini talab qiladi |
+| **Erkin matnli maslahat hali tayyor emas** | O'lchandi: gate model da'volarining 24.8% ini (standart rejimda 32%) manba tasdiqlamagani uchun o'chiradi. Shu sabab `/tahlil` va `/hujjat` **yopiq** |
+| Sifat asosi tor | 36 ta holat, ±16 p.p. Hech biri yurist tomonidan tasdiqlanmagan — barcha foizlar shu asosga tayanadi |
+| Korpus qonunchilikning bir qismi | Katalogdagi 878 o'zbekcha hujjatning 92% i indekslangan; lex.uz da esa o'n minglab hujjat bor |
+| Rol promptlari yakunlanmagan | Ular o'z matnida «yurist ekspert bilan birga ishlab chiqiladi» deb turibdi |
+| Rol adapterlari o'qitilmagan | LoRA uchun yurist tekshiruvidan o'tgan dataset kerak |
+| Huquqiy hujjatlar yurist tasdig'isiz | `/shartlar` va `/maxfiylik` yozilgan, lekin ekspertizadan o'tmagan |
 
 Yo'l xaritasi: [`docs/11-roadmap.md`](docs/11-roadmap.md).
 

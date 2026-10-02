@@ -98,3 +98,10 @@ kb/current/
 
 # Claude Code shaxsiy sozlamalari
 .claude/settings.local.json
+
+# Litsenziya kaliti — imzolangan token. Commitga tushsa boshqa
+# mashinalarda ham ishlaydi, yaʼni himoya maʼnosini yoʻqotadi.
+license.key
+
+# Nazoratchi jurnallari (`scripts/xizmat.ps1`).
+logs/

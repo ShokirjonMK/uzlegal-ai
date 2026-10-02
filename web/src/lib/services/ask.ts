@@ -157,5 +157,6 @@ export async function ask(req: AskRequest): Promise<AskResult> {
     script,
     // Token hisobi yadroda qoladi — qobiq uni ko'rmaydi.
     usage: undefined,
+    passport: result.passport ?? null,
   };
 }

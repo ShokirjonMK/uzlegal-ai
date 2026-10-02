@@ -551,3 +551,152 @@ Bular alohida topshiriq sifatida ochiladi:
 | — | Eski 4 sahifani Tailwind ga koʻchirish | Hozir `legacy` qatlamida ishlayapti |
 | — | Statistikani SQLite dan Mongo ga birlashtirish | Hozir ikki manba yonma-yon |
 | — | Parol tiklash (pochta orqali) | SMTP xizmati kerak |
+
+---
+
+## #73 — R0: xizmat qayta yuklashdan keyin tirik qolsin
+
+**Holat:** yopildi · 2026-08-25
+
+Taftish (24–25-VIII) koʻrsatdi: kompyuter qayta yuklandi va **hech narsa
+oʻzi koʻtarilmadi**. Ishlagan sozlama faqat bitta terminal sessiyasining
+xotirasida yashagan.
+
+| # | Nima qilindi |
+|---|---|
+| 73.1 | `scripts/xizmat.ps1` — nazoratchi: uch xizmatni kuzatadi va yiqilsa koʻtaradi |
+| 73.2 | `scripts/xizmat-ornatish.ps1` — avtoyuklash (vazifa yoki Startup yorligʻi) |
+| 73.3 | Litsenziya `.env` da saqlanadigan boʻldi (`.env.example` da hujjatlashtirildi) |
+| 73.4 | CLI dagi `UnicodeEncodeError` tuzatildi — xatoni koʻrsatuvchi kod oʻzi yiqilardi |
+| 73.5 | Bir vaqtdagi soʻrov chegarasi (`max_concurrent`) — chastota cheklovi buni qoplamaydi |
+
+**QA:** `pytest` (29 ta yangi test), `ruff`, `mypy --strict`, nazoratchi
+haqiqiy ishga tushirildi — Ollama va veb koʻtarildi, litsenziya yoʻqligi
+toʻgʻri xabar bilan aytildi.
+
+**Qolgani (sizda):** litsenziya bir marta yaratilishi kerak —
+`uzlegal license issue "..." --out license.key`. Bu muallif kaliti bilan
+imzolanadi, shuning uchun men bajarmadim.
+
+---
+
+## #74 — R1: norma topuvchini yolgʻiz joʻnatishga tayyorlash
+
+**Holat:** yopildi · 2026-08-25
+
+Taftishning eng jiddiy topilmasi: toʻrtta veb yuzadan **uchtasi** iqtibos
+darvozasini chetlab oʻtardi (`/v1/generate` — xom model chiqishi).
+
+| # | Nima qilindi |
+|---|---|
+| 74.1 | `lib/features.ts` — yuza bayrogʻi; `/tahlil`, `/hujjat` yopildi |
+| 74.2 | Himoya **uch qatlamda**: API marshruti (503), sahifa, navigatsiya |
+| 74.3 | «Amalda» belgisi «bekor qilinmagan» ga oʻzgardi — u tekshiruv emas, standart qiymat (99.95% `in_force`) |
+| 74.4 | `UZLEGAL_RAG=auto` olib tashlandi — yadro oʻchganda jimgina boʻsh lokal bazaga tushardi |
+| 74.5 | `/shartlar` va `/maxfiylik` yozildi (A3) — kodning haqiqiy xatti-harakatidan |
+| 74.6 | Sahifa asosi (footer) — huquqiy havolalar har sahifada |
+
+**QA:** `npm run check` (111 fayl), `npm run build`, marshrutlar `curl` bilan.
+
+**Ochiq:** `/tahlil` va `/hujjat` iqtibos darvozasi hujjat tahliliga
+moslashtirilgach qaytadi. Kod oʻchirilmadi.
+
+---
+
+## #75 — Qidiruv: roʻyxat bandlari kirish jumlasidan uzilgan edi
+
+**Holat:** yopildi · 2026-08-25
+
+`18 510` `part` boʻlagining `8 671` tasi (46.8%) 200 belgidan qisqa.
+Sabab «kichik boʻlak» emas — **aniq nuqson**: sanab oʻtilgan bandlar
+oʻz maʼnosini beruvchi jumladan uziladi.
+
+| # | Nima qilindi |
+|---|---|
+| 75.1 | `Chunk.stem` — kirish jumlasi faqat **qidiruv matniga** qoʻshiladi |
+| 75.2 | `content` va iqtibos yorligʻi **oʻzgarmaydi** — koʻrsatiladigan norma oʻsha-oʻsha |
+| 75.3 | Indeks qayta qurildi, gold set boʻyicha oldin/keyin oʻlchandi |
+
+**QA:** 42 ta chunker testi, oʻlchov hisoboti `reports/` da.
+
+---
+
+## #76 — Javob pasporti: maʼlumot yoʻli ulandi, koʻrsatilmadi
+
+**Holat:** qisman · 2026-08-25
+
+Taftish topilmasi (M7): yadro har javobga Ed25519 imzo qoʻyadi
+(`core.py:_issue_passport`), veb ilovada esa `passport` soʻzi **bironta
+faylda ham uchramasdi** — tayyor ishonch belgisi bekor turardi.
+
+**Bajarildi:** `client.ts` → `types.ts` → `ask.ts` — pasport endi
+yadrodan veb qatlamiga yetib keladi.
+
+**ATAYLAB BAJARILMADI: interfeysda koʻrsatish.**
+
+Sabab texnik emas, maʼnoviy. Pasport javobning **kelib chiqishini**
+tasdiqlaydi — qaysi korpus versiyasidan, qaysi model bilan olinganini.
+U javobning **toʻgʻriligini** tasdiqlamaydi.
+
+Oʻlchangan holat: standart rejimda daʼvolarning 32% i darvoza
+tomonidan oʻchiriladi. Bunday javob yoniga imzo va «tasdiqlangan»
+koʻrinishidagi belgi qoʻyish foydalanuvchini **adashtirardi** — u
+kriptografik imzoni ishonchlilik kafolati deb oʻqiydi.
+
+Shuning uchun koʻrsatish **R3 bilan birga** qilinadi: javoblar
+ishonchli boʻlgach, pasport ularning kuchini oshiradi. Hozir esa
+u yolgʻon ishonch berardi.
+
+---
+
+## #77 — Admin panelni kuchaytirish
+
+**Holat:** yopildi · 2026-08-26
+
+Panel tizim holatini koʻrsatardi, **mahsulot holatini** emas. Audit
+jurnalidagi 2 905 yozuv — loyihadagi eng boy maʼlumot — hech qayerda
+koʻrinmasdi: uni oʻqish uchun har safar skript yozish kerak edi.
+
+### Yangi boʻlimlar
+
+| # | Nima |
+|---|---|
+| 77.1 | **Sifat** — darvoza ulushi, kechikish persentillari, iqtibossiz javoblar, kunlik tendensiya, zanjir butunligi |
+| 77.2 | **Savollar** — maskalangan soʻrovlar roʻyxati, filtrlar (oʻchirilgan · iqtibossiz · sekin · rad etilgan), sahifalash, tafsilot |
+
+Yadroda: `api/quality.py` + `GET /v1/admin/quality`, `GET /v1/admin/questions`.
+
+### Tuzatishlar
+
+| # | Nima |
+|---|---|
+| 77.3 | Darvoza endi **sabablarni** ham yozadi (`gate.summary()`) — ilgari faqat son bor edi |
+| 77.4 | «Qonun bazasi» boʻlimiga ogohlantirish: u **boʻsh lokal bazani** boshqaradi, mahsulot ishlatadigan 808 hujjatni emas |
+| 77.5 | «Umumiy holat» ga **mahsulot yuzalari** bloki — qaysi sahifa ochiq/yopiq va nega |
+| 77.6 | Yadro proksisi umumiy funksiyaga chiqarildi (`lib/admin/yadroProksi.ts`) |
+| 77.7 | Tablar tartibi: birinchi «Sifat» — panelni ochgan odamning birinchi savoli «mahsulot qanday» |
+
+### Dizayn qarorlari
+
+**Yomon xabar tepada.** «Haqiqiy foydalanuvchi yoʻq» birinchi qatorda
+turadi: u nol boʻlsa qolgan hamma raqam oʻz-oʻzini sinash natijasi va
+buni bilib turib oʻqish kerak.
+
+**Kam soʻrovli kunlar susaytiriladi.** 2 ta soʻrovdagi «53%» 300 ta
+soʻrovdagi «27%» bilan bir xil koʻrinmasligi kerak — shovqinli raqamni
+oddiy raqam kabi koʻrsatish jimgina yolgʻon.
+
+**Standart filtr — «darvoza oʻchirgan».** Muvaffaqiyatli javoblarni
+varaqlashdan foyda yoʻq; qiymat buzilgan holatlarda.
+
+### QA
+
+```
+pytest  test_quality 15 · test_gate 28 · test_api_auth 29   ✅
+ruff · ruff format · mypy --strict                          ✅
+npm run check (116 fayl) · npm run build                    ✅
+curl: kalitsiz 401 · kirish bilan 200 · yadro oʻchiq → maslahat  ✅
+```
+
+**Ochiq:** «Sifat» boʻlimini haqiqiy maʼlumot bilan koʻrish uchun yadro
+ishlashi kerak — litsenziya talab qilinadi.

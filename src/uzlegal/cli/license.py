@@ -17,7 +17,11 @@ from uzlegal import signature as sig
 license_app = typer.Typer(help="Foydalanish litsenziyasi", no_args_is_help=True)
 console = Console()
 
-DEFAULT_KEY = "~/.ssh/id_ed25519"
+# Loyihaga ATALGAN imzo kaliti. Ilgari bu yerda umumiy `~/.ssh/id_ed25519`
+# turardi — u SSH uchun ishlatiladi, paroli bor va `signature.py` dagi
+# ochiq kalitga mos ham kelmasdi. Imzo kaliti alohida bo'lgani ma'qul:
+# uni SSH dan mustaqil almashtirish mumkin.
+DEFAULT_KEY = "~/.ssh/uzlegal_signing_ed25519"
 
 
 @license_app.command("show")
