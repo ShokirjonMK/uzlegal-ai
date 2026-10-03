@@ -92,7 +92,7 @@ X-Author:           Shokirjon Madaminov (ShokirjonMK)
 X-Developer:        MKdev
 X-Contact:          @ceoNeuron
 X-Project:          UzLegal-AI
-X-Key-Fingerprint:  SHA256:R4s0AF7cVC018xjK1s3jLusb67r/JoLXFqYKo2WlHkI
+X-Key-Fingerprint:  SHA256:mwL9hmF/G8XF84g4ewAwlHbrAokdTzWVKixP+L8dwH0
 ```
 
 `/v1/meta` da to'liq `attribution` va `license` bloklari.

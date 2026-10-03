@@ -120,6 +120,50 @@ _ITEM_RE = re.compile(r"(?m)^\s*([a-zа-яʻʼ]{1,2})\s*\)\s+")
 _SENTENCE_RE = re.compile(r"(?<=[.!?;])\s+|\n+")
 
 
+# Kirish jumlasining eng katta uzunligi (belgi).
+#
+# NEGA CHEGARA KERAK. Kirish jumlasi HAR bo'lakning qidiruv matniga
+# qo'shiladi. Cheklanmasa uzun kirishi bor modda o'zining o'nlab
+# bo'laklariga bir xil uzun matnni tarqatardi va ular bir-biridan
+# farq qilmay qolardi — qidiruv esa aynan farqni qidiradi.
+#
+# 400 belgi — bir-ikki jumla, ya'ni «quyidagilar tomonidan amalga
+# oshiriladi:» kabi ma'no beruvchi qismni saqlash uchun yetarli.
+STEM_MAX = 400
+
+
+def _stem_of(parts: list[tuple[str | None, str]]) -> str:
+    """Ro'yxatning kirish (belgisiz) qismini qaytaradi.
+
+    `split_by()` birinchi elementni belgisiz (`mark is None`) qaytaradi
+    — bu ro'yxatdan oldingi matn, ya'ni uni izohlovchi jumla. Belgili
+    element birinchi bo'lsa, kirish yo'q degani va bo'sh satr qaytadi.
+
+    Faqat BIRINCHI element tekshiriladi: matn o'rtasidagi belgisiz
+    bo'lak — bu ro'yxat oralig'idagi izoh, kirish emas.
+
+    ## Ikkita chetki holat
+
+    **Bo'linmagan matn.** Belgi topilmasa `split_by()` butun matnni
+    `[(None, text)]` qilib qaytaradi. Uni kirish deb olish xato bo'lardi:
+    modda o'z matnini o'zining qidiruv matniga ikkinchi marta qo'shardi
+    va BM25 da sun'iy og'irlik olardi. Shuning uchun ro'yxat kamida
+    ikkita elementdan iborat bo'lishi shart.
+
+    **Kirishning o'zi.** Kirish bo'lagi ham chunk bo'ladi. Unga `stem`
+    berilmaydi — bu `mark is None` bo'yicha aniqlanadi, obyekt
+    tengligi bilan emas: bu funksiya `strip()` va kesish qiladi,
+    ya'ni HAR DOIM yangi satr qaytaradi va `is` hech qachon rost
+    bo'lmasdi.
+    """
+    if len(parts) < 2:
+        return ""
+    mark, text = parts[0]
+    if mark is not None:
+        return ""
+    return text.strip()[:STEM_MAX]
+
+
 def _split_oversized(text: str) -> list[str]:
     """Embedding oynasiga sig'maydigan matnni gap chegarasida bo'ladi.
 
@@ -456,13 +500,41 @@ class Chunk(BaseModel):
     valid_to: str | None = None
     status: str = "in_force"
 
+    # Moddaning KIRISH jumlasi — faqat qidiruv matniga qo'shiladi.
+    #
+    # NEGA KERAK. Ro'yxatli modda bo'laklarga bo'linganda sanab o'tilgan
+    # bandlar o'z ma'nosini beruvchi jumladan UZILADI:
+    #
+    #     :kirish  «Tergovga qadar tekshiruv quyidagilar tomonidan
+    #               amalga oshiriladi:»          ← ma'no shu yerda
+    #     :7       «7) olis safarda bo'lgan dengiz kemalarining
+    #               kapitanlari;»                ← alohida indekslanadi
+    #
+    # Ikkinchi bo'lakda kapitanlar NIMA qilishi umuman yozilmagan.
+    # «Tergovga qadar tekshiruvni kim o'tkazadi» so'rovi unga hech
+    # qachon mos kelmaydi, holbuki javob aynan o'sha yerda.
+    #
+    # O'LCHANDI (2026-08-25): 18 510 `part` bo'lagining 8 671 tasi
+    # (46.8%) 200 belgidan qisqa — ya'ni korpusning sezilarli qismi
+    # shu holatda.
+    #
+    # NEGA `content` GA QO'SHILMAYDI. `content` foydalanuvchiga
+    # ko'rsatiladi va iqtibos matni sifatida ishlatiladi. Unga kirish
+    # jumlasini qo'shish normani BOR NARSADAN BOSHQACHA ko'rsatardi.
+    # Qidiruv matni esa hech kimga ko'rinmaydi — uni boyitish xavfsiz.
+    stem: str = ""
+
     @property
     def indexed_text(self) -> str:
-        """Embedding va BM25 uchun matn — sarlavha bilan birga.
+        """Embedding va BM25 uchun matn — sarlavha va kirish jumlasi bilan.
 
         Sarlavhani qo'shish muhim: «234-modda» so'rovi chunk matnida
         uchramasligi mumkin, lekin sarlavhada bor.
+
+        `stem` — modda kirish jumlasi; sabab yuqoridagi izohda.
         """
+        if self.stem:
+            return f"{self.heading}\n\n{self.stem}\n\n{self.content}"
         return f"{self.heading}\n\n{self.content}"
 
     @property
@@ -602,6 +674,7 @@ class Chunker:
 
         # 2. O'rta modda — qismlarga
         parts = split_by(_PART_RE, body)
+        stem = _stem_of(parts)
         if len(parts) > 1 and tokens <= SPLIT_TO_ITEMS_ABOVE:
             return [
                 Chunk(
@@ -611,6 +684,10 @@ class Chunker:
                     content=text,
                     token_count=estimate_tokens(text),
                     kind="part",
+                    # Kirish bo'lagining o'ziga `stem` qo'yilmaydi — u
+                    # o'z matnini ikki marta olardi va BM25 da sun'iy
+                    # ravishda og'irroq bo'lib qolardi.
+                    stem="" if mark is None else stem,
                     **base,  # type: ignore[arg-type]
                 )
                 for mark, text in parts
@@ -628,6 +705,7 @@ class Chunker:
                         content=part_text,
                         token_count=estimate_tokens(part_text),
                         kind="part",
+                        stem="" if mark is None else stem,
                         **base,  # type: ignore[arg-type]
                     )
                 )
@@ -654,10 +732,18 @@ class Chunker:
                             content=piece,
                             token_count=estimate_tokens(piece),
                             kind="part",
+                            stem=stem,
                             **base,  # type: ignore[arg-type]
                         )
                     )
                 continue
+
+            # Bandlar uchun ikki bosqichli kirish: moddaning o'zi va
+            # QISMning kirish jumlasi. Ikkinchisi ko'pincha muhimroq —
+            # aynan u «quyidagilar tomonidan amalga oshiriladi:» kabi
+            # jumlani saqlaydi.
+            qism_kirishi = _stem_of(items)
+            band_stem = "\n".join(x for x in (stem, qism_kirishi) if x)[:STEM_MAX]
 
             for item_mark, item_text in items:
                 suffix = [f"{mark}-qism"] if mark else []
@@ -677,6 +763,7 @@ class Chunker:
                             content=piece,
                             token_count=estimate_tokens(piece),
                             kind="item",
+                            stem="" if item_mark is None else band_stem,
                             **base,  # type: ignore[arg-type]
                         )
                     )

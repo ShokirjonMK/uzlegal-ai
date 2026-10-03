@@ -65,6 +65,8 @@ export interface AskResult {
   lang: Lang;
   script: Script;
   usage?: Usage;
+  /** Imzolangan javob pasporti — `/v1/passport/verify` bilan tekshiriladi. */
+  passport?: string | null;
 }
 
 export interface Usage {

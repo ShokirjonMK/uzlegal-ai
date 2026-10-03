@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { AuroraBackground } from "@/components/AuroraBackground";
 import { NavTabs } from "@/components/NavTabs";
+import { ochiqYuzalar } from "@/lib/features";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -34,12 +35,24 @@ export default function RootLayout({
             <Link href="/" className="brand">
               AI <span>Lawyer</span>
             </Link>
-            <NavTabs />
+            <NavTabs ochiq={ochiqYuzalar()} />
           </div>
         </nav>
         <main className="shell" id="asosiy">
           {children}
         </main>
+        {/*
+          Huquqiy havolalar HAR sahifada boʻlishi kerak, faqat bosh
+          sahifada emas: foydalanuvchi mahsulotga istalgan sahifadan
+          kirishi mumkin va shartlarni oʻsha yerdan topa olishi shart.
+        */}
+        <footer className="shell asos">
+          <Link href="/shartlar">Foydalanish shartlari</Link>
+          <Link href="/maxfiylik">Maxfiylik siyosati</Link>
+          <span className="asos-ogoh">
+            Bu xizmat yuridik maslahat bermaydi.
+          </span>
+        </footer>
       </body>
     </html>
   );

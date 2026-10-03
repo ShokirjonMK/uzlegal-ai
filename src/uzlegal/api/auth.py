@@ -148,6 +148,89 @@ class _IpLimiter:
 _ip_limiter = _IpLimiter()
 
 
+# --------------------------------------------------------------------------- #
+# Bir vaqtdagi ish chegarasi
+# --------------------------------------------------------------------------- #
+#
+# NEGA CHASTOTA CHEKLOVI YETARLI EMAS. `_IpLimiter` daqiqadagi SO'ROVLAR
+# sonini cheklaydi. Bu 200 ms lik endpoint uchun to'g'ri himoya, lekin
+# model chaqiradigan endpoint uchun deyarli befoyda.
+#
+# O'LCHANDI (2026-08-24, audit jurnalidan 2 803 yozuv):
+#
+#     /v1/consult  median 2.2 s · p95 149 s · maks 693 s
+#
+# `per_ip_minute: 60` chegarasida bir daqiqada 60 ta so'rov o'tadi va
+# ularning har biri 149 soniyagacha protsessorni band qiladi. Ya'ni
+# chegara HURMAT QILINGAN holda ham mashina o'ladi — cheklov so'rovlarni
+# sanaydi, ular qancha turishini emas.
+#
+# NEGA NAVBAT EMAS, DARHOL RAD ETISH. Navbat vasvasasi bor edi: so'rovni
+# saqlab, bo'shaganda bajarish. Lekin 90 soniyalik ishda beshinchi
+# navbatdagi mijoz 7 daqiqa kutadi va deyarli har doim o'zi uziladi —
+# server esa allaqachon keraksiz bo'lgan ishni bajarib bo'ladi.
+# Tez 503 — halolroq javob.
+
+
+class _ConcurrencyGate:
+    """Qimmat marshrutlarda bir vaqtda bajarilayotgan ish sonini cheklaydi."""
+
+    def __init__(self) -> None:
+        self._active = 0
+        self._lock = Lock()
+
+    def acquire(self, limit: int) -> bool:
+        """`True` — joy bor va band qilindi. `False` — to'la."""
+        if limit <= 0:
+            return True
+        with self._lock:
+            if self._active >= limit:
+                return False
+            self._active += 1
+            return True
+
+    def release(self, limit: int) -> None:
+        if limit <= 0:
+            return
+        with self._lock:
+            self._active = max(0, self._active - 1)
+
+    @property
+    def active(self) -> int:
+        with self._lock:
+            return self._active
+
+
+_gate = _ConcurrencyGate()
+
+# Model chaqiradigan — ya'ni daqiqalab davom etishi mumkin bo'lgan —
+# marshrutlar. `/v1/search` ATAYLAB yo'q: u modelsiz ishlaydi va
+# o'lchangan mediani ~270 ms. Uni cheklash norma topuvchini sababsiz
+# sekinlashtirardi.
+_EXPENSIVE: tuple[str, ...] = (
+    "/v1/consult",
+    "/v1/generate",
+    "/v1/court/analyze",
+    "/v1/litigation/",
+)
+
+# Standart qiymat. 8 GB li mashinada ikkita bir vaqtdagi generatsiya ham
+# ko'p, lekin bitta bo'lsa sinov paytida navbat sezilarli bo'ladi.
+DEFAULT_MAX_CONCURRENT = 2
+
+
+def max_concurrent() -> int:
+    """Sozlamadagi chegara. `0` — cheklov yo'q."""
+    raw = get_settings().rate_limit.get("max_concurrent")
+    if raw is None:
+        return DEFAULT_MAX_CONCURRENT
+    return int(raw)
+
+
+def is_expensive(path: str) -> bool:
+    return path.startswith(_EXPENSIVE)
+
+
 def _client_ip(request: Request) -> str:
     """Mijoz IP si.
 
@@ -252,7 +335,28 @@ async def access_control(request: Request, call_next: Any) -> Any:
             headers=exc.headers,
         )
 
-    return await call_next(request)
+    # Bir vaqtdagi ish chegarasi — kirish nazoratidan KEYIN. Aks holda
+    # ruxsatsiz so'rov ham joy band qilardi va tanilmagan mijoz xizmatni
+    # to'ldirib qo'ya olardi.
+    if not is_expensive(path):
+        return await call_next(request)
+
+    limit = max_concurrent()
+    if not _gate.acquire(limit):
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": (
+                    f"Xizmat band ({limit} ta so'rov bajarilmoqda). "
+                    "Bir oz kutib, qaytadan urinib ko'ring."
+                )
+            },
+            headers={"Retry-After": "30"},
+        )
+    try:
+        return await call_next(request)
+    finally:
+        _gate.release(limit)
 
 
 def require_admin(
@@ -384,4 +488,10 @@ def auth_status() -> dict[str, Any]:
         "admin_key_configured": _admin_key() is not None,
         "static_keys": len(_static_keys()),
         "rate_limit": settings.rate_limit or None,
+        # Bir vaqtdagi ish chegarasi `rate_limit` dan ALOHIDA ko'rsatiladi:
+        # u profil sozlamasi bo'sh bo'lganda ham amal qiladi (standart 2),
+        # ya'ni «rate_limit: null» ni ko'rgan odam «hech qanday himoya yo'q»
+        # degan noto'g'ri xulosaga kelmasin.
+        "max_concurrent": max_concurrent(),
+        "active_requests": _gate.active,
     }

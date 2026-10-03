@@ -5,6 +5,7 @@ import { currentUser } from "@/lib/auth/session";
 import { recordAiCall } from "@/lib/db/log";
 import { extractText } from "@/lib/util/extract";
 import { errorJson } from "@/lib/util/sse";
+import { yopiqSababi } from "@/lib/features";
 import type { Lang, Script } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -23,6 +24,15 @@ const MAX_FILE_BYTES = 25 * 1024 * 1024;
  */
 export async function POST(request: Request): Promise<Response> {
   if (!checkApiKey(request)) return errorJson("Ruxsat yoʻq.", 401);
+  // Yuza yopiq boʻlsa — hech narsa bajarilmaydi.
+  //
+  // NEGA MARSHRUTDA, NEGA FAQAT SAHIFADA EMAS. Sahifani yashirish
+  // koʻrinishni oʻzgartiradi, himoyani emas: marshrutga `curl` bilan
+  // ham, eski xatcho'p bilan ham murojaat qilish mumkin. Haqiqiy
+  // chegara shu yerda.
+  const yopiq = yopiqSababi("tahlil");
+  if (yopiq) return errorJson(yopiq, 503);
+
 
   try {
     const contentType = request.headers.get("content-type") ?? "";

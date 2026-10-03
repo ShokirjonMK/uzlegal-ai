@@ -322,3 +322,257 @@
     animation: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Sifat va Savollar boʻlimlari
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Keng jadval oʻz ichida siljisin — sahifa yon tomonga siljimasin. */
+.konsol-aylanma {
+  overflow-x: auto;
+}
+
+.konsol-jadval td.ogoh {
+  color: #b8860b;
+  font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  .konsol-jadval td.ogoh {
+    color: #d9a441;
+  }
+}
+
+/* ── Kunlik tendensiya ────────────────────────────────────────────────
+   Ustunli diagramma. Kutubxonasiz — bu yerda kerak boʻlgan yagona
+   narsa nisbat, va uni CSS balandligi bemalol beradi. Yangi bogʻliqlik
+   qoʻshish bu foyda uchun arzimaydi. */
+
+.konsol-tendensiya {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.konsol-tendensiya li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 46px;
+  flex: 0 0 auto;
+}
+
+/* Kam soʻrovli kunlar SUSAYTIRILADI: 2 ta soʻrovdagi «53%» 300 ta
+   soʻrovdagi «27%» bilan bir xil koʻrinmasligi kerak. Shovqinli
+   raqamni oddiy raqam kabi koʻrsatish — jimgina yolgʻon. */
+.konsol-tendensiya li.kam {
+  opacity: 0.42;
+}
+
+.konsol-tendensiya .chiziq {
+  width: 100%;
+  height: 64px;
+  display: flex;
+  align-items: flex-end;
+  background: var(--bg-soft);
+  border-radius: 3px;
+}
+
+.konsol-tendensiya .chiziq i {
+  width: 100%;
+  background: color-mix(in srgb, var(--accent) 60%, #b8860b);
+  border-radius: 3px;
+  display: block;
+}
+
+.konsol-tendensiya .kun {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.konsol-tendensiya .qiymat {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.konsol-tendensiya .soni {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Filtrlar ─────────────────────────────────────────────────────────── */
+
+.konsol-filtrlar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.konsol-filtrlar .filtr {
+  font-size: 12.5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.konsol-filtrlar .filtr:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.konsol-filtrlar .filtr.faol {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ── Savollar roʻyxati ────────────────────────────────────────────────── */
+
+.konsol-savollar {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.konsol-savollar .savol {
+  background: var(--bg-raised);
+}
+
+.savol-bosh {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 14px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13.5px;
+}
+
+.savol-bosh:hover {
+  background: var(--bg-soft);
+}
+
+.savol-matn {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.savol-belgilar {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.savol-tafsilot {
+  padding: 4px 14px 14px;
+  border-top: 1px dashed var(--border);
+}
+
+.savol-tafsilot dl {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) 1fr;
+  gap: 4px 16px;
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+.savol-tafsilot dt {
+  color: var(--text-faint);
+}
+
+.savol-tafsilot dd {
+  margin: 0;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.konsol-sahifa {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* ── Mahsulot yuzalari ────────────────────────────────────────────────
+   Holat chap chekkadagi chiziq bilan — panelning qolgan qismidagi
+   kabi. Yopiq yuza «xato» emas, ATAYLAB qilingan qaror, shuning
+   uchun qizil emas sariq. */
+
+.konsol-yuzalar {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.konsol-yuzalar li {
+  background: var(--bg-raised);
+  padding: 9px 13px;
+  display: grid;
+  grid-template-columns: minmax(90px, auto) minmax(56px, auto) 1fr;
+  gap: 4px 14px;
+  align-items: baseline;
+  border-left: 3px solid transparent;
+  font-size: 13px;
+}
+
+.konsol-yuzalar li.ochiq {
+  border-left-color: color-mix(in srgb, var(--accent) 55%, green);
+}
+
+.konsol-yuzalar li.yopiq {
+  border-left-color: #b8860b;
+}
+
+.konsol-yuzalar .nom {
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 12.5px;
+}
+
+.konsol-yuzalar .holat {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.konsol-yuzalar .sabab {
+  grid-column: 1 / -1;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}

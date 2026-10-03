@@ -218,6 +218,44 @@ models:
 # Rol adapterlari — Faza 4 da o'qitiladi (ADR-003)
 # Baza model xotirada qoladi, faqat 40 MB lik adapter almashadi
 # --------------------------------------------------------------------- #
+  # ------------------------------------------------------------------ #
+  # TSUL AI server (ai-cam-server) — allaqachon ishlab turgan vLLM lar.
+  #
+  # Bu yozuvlar YANGI GPU BAND QILMAYDI. Mashinada boshqa jamoalarning
+  # ishlab chiqarish yuklamasi turibdi va u to'rtta vLLM xizmatini
+  # ko'taradi; biz shulardan ikkitasiga HTTP orqali murojaat qilamiz.
+  # `endpoint` berilgani uchun registry bu modellarni "yuklab olish"
+  # kerak deb hisoblamaydi.
+  # ------------------------------------------------------------------ #
+  tsulai-qwen38-27b:
+    display_name: "Qwen3.8 27B AWQ (TSUL vLLM)"
+    backend: openai
+    hf_id: qwen3.8-27b
+    endpoint: http://127.0.0.1:8410/v1
+    params: "27B"
+    quant_bits: 4
+    context_length: 16384
+    license: Apache-2.0
+    default_temperature: 0.3
+    strengths: [apache_license, kuchli_model, gpu_da_tayyor]
+    risks: [boshqa_jamoalar_bilan_bolishiladi]
+    note: "vLLM --max-model-len 16384, GPU 3 da. Navbat boshqalar bilan umumiy."
+    disable_thinking: true
+
+  tsulai-gemma4-31b:
+    display_name: "Gemma 4 31B IT (TSUL vLLM)"
+    backend: openai
+    hf_id: gemma4-31b
+    endpoint: http://127.0.0.1:8204/v1
+    params: "31B"
+    context_length: 16384
+    license: Gemma
+    default_temperature: 0.3
+    strengths: [kuchli_model, gpu_da_tayyor]
+    risks: [tensor_parallel_2_gpu, boshqa_jamoalar_bilan_bolishiladi]
+    note: "GPU 1 va 2 da tensor-parallel. Zaxira variant."
+
+
 adapters: {}
 #  advocate:
 #    path: adapters/advocate/current

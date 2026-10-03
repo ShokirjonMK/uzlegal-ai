@@ -89,7 +89,15 @@ api:
   port: 8080
   auth: none
   cors_origins: ["http://localhost:3000"]
-  rate_limit: null
+  # Chastota cheklovi lokal ishda o'chiq — o'zingizni cheklash ma'nosiz.
+  #
+  # LEKIN `max_concurrent` QOLADI. Sabab: u boshqa narsadan himoya
+  # qiladi. Chastota so'rovlarni sanaydi, bu esa ular qancha TURISHINI
+  # hisobga oladi. Audit jurnalida `/v1/consult` p95 = 149 s — ya'ni
+  # bir nechta bir vaqtdagi so'rov lokal mashinani ham qotirib qo'yadi
+  # va buni sinov paytida his qilgan ma'qul, ishga tushirganda emas.
+  rate_limit:
+    max_concurrent: 2
 
 web:
   enabled: true

@@ -893,20 +893,35 @@ button.norma-namuna-tugma {
   line-height: 1.4;
 }
 
+/* Holat belgisi NEYTRAL rangda.
+   Ilgari u yashil («muvaffaqiyat») edi va tasdiq kabi oʻqilardi. Lekin
+   `in_force` — standart qiymat, tekshiruv natijasi emas: 48 932
+   boʻlakdan 48 908 tasi shunday. Yashil rang oʻlchov qoʻllab-quvvatlamaydigan
+   ishonch berardi. Bekor qilingani ANIQLANGAN holat esa qizil qoladi —
+   u haqiqiy topilma. */
 .norma-holat {
   font-size: 11px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 2px 7px;
   border-radius: var(--radius);
-  background: var(--ok-soft);
-  color: var(--ok);
+  background: var(--bg-soft);
+  color: var(--text-faint);
+  border: 1px solid var(--border);
   white-space: nowrap;
 }
 
 .norma-holat.bekor {
   background: var(--danger-soft);
   color: var(--danger);
+  border-color: var(--danger);
+}
+
+.norma-ogoh-holat {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--text-faint);
+  line-height: 1.55;
 }
 
 .norma-sana {
@@ -963,4 +978,119 @@ button.norma-namuna-tugma {
   font-size: 13.5px;
   color: var(--text-dim);
   line-height: 1.55;
+}
+
+/* ── Vaqtincha yopilgan boʻlim ──────────────────────────────────────────
+   Holat chap chekkadagi chiziq bilan koʻrsatiladi, fon bilan emas —
+   `.norma` va admin paneldagi bilan bir xil naqsh. Toʻldirilgan rang
+   panelni «xato» kabi koʻrsatardi, holbuki bu ataylab qilingan qaror. */
+
+.yopiq {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+  padding: 18px 20px;
+  margin-top: 18px;
+}
+
+.yopiq-sabab {
+  margin: 0 0 12px;
+  color: var(--text);
+}
+
+.yopiq-taklif {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+/* ── Huquqiy hujjat sahifalari (/shartlar, /maxfiylik) ──────────────────
+   Oʻqish uchun moʻljallangan uzun matn: qator uzunligi cheklanadi va
+   sarlavhalar orasidagi masofa kattaroq. `.shell` ning 880px i uzun
+   matn uchun keng — koʻz qatordan qatorga sakraganda adashadi. */
+
+.hujjat {
+  max-width: 62ch;
+}
+
+.hujjat h2 {
+  margin: 32px 0 10px;
+  font-size: 17px;
+}
+
+.hujjat p {
+  margin: 0 0 12px;
+  line-height: 1.7;
+}
+
+.hujjat ul {
+  margin: 0 0 14px;
+  padding-left: 22px;
+  line-height: 1.7;
+}
+
+.hujjat li {
+  margin-bottom: 5px;
+}
+
+.hujjat-izoh {
+  font-size: 14px;
+  color: var(--text-dim);
+  border-left: 2px solid var(--border-strong);
+  padding-left: 14px;
+}
+
+/* Tasdiqlanmagan hujjat belgisi. Chap chekkadagi chiziq bilan —
+   loyihadagi boshqa holat belgilari bilan bir xil naqsh. */
+.hujjat-ogoh {
+  margin-top: 28px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+  font-size: 14px;
+}
+
+.hujjat-havola {
+  margin-top: 18px;
+  font-size: 14px;
+}
+
+/* ── Sahifa asosi (footer) ──────────────────────────────────────────────
+   Ogohlantirish HAVOLALAR BILAN BIR QATORDA turadi — pastda alohida
+   mayda yozuv sifatida emas. Sabab: mahsulotning eng muhim cheklovi
+   («maslahat emas») koʻz ilgʻamaydigan joyga tushmasligi kerak. */
+
+.asos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  margin-top: 56px;
+  padding-top: 18px;
+  padding-bottom: 32px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.asos a {
+  color: var(--text-dim);
+}
+
+.asos a:hover {
+  color: var(--accent);
+}
+
+.asos-ogoh {
+  color: var(--text-faint);
+  margin-left: auto;
+}
+
+@media (max-width: 520px) {
+  .asos-ogoh {
+    margin-left: 0;
+    width: 100%;
+  }
 }

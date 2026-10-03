@@ -17,6 +17,15 @@ import { apiJson, humanError } from "@/lib/ui/fetch";
  * DIZAYN QOIDASI. «Bu javob emas, bu norma» degani KOʻRINISHDA boʻlishi
  * kerak — matn ostidagi mayda izohda emas. Foydalanuvchi izohni
  * oʻqimasligi mumkin, lekin sahifaning shaklini koʻrmasligi mumkin emas.
+ *
+ * HOLAT BELGISI HAQIDA. Ilgari bu yerda yashil «amalda» yozuvi turardi.
+ * U OLIB TASHLANDI, chunki oʻlchov uni yolgʻon deb koʻrsatdi: indeksdagi
+ * 48 932 boʻlakning 48 908 tasi (99.95%) `in_force` — bu tekshirilgani
+ * uchun emas, STANDART QIYMAT boʻlgani uchun. Parser faqat hujjat
+ * matnida bekor qilish belgisini topsa holatni oʻzgartiradi.
+ *
+ * Yaʼni «amalda» foydalanuvchiga tasdiq kabi koʻrinardi, aslida esa
+ * «biz teskarisini topmadik» degani edi. Endi shunday deb yoziladi.
  */
 
 interface Natija {
@@ -158,10 +167,11 @@ export default function NormaSahifasi() {
               <li key={r.chunk_id} className="norma">
                 <div className="norma-bosh">
                   <h2>{r.citation || `${r.document}, ${r.article}-${r.unit || "modda"}`}</h2>
-                  {r.status !== "in_force" && (
+                  {r.status !== "in_force" ? (
                     <span className="norma-holat bekor">bekor qilingan</span>
+                  ) : (
+                    <span className="norma-holat">bekor qilinmagan</span>
                   )}
-                  {r.status === "in_force" && <span className="norma-holat">amalda</span>}
                 </div>
                 {r.valid_from && (
                   <p className="norma-sana">Kuchga kirgan: {r.valid_from}</p>
@@ -179,6 +189,13 @@ export default function NormaSahifasi() {
             Yuqoridagi matn qonunning oʻzi. Uni <strong>talqin qilish</strong> —
             yuristning ishi. Tizim sizga qaysi normani oʻqish kerakligini
             koʻrsatadi, uning maʼnosini tushuntirmaydi.
+          </p>
+          <p className="norma-ogoh-holat">
+            «Bekor qilinmagan» degani — hujjat matnida bekor qilish haqida
+            belgi <strong>topilmadi</strong>. Bu alohida reestr boʻyicha
+            tekshirilgan tasdiq emas. Muhim ishda amaldagi tahrirni{" "}
+            <a href="https://lex.uz" target="_blank" rel="noreferrer">lex.uz</a>{" "}
+            da tasdiqlang.
           </p>
         </>
       )}

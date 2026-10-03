@@ -16,6 +16,11 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "httpx>=0.28",
+    # Javob pasporti (`passport.py`) Ed25519 bilan imzolaydi. Ilgari bu
+    # yerda e'lon qilinmagan edi: mualliflik mashinasida u boshqa paket
+    # orqali kelgan, toza muhitda esa yo'q edi va pasport jimgina
+    # ishlamasdi ("Pasport berilmadi: No module named 'cryptography'").
+    "cryptography>=43",
 ]
 
 [project.optional-dependencies]

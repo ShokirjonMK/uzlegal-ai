@@ -19,10 +19,10 @@ Imzo faqat muallifning shaxsiy kaliti bilan yaratiladi — boshqa hech kim
 ### Ochiq kalit (Public Key)
 
 ```
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICW+kZ5h4kDz2z7a9FyWgoAnf5Yx3SnuTg4yKDrzz6iD
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINT0Dzb7SrZOP5Z/Tqz4VA3qVRSTSCwbLTzB6P/3wrmz
 ```
 
-**Fingerprint:** `SHA256:R4s0AF7cVC018xjK1s3jLusb67r/JoLXFqYKo2WlHkI`
+**Fingerprint:** `SHA256:mwL9hmF/G8XF84g4ewAwlHbrAokdTzWVKixP+L8dwH0`
 
 ### Tekshirish
 

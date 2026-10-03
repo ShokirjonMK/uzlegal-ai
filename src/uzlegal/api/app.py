@@ -934,6 +934,32 @@ def audit_status() -> dict[str, Any]:
     return {"stats": audit.stats(), "chain": audit.verify_chain()}
 
 
+@app.get("/v1/admin/quality", tags=["admin"])
+def quality_summary() -> dict[str, Any]:
+    """Sifat hisoboti — darvoza, kechikish, iqtiboslar va tendensiya.
+
+    Manba: audit jurnali. Hisoblash `api/quality.py` da — u yerda
+    nima uchun aynan shu raqamlar tanlangani ham yozilgan.
+    """
+    from uzlegal.api import quality
+
+    return quality.summary()
+
+
+@app.get("/v1/admin/questions", tags=["admin"])
+def quality_questions(
+    limit: int = 50,
+    offset: int = 0,
+    filtr: str = "",
+) -> dict[str, Any]:
+    """Maskalangan savollar roʻyxati — yopiq sinov (A4) uchun asbob."""
+    from uzlegal.api import quality
+
+    # Chegara ATAYLAB qattiq: panel bir marta minglab yozuv soʻrab
+    # brauzerni qotirib qoʻymasin. Sahifalash `offset` bilan.
+    return quality.records(limit=max(1, min(limit, 200)), offset=max(0, offset), filtr=filtr)
+
+
 @app.get("/v1/traces/{trace_id}", tags=["admin"])
 def get_trace(trace_id: str) -> dict[str, Any]:
     """Bitta maslahatning audit yozuvi.

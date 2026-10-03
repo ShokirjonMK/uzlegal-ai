@@ -15,8 +15,11 @@ from uzlegal.index.chunker import (
     _PART_RE,
     HARD_MAX_CHARS,
     HARD_MAX_TOKENS,
+    STEM_MAX,
+    Chunk,
     Chunker,
     _split_oversized,
+    _stem_of,
     estimate_tokens,
     split_by,
 )
@@ -382,3 +385,87 @@ def test_bugungi_sana_yoziladi() -> None:
 def test_sanasiz_hujjatda_bolak_ham_sanasiz() -> None:
     chunks = Chunker(today=BUGUN).chunk_document(_sanali_hujjat(None))
     assert chunks[0].valid_from is None
+
+
+# --------------------------------------------------------------------------- #
+# Kirish jumlasi (`stem`)
+#
+# Ro'yxatli modda bo'laklarga bo'linganda bandlar o'z ma'nosini beruvchi
+# jumladan uziladi. O'lchandi (2026-08-25): 18 510 `part` bo'lagining
+# 8 671 tasi 200 belgidan qisqa.
+# --------------------------------------------------------------------------- #
+
+
+def _royxatli_modda() -> str:
+    return (
+        "Tergovga qadar tekshiruv quyidagilar tomonidan amalga oshiriladi:\n"
+        "1. ichki ishlar organlari;\n"
+        "2. davlat xavfsizlik xizmati;\n"
+        "3. olis safarda boʻlgan dengiz kemalarining kapitanlari;\n"
+    )
+
+
+def test_kirish_jumlasi_ajratiladi() -> None:
+    parts = split_by(_PART_RE, _royxatli_modda())
+    stem = _stem_of(parts)
+    assert stem.startswith("Tergovga qadar tekshiruv")
+    assert "quyidagilar" in stem
+
+
+def test_belgisiz_matnda_kirish_yoq() -> None:
+    """Bo'linmagan matn o'z matnini kirish sifatida OLMASLIGI kerak.
+
+    Aks holda modda o'z matnini qidiruv matniga ikki marta qo'shardi
+    va BM25 da sun'iy og'irlik olardi."""
+    parts = split_by(_PART_RE, "Oddiy modda matni, hech qanday ro'yxatsiz.")
+    assert len(parts) == 1
+    assert _stem_of(parts) == ""
+
+
+def test_royxat_darrov_boshlansa_kirish_yoq() -> None:
+    parts = split_by(_PART_RE, "1. birinchi;\n2. ikkinchi;\n")
+    assert _stem_of(parts) == ""
+
+
+def test_kirish_uzunligi_cheklanadi() -> None:
+    uzun = "A" * 1000
+    parts = split_by(_PART_RE, f"{uzun}\n1. birinchi;\n2. ikkinchi;\n")
+    assert len(_stem_of(parts)) == STEM_MAX
+
+
+def test_qidiruv_matnida_kirish_bor_kontentda_yoq() -> None:
+    """Eng muhim tekshiruv: `content` O'ZGARMAYDI.
+
+    `content` foydalanuvchiga ko'rsatiladi va iqtibos matni sifatida
+    ishlatiladi. Unga kirish jumlasi qo'shilsa norma bor narsadan
+    boshqacha ko'rinardi."""
+    chunk = Chunk(
+        chunk_id="x:1:3",
+        doc_id="x",
+        doc_title="Sinov kodeksi",
+        doc_type="kodeks",
+        lang="uz",
+        heading="[Sinov kodeksi > 1-modda]",
+        content="3. olis safarda boʻlgan kemalar kapitanlari;",
+        token_count=8,
+        kind="part",
+        stem="Tergovga qadar tekshiruv quyidagilar tomonidan amalga oshiriladi:",
+    )
+    assert "Tergovga qadar" in chunk.indexed_text
+    assert "Tergovga qadar" not in chunk.content
+    assert chunk.content == "3. olis safarda boʻlgan kemalar kapitanlari;"
+
+
+def test_kirishsiz_chunk_ortiqcha_qator_qoshmaydi() -> None:
+    """`stem` bo'sh bo'lsa qidiruv matni avvalgidek qolsin."""
+    chunk = Chunk(
+        chunk_id="x:1",
+        doc_id="x",
+        doc_title="Sinov kodeksi",
+        doc_type="kodeks",
+        lang="uz",
+        heading="[Sinov kodeksi > 1-modda]",
+        content="Modda matni.",
+        token_count=2,
+    )
+    assert chunk.indexed_text == "[Sinov kodeksi > 1-modda]\n\nModda matni."

@@ -84,6 +84,15 @@ api:
   rate_limit:
     per_key_daily: 1000
     per_ip_minute: 60
+    # Bir vaqtda bajariladigan QIMMAT so'rovlar soni (model chaqiradiganlar).
+    #
+    # `per_ip_minute: 60` buni QOPLAMAYDI: 60 ta so'rov o'tishi mumkin va
+    # ularning har biri 149 soniyagacha protsessorni band qiladi (o'lchangan
+    # p95). Ya'ni chegara hurmat qilingan holda ham mashina o'ladi.
+    #
+    # Qiymat GPU soniga qarab qo'yiladi: bitta GPU — 2, ikkita — 4.
+    # `0` — cheklov yo'q (faqat alohida inference klasteri bo'lganda).
+    max_concurrent: 2
   max_upload_mb: 20
 
 observability:

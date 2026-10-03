@@ -24,6 +24,7 @@ shuning uchun matn izchil.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -53,6 +54,59 @@ CHARS_PER_TOKEN = 3
 # (485 mln) esa 2 292 belgi/s — 15 BAROBAR sekin, chunki VRAM to'lib
 # PCIe orqali tizim xotirasiga to'kilgan. Chegara ikkalasining orasida.
 ATTENTION_BUDGET_PER_GB = 30_000_000
+
+# Katalog to'liq deb hisoblanishi uchun shu fayllar bo'lishi shart.
+# `modules.json` — sentence-transformers tuzilmasi, qolgani — vaznlar.
+# Vazn fayli ikki formatdan birida bo'ladi, shuning uchun ular ALTERNATIV.
+_SNAPSHOT_REQUIRED = ("modules.json", "config.json")
+_SNAPSHOT_WEIGHTS = ("model.safetensors", "pytorch_model.bin")
+
+
+def local_snapshot(model_id: str) -> Path | None:
+    """HuggingFace keshidagi TO'LIQ snapshot katalogini topadi.
+
+    `None` — kesh yo'q yoki to'liq emas; chaqiruvchi tarmoqqa chiqadi.
+
+    ## Nima uchun «to'liq» tekshiruvi kerak
+
+    O'lchandi (2026-08-25): bge-m3 keshi bu mashinada **ikkita
+    snapshotga bo'lingan** edi — birida `config.json` va tokenizer,
+    ikkinchisida faqat `model.safetensors`. Birinchisini ko'rib
+    «kesh bor» deb qaytarish modelni vaznsiz yuklashga urinishga
+    olib kelardi.
+
+    Shuning uchun katalog faqat tuzilma fayllari **va** vazn fayli
+    birga bo'lgandagina qabul qilinadi.
+    """
+    import os
+
+    override = os.getenv("UZLEGAL_EMBED_PATH")
+    if override:
+        path = Path(override)
+        return path if path.is_dir() else None
+
+    # `HF_HUB_CACHE` → `HF_HOME/hub` → `~/.cache/huggingface/hub`.
+    # Tartib kutubxonaning o'zinikiga mos, aks holda foydalanuvchi
+    # keshni ko'chirganda biz uni topa olmasdik.
+    if cache_env := os.getenv("HF_HUB_CACHE"):
+        hub = Path(cache_env)
+    elif home_env := os.getenv("HF_HOME"):
+        hub = Path(home_env) / "hub"
+    else:
+        hub = Path.home() / ".cache" / "huggingface" / "hub"
+
+    repo = hub / f"models--{model_id.replace('/', '--')}" / "snapshots"
+    if not repo.is_dir():
+        return None
+
+    for snapshot in sorted(repo.iterdir(), reverse=True):
+        if not snapshot.is_dir():
+            continue
+        if not all((snapshot / name).exists() for name in _SNAPSHOT_REQUIRED):
+            continue
+        if any((snapshot / name).exists() for name in _SNAPSHOT_WEIGHTS):
+            return snapshot
+    return None
 
 
 class Embedder:
@@ -138,8 +192,77 @@ class Embedder:
             self.device,
             "fp16" if kwargs else "fp32",
         )
-        self._model = SentenceTransformer(self.model_id, device=self.device, **kwargs)
+        self._model = self._construct(SentenceTransformer, kwargs)
         self._model.max_seq_length = MAX_LENGTH
+
+    def _construct(self, cls: Any, kwargs: dict[str, Any]) -> Any:
+        """Modelni AVVAL keshdan, kesh bo'lmasa tarmoqdan yuklaydi.
+
+        ## Nima uchun bu kerak
+
+        O'lchandi (2026-08-25): har bir SOVUQ qidiruv `huggingface.co`
+        ga **~25 ta HTTPS so'rov** yuborardi — fayllar allaqachon keshda
+        bo'lsa ham. Kutubxona har safar «kesh eskirmadimi» deb tekshiradi.
+
+        Uch oqibati bor edi:
+
+        | Oqibat | Nima uchun muhim |
+        |--------|------------------|
+        | Sovuq qidiruv 20.2 s | Tekshiruvlar ketma-ket ketadi |
+        | Internetsiz ishlamaydi | Ichki tarmoqdagi o'rnatish uchun halokatli |
+        | Har ishga tushish tashqariga ko'rinadi | Suveren tizim uchun maxfiylik masalasi |
+
+        ## Nima uchun `HF_HUB_OFFLINE` global o'rnatilmadi
+
+        Vasvasa aniq edi: muhit o'zgaruvchisini bir marta qo'yish. Lekin
+        u BIRINCHI o'rnatishni ham buzardi — kesh bo'sh mashinada model
+        umuman yuklanmasdi va xato tushunarsiz bo'lardi
+        («model topilmadi», sababi aytilmaydi).
+
+        Shuning uchun tartib teskari: avval keshdan urinamiz, faqat
+        topilmasa tarmoqqa chiqamiz. Natijada odatiy ish tarmoqsiz
+        ketadi, birinchi o'rnatish esa avvalgidek ishlaydi.
+
+        `UZLEGAL_EMBED_ONLINE=1` — keshni butunlay chetlab o'tish
+        (modelni yangilash kerak bo'lganda).
+
+        ## Nima uchun bayroqlar YETARLI EMAS, yo'l esa yetarli
+
+        Ikkita yumshoqroq yechim sinaldi va ikkalasi ham yetmadi:
+
+        | Urinish | Natija |
+        |---------|--------|
+        | `local_files_only=True` | 25 → 5 so'rov |
+        | `HF_HUB_OFFLINE=1` ham qo'shildi | 5 so'rov — o'zgarmadi |
+
+        Qolgan beshtasi `sentence_transformers` ning ichki yo'lidan
+        keladi (`discussions`, `refs/pr/130` — safetensors variantini
+        qidirish) va u `httpx` ni to'g'ridan-to'g'ri chaqiradi, ya'ni
+        hub ning offline bayrog'ini umuman ko'rmaydi.
+
+        Model identifikatori o'rniga **katalog yo'li** berilsa, bu
+        qidiruvning o'zi boshlanmaydi: kutubxona omborni izlamaydi,
+        chunki izlaydigan narsa yo'q. O'lchandi — **0 so'rov, 3.6 s**
+        (avval 5 so'rov, 13.5 s).
+
+        Kesh topilmasa avvalgi xatti-harakat saqlanadi: identifikator
+        bilan tarmoqqa chiqiladi. Birinchi o'rnatish shuning uchun
+        buzilmaydi.
+        """
+        import os
+
+        if os.getenv("UZLEGAL_EMBED_ONLINE") == "1":
+            return cls(self.model_id, device=self.device, **kwargs)
+
+        local = local_snapshot(self.model_id)
+        if local is not None:
+            log.debug("Model lokal keshdan yuklanmoqda: %s", local)
+            return cls(str(local), device=self.device, **kwargs)
+
+        log.warning(
+            "Model keshda topilmadi — tarmoqdan yuklanmoqda. Bu faqat birinchi marta sodir bo'ladi."
+        )
+        return cls(self.model_id, device=self.device, **kwargs)
 
     def _memory_budget(self) -> float:
         """Attention uchun ajratilgan byudjet (`batch × seq²` birligida).

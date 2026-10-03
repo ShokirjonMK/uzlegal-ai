@@ -6,6 +6,7 @@ import { recordAiCall } from "@/lib/db/log";
 import { tapStream } from "@/lib/db/tap";
 import { resultToDocx, safeFilename } from "@/lib/util/docx";
 import { errorJson, sseResponse } from "@/lib/util/sse";
+import { yopiqSababi } from "@/lib/features";
 import { TEMPLATE_LIST } from "@/lib/prompts";
 import type { GenerateRequest } from "@/lib/types";
 
@@ -15,6 +16,8 @@ export const maxDuration = 300;
 
 /** GET /api/generate — mavjud shablonlar ro'yxati. */
 export async function GET(): Promise<Response> {
+  const yopiq = yopiqSababi("hujjat");
+  if (yopiq) return errorJson(yopiq, 503);
   return Response.json({ templates: TEMPLATE_LIST });
 }
 
@@ -28,6 +31,15 @@ export async function GET(): Promise<Response> {
  */
 export async function POST(request: Request): Promise<Response> {
   if (!checkApiKey(request)) return errorJson("Ruxsat yoʻq.", 401);
+
+  // Yuza yopiq boʻlsa — hech narsa bajarilmaydi.
+  //
+  // NEGA MARSHRUTDA, NEGA FAQAT SAHIFADA EMAS. Sahifani yashirish
+  // koʻrinishni oʻzgartiradi, himoyani emas: marshrutga `curl` bilan
+  // ham, eski xatcho'p bilan ham murojaat qilish mumkin. Haqiqiy
+  // chegara shu yerda.
+  const yopiq = yopiqSababi("hujjat");
+  if (yopiq) return errorJson(yopiq, 503);
 
   const format = new URL(request.url).searchParams.get("format") ?? "json";
 
